@@ -11,7 +11,7 @@ permissions:
 jobs:
   build:
     name: Check and build the installer binary
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # This job installs the dependencies and runs their code, so its token only reads.
     permissions:
       contents: read
@@ -90,7 +90,7 @@ jobs:
   publish:
     name: Attest and publish the installer release
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
       # The attestation step needs id-token to sign with this job's OIDC identity, and attestations to store what it signs.

@@ -173,6 +173,11 @@ function blockOf(step: string[], key: string): string[] {
   return body.map(line => line.slice(indent))
 }
 
+/** The source of a regular expression that matches `text` alone: every special character escaped, the backslash too. */
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 interface StepRun {
   status: number | null
   stdout: string
@@ -346,7 +351,7 @@ describe('.github/workflows', () => {
 
     const published = run('v1.0.0', 0, '')
     expect(published.status).toBe(1)
-    expect(published.stdout).toMatch(new RegExp(`^::error::${reference.replace(/[.]/g, '\\.')} already exists`, 'm'))
+    expect(published.stdout).toMatch(new RegExp(`^::error::${escapeRegExp(reference)} already exists`, 'm'))
 
     // A lookup that fails for any other reason, such as a refused token, does not tell that the version is free.
     const refused = run('v1.0.0', 1, 'ERROR: failed to authorize: failed to fetch anonymous token: 403 Forbidden')
@@ -561,6 +566,15 @@ describe('.github/workflows', () => {
     }
   })
 
+  it('every job of every workflow runs on a pinned runner image, ubuntu-24.04 or ubuntu-24.04-arm, and none on a *-latest label', () => {
+    // GitHub moves a *-latest label to a newer image on its own schedule, which changes the system and the tools under
+    // every job at once, so each job names the image it runs on.
+    const jobs = readdirSync(WORKFLOWS).filter(file => file.endsWith('.yml')).flatMap(file =>
+      jobsOf(readWorkflow(file)).map(job => ({ job: `${file}: ${job.name}`, runsOn: jobValueOf(job, 'runs-on') })))
+    expect(jobs.length, 'a job').toBeGreaterThan(0)
+    expect(jobs.filter(({ runsOn }) => runsOn !== 'ubuntu-24.04' && runsOn !== 'ubuntu-24.04-arm')).toEqual([])
+  })
+
   it('installer-e2e.yml hands the Docker end-to-end tests the license of the secret LIBREDB_E2E_LICENSE in a 0600 file, and notes the skipped test without it', () => {
     const docker = jobsOf(readWorkflow('installer-e2e.yml')).find(job => job.name === 'docker')
     expect(docker, 'a docker job').toBeDefined()
@@ -597,6 +611,32 @@ describe('.github/workflows', () => {
     for (const { index, command } of platformRuns) {
       expect(index, command).toBeGreaterThan(write)
       expect(command).toMatch(/^sudo env "LIBREDB_E2E_LICENSE_FILE=\$LIBREDB_E2E_LICENSE_FILE" "\$\(command -v bun\)" test /)
+    }
+  })
+})
+
+describe('escapeRegExp', () => {
+  it('makes a regular expression that matches its text alone, a backslash and every other special character included', () => {
+    // The u flag refuses a lone { } or ], which an expression without it takes literally.
+    const literal = (text: string) => new RegExp(`^${escapeRegExp(text)}$`, 'u')
+    // Each text holds a special character, next to a text that the expression would match with that character left
+    // unescaped: the backslash of C:\d would make \d match any digit.
+    const texts: [text: string, unescapedMatch: string][] = [
+      [String.raw`C:\d`, 'C:5'],
+      ['a.b', 'axb'],
+      ['a*', 'aa'],
+      ['a+', 'aa'],
+      ['a?', ''],
+      ['a{2}', 'aa'],
+      ['(a)', 'a'],
+      ['[ab]', 'a'],
+      ['a|b', 'a'],
+      ['^a', 'a'],
+      ['a$', 'a'],
+    ]
+    for (const [text, unescapedMatch] of texts) {
+      expect(text).toMatch(literal(text))
+      expect(unescapedMatch).not.toMatch(literal(text))
     }
   })
 })

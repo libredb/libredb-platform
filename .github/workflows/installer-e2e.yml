@@ -15,7 +15,7 @@ permissions:
 jobs:
   postgres:
     name: PostgreSQL integration tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     defaults:
       run:
@@ -35,7 +35,7 @@ jobs:
 
   docker:
     name: Docker end-to-end tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Its steps took about 60 minutes in a Docker-in-Docker host on 2026-10-17, so the first runs on a GitHub runner get
     # room to finish instead of failing on time alone.
     timeout-minutes: 90
