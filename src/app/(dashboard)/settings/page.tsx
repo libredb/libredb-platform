@@ -23,7 +23,6 @@ export default async function SettingsPage() {
     select: {
       name: true,
       logoUrl: true,
-      settings: true,
     },
   })
 
@@ -39,7 +38,6 @@ export default async function SettingsPage() {
           tenant={{
             name: tenant.name,
             logoUrl: tenant.logoUrl,
-            settings: tenant.settings as Record<string, unknown> | null,
           }}
         />
       ) : (
@@ -51,12 +49,6 @@ export default async function SettingsPage() {
           <div>
             <p className="text-sm font-medium text-muted-foreground">Logo URL</p>
             <p className="text-sm">{tenant.logoUrl ?? 'Not set'}</p>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">Default Locale</p>
-            <p className="text-sm">
-              {(tenant.settings as any)?.locale === 'tr' ? 'Turkish' : 'English'}
-            </p>
           </div>
         </div>
       )}
