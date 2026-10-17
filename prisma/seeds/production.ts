@@ -82,7 +82,7 @@ async function seedBootstrapAdmin(admin: BootstrapAdmin, platformTenantId: strin
     select: { userId: true },
   })
   if (existing) {
-    console.log('  ✓ Platform admin exists, left unchanged')
+    console.log('  - Platform admin exists, left unchanged')
     return existing.userId
   }
 
@@ -110,12 +110,12 @@ async function seedBootstrapAdmin(admin: BootstrapAdmin, platformTenantId: strin
     })
     return user
   })
-  console.log('  ✓ Platform admin user + membership')
+  console.log('  - Platform admin user + membership')
   return adminUser.id
 }
 
 export async function seedProduction() {
-  console.log('🌱 Seeding production data...')
+  console.log('Seeding production data...')
 
   // Read and checked before the first write, so a misconfigured seed changes nothing.
   const selfHosted = parseDeploymentMode(process.env.DEPLOYMENT_MODE) === 'self-hosted'
@@ -140,7 +140,7 @@ export async function seedProduction() {
       create: plan,
     })
   }
-  console.log('  ✓ Plan configs')
+  console.log('  - Plan configs')
 
   // 2. Permissions
   for (const [, code] of Object.entries(PERMISSIONS)) {
@@ -151,7 +151,7 @@ export async function seedProduction() {
       create: { code, name: code, category },
     })
   }
-  console.log('  ✓ Permissions')
+  console.log('  - Permissions')
 
   // 3. System Roles (tenantId is null for system roles)
   for (const [, code] of Object.entries(SYSTEM_ROLES)) {
@@ -164,7 +164,7 @@ export async function seedProduction() {
       await db.role.create({ data: { code, name: code, isSystem: true } })
     }
   }
-  console.log('  ✓ System roles')
+  console.log('  - System roles')
 
   // 4. Role-Permission assignments
   for (const [roleCode, permCodes] of Object.entries(ROLE_PERMISSIONS)) {
@@ -186,7 +186,7 @@ export async function seedProduction() {
       }
     }
   }
-  console.log('  ✓ Role-permission assignments')
+  console.log('  - Role-permission assignments')
 
   // 5. The tenants: one install tenant in self-hosted mode, or the "LibreDB Platform" system tenant for platform admins
   // and the bootstrap admin in cloud mode
@@ -204,7 +204,7 @@ export async function seedProduction() {
         planConfigId: enterprisePlan.id,
       },
     })
-    console.log('  ✓ Install tenant')
+    console.log('  - Install tenant')
 
     // The governance default for statement capture is redacted, which keeps statements searchable by table and column
     // without their literals (Studio's GOVERNANCE.md). It is inserted once, and a later run never overwrites a value an
@@ -213,7 +213,7 @@ export async function seedProduction() {
       data: [{ key: 'queryLog.statementCapture', value: 'redacted', updatedBy: SEED_SETTINGS_AUTHOR }],
       skipDuplicates: true,
     })
-    console.log('  ✓ Studio settings')
+    console.log('  - Studio settings')
   } else {
     const platformTenant = await db.tenant.upsert({
       where: { slug: 'libredb-platform' },
@@ -225,7 +225,7 @@ export async function seedProduction() {
         planConfigId: enterprisePlan.id,
       },
     })
-    console.log('  ✓ Platform tenant')
+    console.log('  - Platform tenant')
 
     if (bootstrapAdmin) {
       adminUserId = await seedBootstrapAdmin(bootstrapAdmin, platformTenant.id)
@@ -296,7 +296,7 @@ export async function seedProduction() {
       })
     }
   }
-  console.log('  ✓ Reference types & values')
+  console.log('  - Reference types & values')
 
   // 7. Menus
   // STUDIO has no stored URL: getAuthorizedMenus resolves it from STUDIO_PUBLIC_URL at request time.
@@ -345,7 +345,7 @@ export async function seedProduction() {
       })
     }
   }
-  console.log('  ✓ Menus')
+  console.log('  - Menus')
 
   // 8. Menu-Role assignments
   const menuRoleMap: Record<string, string[]> = {
@@ -386,7 +386,7 @@ export async function seedProduction() {
       }
     }
   }
-  console.log('  ✓ Menu-role assignments')
+  console.log('  - Menu-role assignments')
 
   // 9. Achievement Definitions
   for (let i = 0; i < ACHIEVEMENTS.length; i++) {
@@ -397,7 +397,7 @@ export async function seedProduction() {
       create: { code: a.code, name: a.name, description: a.description, icon: a.icon, category: a.category, threshold: a.threshold, xp: a.xp, sortOrder: i },
     })
   }
-  console.log('  ✓ Achievement definitions')
+  console.log('  - Achievement definitions')
 
   // 10. Platform-wide support tags (tenantId = null)
   const platformTags = [
@@ -425,7 +425,7 @@ export async function seedProduction() {
       })
     }
   }
-  console.log('  ✓ Platform-wide support tags')
+  console.log('  - Platform-wide support tags')
 
-  console.log('✅ Production seed complete')
+  console.log('Production seed complete')
 }

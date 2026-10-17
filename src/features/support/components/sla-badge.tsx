@@ -1,5 +1,6 @@
 'use client'
 
+import { CheckIcon, CircleAlertIcon, TimerIcon } from 'lucide-react'
 import { calculateSlaStatus } from '@/features/support/lib/support-sla'
 
 interface SlaBadgeProps {
@@ -33,16 +34,16 @@ export function SlaBadge({ ticket }: SlaBadgeProps) {
   })
 
   if (s.firstResponse && 'overdue' in s.firstResponse && s.firstResponse.overdue) {
-    return <span className="text-destructive">🔴 {fmt(-s.firstResponse.remainingMs)} overdue · first response SLA</span>
+    return <span className="inline-flex items-center gap-1 text-destructive"><CircleAlertIcon className="size-3" aria-hidden /> {fmt(-s.firstResponse.remainingMs)} overdue · first response SLA</span>
   }
   if (s.firstResponse && 'overdue' in s.firstResponse) {
-    return <span>⏱ {fmt(s.firstResponse.remainingMs)} · first response</span>
+    return <span className="inline-flex items-center gap-1"><TimerIcon className="size-3" aria-hidden /> {fmt(s.firstResponse.remainingMs)} · first response</span>
   }
   if ('overdue' in s.resolution && s.resolution.overdue) {
-    return <span className="text-destructive">🔴 {fmt(-s.resolution.remainingMs)} overdue · resolution SLA</span>
+    return <span className="inline-flex items-center gap-1 text-destructive"><CircleAlertIcon className="size-3" aria-hidden /> {fmt(-s.resolution.remainingMs)} overdue · resolution SLA</span>
   }
   if ('overdue' in s.resolution) {
-    return <span>⏱ {fmt(s.resolution.remainingMs)} · resolution</span>
+    return <span className="inline-flex items-center gap-1"><TimerIcon className="size-3" aria-hidden /> {fmt(s.resolution.remainingMs)} · resolution</span>
   }
-  return <span className="text-muted-foreground">✓ SLA met</span>
+  return <span className="inline-flex items-center gap-1 text-muted-foreground"><CheckIcon className="size-3" aria-hidden /> SLA met</span>
 }
