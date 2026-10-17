@@ -16,6 +16,7 @@ export function InboxList() {
   const pathname = usePathname()
   const [q, setQ] = useState(sp.get('q') ?? '')
   const [selectedIdx, setSelectedIdx] = useState(0)
+  const ticketCount = data?.tickets?.length ?? 0
 
   useHotkeys('j', () => setSelectedIdx(i => Math.min((data?.tickets?.length ?? 1) - 1, i + 1)), [data])
   useHotkeys('k', () => setSelectedIdx(i => Math.max(0, i - 1)), [])
@@ -36,21 +37,21 @@ export function InboxList() {
       <div className="sticky top-0 z-10 space-y-2 border-b bg-card p-2">
         <form onSubmit={onSubmit} className="relative">
           <SearchIcon className="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Ara..." className="h-8 pl-7 text-xs" />
+          <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Search..." className="h-8 pl-7 text-xs" />
         </form>
         <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>{data?.tickets?.length ?? 0} ticket</span>
+          <span>{ticketCount} {ticketCount === 1 ? 'ticket' : 'tickets'}</span>
           <span>Updated &#8595;</span>
         </div>
       </div>
-      {isLoading && <div className="p-6 text-center text-sm text-muted-foreground">Yukleniyor...</div>}
-      {error && <div className="p-6 text-center text-sm text-destructive">Liste yuklenemedi</div>}
+      {isLoading && <div className="p-6 text-center text-sm text-muted-foreground">Loading...</div>}
+      {error && <div className="p-6 text-center text-sm text-destructive">Could not load the list</div>}
       {data?.tickets?.map((t: any, i: number) => (
         <InboxListRow key={t.id} ticket={t} active={i === selectedIdx || t.id === id} href={`/support/${t.id}`} />
       ))}
       {data && data.tickets.length === 0 && (
         <div className="p-6 text-center text-sm text-muted-foreground">
-          {q ? 'Sonuc yok' : 'Hic ticket yok'}
+          {q ? 'No results' : 'No tickets'}
         </div>
       )}
     </div>

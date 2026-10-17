@@ -66,6 +66,6 @@ describe('ConversationView', () => {
 
     renderView()
 
-    expect(screen.getByText('Baglanti yok, otomatik tekrar denenecek')).toBeInTheDocument()
+    expect(screen.getByText('Connection lost, will retry automatically')).toBeInTheDocument()
   })
 })

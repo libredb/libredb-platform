@@ -76,7 +76,7 @@ export default async function TicketDetailPage({
       statusMap={statusMap}
       priorityMap={priorityMap}
       platformStaffIds={members.map(m => m.userId)}
-      customerName={userMap[ticket.createdByUserId] ?? 'Bilinmeyen'}
+      customerName={userMap[ticket.createdByUserId] ?? 'Unknown'}
       customerEmail={users.find(u => u.id === ticket.createdByUserId)?.email ?? null}
       tenantName={tenant?.name ?? null}
       tenantSlug={tenant?.slug ?? null}

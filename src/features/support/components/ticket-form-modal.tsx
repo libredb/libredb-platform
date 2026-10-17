@@ -9,7 +9,7 @@ export function TicketFormModal() {
   return (
     <Dialog open onOpenChange={(open) => { if (!open) router.back() }}>
       <DialogContent className="max-w-xl">
-        <DialogHeader><DialogTitle>Yeni Ticket</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>New Ticket</DialogTitle></DialogHeader>
         <TicketForm onDone={() => router.back()} onCancel={() => router.back()} />
       </DialogContent>
     </Dialog>

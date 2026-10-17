@@ -25,8 +25,8 @@ function isTicketPage(url: URL): boolean {
 }
 
 /**
- * Types into the reply composer and sends with the composer's own "Gönder" button, because the CSAT prompt of a
- * resolved ticket has a "Gönder" button too.
+ * Types into the reply composer and sends with the composer's own "Send" button, because the CSAT prompt of a
+ * resolved ticket has a "Send" button too.
  */
 async function sendInComposer(page: Page, text: string) {
   const editor = page.locator('.tiptap-editor')
@@ -36,7 +36,7 @@ async function sendInComposer(page: Page, text: string) {
   await expect(editor.locator('.ProseMirror')).toBeFocused()
   await page.keyboard.type(text)
   // The composer is the editor box's parent, which holds the toolbar and the send button
-  await editor.locator('..').getByRole('button', { name: 'Gönder' }).click()
+  await editor.locator('..').getByRole('button', { name: 'Send' }).click()
 }
 
 /** Opens a ticket as the signed-in customer and returns the URL of its detail page. */
@@ -44,8 +44,8 @@ async function openTicket(page: Page, subject: string): Promise<string> {
   await page.goto('/support/new')
   await expect(page.locator('input#subject')).toBeVisible({ timeout: 10_000 })
   await page.locator('input#subject').fill(subject)
-  // TicketForm has a single submit path: the composer's "Gönder" button
-  await sendInComposer(page, 'Bağlanamıyorum, test açıklaması')
+  // TicketForm has a single submit path: the composer's "Send" button
+  await sendInComposer(page, 'Cannot connect, test description')
   await page.waitForURL(isTicketPage, { timeout: 15_000 })
   return page.url()
 }
@@ -100,8 +100,8 @@ test.describe('Support Phase 1', () => {
 
     // The customer views the same ticket and sees the CSAT prompt
     await page.goto(ticketUrl)
-    // CsatPrompt renders "Ticket'ınız çözümlendi. Nasıl gitti?"
-    await expect(page.locator('text=Nasıl gitti')).toBeVisible({ timeout: 10_000 })
+    // CsatPrompt renders "Your ticket has been resolved. How did it go?"
+    await expect(page.locator('text=How did it go')).toBeVisible({ timeout: 10_000 })
   })
 
   test('3. keyboard j/k navigates inbox', async ({ page }) => {
@@ -127,18 +127,18 @@ test.describe('Support Phase 1', () => {
     await login(page, AGENT.email, AGENT.password)
     await page.goto('/support')
 
-    // The search input has placeholder "Ara..." (InboxList component)
-    const searchInput = page.locator('input[placeholder="Ara..."]')
+    // The search input has placeholder "Search..." (InboxList component)
+    const searchInput = page.locator('input[placeholder="Search..."]')
     await expect(searchInput).toBeVisible({ timeout: 5_000 })
 
     // Search for a seeded ticket subject fragment
-    // TKT-SEED-001 subject: "Veritabanı bağlanamıyor"
-    await searchInput.fill('bağlan')
+    // TKT-SEED-001 subject: "Database unreachable"
+    await searchInput.fill('unreach')
     await searchInput.press('Enter')
 
     // Should find at least the seeded ticket
     await expect(
-      page.locator('text=bağlan').first(),
+      page.locator('text=unreach').first(),
     ).toBeVisible({ timeout: 10_000 })
   })
 
@@ -149,12 +149,12 @@ test.describe('Support Phase 1', () => {
 
     // The customer replies on the resolved ticket
     await page.goto(ticketUrl)
-    await sendInComposer(page, 'Hala çalışmıyor, tekrar bakabilir misiniz?')
+    await sendInComposer(page, 'Still not working, could you take another look?')
 
     // Auto-reopen should emit REOPENED activity within the conversation timeline
-    // The timeline-activity component renders "yeniden açtı" for REOPENED type
+    // The timeline-activity component renders "reopened the ticket" for REOPENED type
     await expect(
-      page.locator('text=yeniden açtı').or(page.locator('text=REOPENED')),
+      page.locator('text=reopened the ticket').or(page.locator('text=REOPENED')),
     ).toBeVisible({ timeout: 15_000 })
   })
 })

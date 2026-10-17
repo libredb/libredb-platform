@@ -13,17 +13,17 @@ export function CsatPrompt({ ticketId }: { ticketId: string }) {
   const [submitted, setSubmitted] = useState(false)
 
   const { execute, isPending } = useAction(submitCsat, {
-    successMessage: 'Teşekkürler!',
+    successMessage: 'Thank you!',
     onSuccess: () => setSubmitted(true),
   })
 
   if (submitted) {
-    return <div className="rounded-md border bg-card p-4 text-center text-sm">✓ Değerlendirmeniz için teşekkürler.</div>
+    return <div className="rounded-md border bg-card p-4 text-center text-sm">✓ Thank you for your rating.</div>
   }
 
   return (
     <div className="rounded-md border bg-card p-4 space-y-3">
-      <div className="font-medium">Ticket&apos;ınız çözümlendi. Nasıl gitti?</div>
+      <div className="font-medium">Your ticket has been resolved. How did it go?</div>
       <div className="flex gap-1">
         {[1, 2, 3, 4, 5].map(n => (
           <button
@@ -31,14 +31,14 @@ export function CsatPrompt({ ticketId }: { ticketId: string }) {
             type="button"
             onClick={() => setRating(n)}
             className={`rounded p-1 transition-colors ${n <= rating ? 'text-amber-500' : 'text-muted-foreground hover:text-amber-400'}`}
-            aria-label={`${n} yıldız`}
+            aria-label={`${n} ${n === 1 ? 'star' : 'stars'}`}
           >
             <StarIcon className="size-6" fill={n <= rating ? 'currentColor' : 'none'} />
           </button>
         ))}
       </div>
       <Textarea
-        placeholder="Yorumunuz (opsiyonel)"
+        placeholder="Your comment (optional)"
         value={comment}
         onChange={e => setComment(e.target.value)}
         maxLength={1000}
@@ -47,7 +47,7 @@ export function CsatPrompt({ ticketId }: { ticketId: string }) {
         disabled={rating === 0 || isPending}
         onClick={() => execute({ ticketId, rating, comment: comment.trim() || undefined })}
       >
-        Gönder
+        Send
       </Button>
     </div>
   )

@@ -39,7 +39,7 @@ export const submitCsat = safeAction(
             userId: ticket.assignedToUserId,
             tenantId: ticket.tenantId,
             type: 'CSAT',
-            title: `Müşteri ${data.rating}/5 yıldız verdi`,
+            title: `Customer gave ${data.rating}/5 stars`,
             message: data.comment?.slice(0, 140) ?? '',
             link: `/support/${ticket.id}`,
           },

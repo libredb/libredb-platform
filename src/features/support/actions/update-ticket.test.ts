@@ -53,7 +53,7 @@ describe('updateTicket', () => {
       data: expect.objectContaining({
         userId: 'user-creator',
         type: 'TICKET_RESOLVED',
-        message: 'Cannot reach the orders database · 1-5 yıldız değerlendirebilirsiniz.',
+        message: 'Cannot reach the orders database · You can rate it from 1 to 5 stars.',
       }),
     })
   })

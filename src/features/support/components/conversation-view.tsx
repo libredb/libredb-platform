@@ -82,7 +82,7 @@ export function ConversationView(props: ConversationViewProps) {
     if (!res.success) toast.error(res.error)
   }, { enableOnFormTags: false })
 
-  if (!ticket) return <div className="flex h-full items-center justify-center text-muted-foreground">Yukleniyor...</div>
+  if (!ticket) return <div className="flex h-full items-center justify-center text-muted-foreground">Loading...</div>
 
   const handleAddTag = async (tagId: string) => {
     const res = await addTag({ ticketId: props.ticketId, tagId })
@@ -95,7 +95,7 @@ export function ConversationView(props: ConversationViewProps) {
 
   const handleSend = async (payload: any) => {
     const res = await send.mutateAsync(payload)
-    if (res.success) toast.success('Mesaj gonderildi')
+    if (res.success) toast.success('Message sent')
     else toast.error(res.error)
   }
   const handleUpdate = async (data: any) => {
@@ -107,7 +107,7 @@ export function ConversationView(props: ConversationViewProps) {
     <div ref={containerRef} className="relative flex min-h-0 flex-1">
       <DropzoneOverlay containerRef={containerRef} onFiles={(files) => { void globalUpload.upload(files) }} />
       <div className="flex min-w-0 flex-1 flex-col">
-        {!online && <div className="bg-destructive/10 px-4 py-1 text-xs text-destructive">Baglanti yok, otomatik tekrar denenecek</div>}
+        {!online && <div className="bg-destructive/10 px-4 py-1 text-xs text-destructive">Connection lost, will retry automatically</div>}
         <ConversationHeader
           ticket={{
             id: ticket.id, ticketNumber: ticket.ticketNumber, subject: ticket.subject,
@@ -120,7 +120,7 @@ export function ConversationView(props: ConversationViewProps) {
           onResolve={() => handleUpdate({ status: 'RESOLVED' })}
           onReopen={async () => {
             const res = await reopenTicket({ id: props.ticketId })
-            if (res.success) toast.success('Yeniden açıldı')
+            if (res.success) toast.success('Ticket reopened')
             else toast.error(res.error)
           }}
           onUpdateSubject={(subject) => handleUpdate({ subject })}
@@ -142,7 +142,7 @@ export function ConversationView(props: ConversationViewProps) {
         </div>
         <div className="border-t p-3">
           <div className="mb-2 flex gap-2 text-xs">
-            <button onClick={() => setReplyMode('reply')} className={`rounded px-2 py-1 ${replyMode === 'reply' ? 'bg-accent' : 'text-muted-foreground hover:bg-accent/50'}`}>Yanit</button>
+            <button onClick={() => setReplyMode('reply')} className={`rounded px-2 py-1 ${replyMode === 'reply' ? 'bg-accent' : 'text-muted-foreground hover:bg-accent/50'}`}>Reply</button>
             {props.canManage && (
               <button onClick={() => setReplyMode('internal')} className={`rounded px-2 py-1 ${replyMode === 'internal' ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400' : 'text-muted-foreground hover:bg-accent/50'}`}>Internal note</button>
             )}

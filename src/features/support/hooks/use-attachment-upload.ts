@@ -49,7 +49,7 @@ export function useAttachmentUpload() {
     const remaining = Math.max(0, MAX_FILES_PER_MESSAGE - successful)
     let filesToUpload = files
     if (files.length > remaining) {
-      toast.error(`En fazla ${MAX_FILES_PER_MESSAGE} dosya ekleyebilirsin.`)
+      toast.error(`You can attach up to ${MAX_FILES_PER_MESSAGE} files.`)
       filesToUpload = files.slice(0, remaining)
     }
 
@@ -57,11 +57,11 @@ export function useAttachmentUpload() {
 
     for (const file of filesToUpload) {
       if (file.size > MAX_FILE_BYTES) {
-        toast.error(`${file.name}: 25 MB üzeri dosya kabul edilmiyor.`)
+        toast.error(`${file.name}: files over 25 MB are not accepted.`)
         continue
       }
       if (isDeniedExtension(file.name)) {
-        toast.error(`${file.name}: bu uzantı güvenlik sebebiyle engellendi.`)
+        toast.error(`${file.name}: this file extension is blocked for security reasons.`)
         continue
       }
 

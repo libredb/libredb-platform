@@ -23,7 +23,7 @@ export interface TimelineActivityProps {
 export function TimelineActivity({
   activity, actorName, userMap, statusMap = {}, priorityMap = {},
 }: TimelineActivityProps) {
-  const actor = actorName ?? 'Sistem'
+  const actor = actorName ?? 'System'
   const meta = activity.metadata ?? {}
   let Icon = ArrowRightIcon
   let text: React.ReactNode
@@ -31,47 +31,47 @@ export function TimelineActivity({
   switch (activity.type) {
     case 'ASSIGNED':
       Icon = UserIcon
-      text = <><strong>{actor}</strong> ticket&apos;ı <strong>{userMap[meta.toUserId] ?? meta.toUserId}</strong>&apos;e atadı</>
+      text = <><strong>{actor}</strong> assigned the ticket to <strong>{userMap[meta.toUserId] ?? meta.toUserId}</strong></>
       break
     case 'UNASSIGNED':
       Icon = UserIcon
-      text = <><strong>{actor}</strong> atamayı kaldırdı</>
+      text = <><strong>{actor}</strong> removed the assignee</>
       break
     case 'STATUS_CHANGED':
-      text = <><strong>{actor}</strong> durumu <em>{statusMap[meta.from] ?? meta.from}</em> → <em>{statusMap[meta.to] ?? meta.to}</em> olarak değiştirdi</>
+      text = <><strong>{actor}</strong> changed the status <em>{statusMap[meta.from] ?? meta.from}</em> → <em>{statusMap[meta.to] ?? meta.to}</em></>
       break
     case 'PRIORITY_CHANGED':
-      text = <><strong>{actor}</strong> önceliği <em>{priorityMap[meta.from] ?? meta.from}</em> → <em>{priorityMap[meta.to] ?? meta.to}</em> yaptı</>
+      text = <><strong>{actor}</strong> changed the priority <em>{priorityMap[meta.from] ?? meta.from}</em> → <em>{priorityMap[meta.to] ?? meta.to}</em></>
       break
     case 'CATEGORY_CHANGED':
-      text = <><strong>{actor}</strong> kategoriyi {meta.from} → {meta.to} olarak değiştirdi</>
+      text = <><strong>{actor}</strong> changed the category {meta.from} → {meta.to}</>
       break
     case 'TAG_ADDED':
       Icon = TagIcon
-      text = <><strong>{actor}</strong> <span className="rounded bg-primary/10 px-1 text-primary">{meta.tagName}</span> etiketini ekledi</>
+      text = <><strong>{actor}</strong> added the tag <span className="rounded bg-primary/10 px-1 text-primary">{meta.tagName}</span></>
       break
     case 'TAG_REMOVED':
       Icon = TagIcon
-      text = <><strong>{actor}</strong> <span className="line-through">{meta.tagName}</span> etiketini kaldırdı</>
+      text = <><strong>{actor}</strong> removed the tag <span className="line-through">{meta.tagName}</span></>
       break
     case 'REOPENED':
       Icon = RotateCcwIcon
-      text = <><strong>{actor}</strong> ticket&apos;ı yeniden açtı</>
+      text = <><strong>{actor}</strong> reopened the ticket</>
       break
     case 'RESOLVED':
       Icon = CheckCircleIcon
-      text = <><strong>{actor}</strong> ticket&apos;ı çözümledi</>
+      text = <><strong>{actor}</strong> resolved the ticket</>
       break
     case 'CLOSED':
       Icon = XCircleIcon
-      text = <><strong>{actor}</strong> ticket&apos;ı kapattı</>
+      text = <><strong>{actor}</strong> closed the ticket</>
       break
     case 'CSAT_RECEIVED':
       Icon = StarIcon
-      text = <><strong>Müşteri</strong> {meta.rating}/5 yıldız verdi</>
+      text = <><strong>Customer</strong> gave {meta.rating}/5 stars</>
       break
     case 'MERGED':
-      text = <><strong>{actor}</strong> ticket&apos;ı birleştirdi</>
+      text = <><strong>{actor}</strong> merged the ticket</>
       break
     default:
       text = <>{activity.type}</>
