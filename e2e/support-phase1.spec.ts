@@ -123,23 +123,30 @@ test.describe('Support Phase 1', () => {
     await expect(page).toHaveURL(/\/support\/[a-zA-Z0-9-]+/, { timeout: 5_000 })
   })
 
-  test('4. search finds ticket by subject', async ({ page }) => {
+  test('4. search keeps the ticket that matches and drops a ticket that does not', async ({ page }) => {
     await login(page, AGENT.email, AGENT.password)
     await page.goto('/support')
 
+    // Two open tickets of the development seed: TKT-SEED-001 matches the query and TKT-SEED-003 does not.
+    // The open inbox lists both before the search, so only a search that filters the list drops the second.
+    const matching = page.getByRole('link', { name: /Database unreachable/ })
+    const notMatching = page.getByRole('link', { name: /AI query suggestions not working/ })
+    await expect(matching).toBeVisible({ timeout: 10_000 })
+    await expect(notMatching).toBeVisible()
+
     // The search input has placeholder "Search..." (InboxList component)
     const searchInput = page.locator('input[placeholder="Search..."]')
-    await expect(searchInput).toBeVisible({ timeout: 5_000 })
-
-    // Search for a seeded ticket subject fragment
-    // TKT-SEED-001 subject: "Database unreachable"
     await searchInput.fill('unreach')
+    // The list empties while the searched inbox loads, so the assertions below wait for that inbox to arrive.
+    const searched = page.waitForResponse((response) => {
+      const url = new URL(response.url())
+      return url.pathname === '/support/api/inbox' && url.searchParams.get('q') === 'unreach'
+    })
     await searchInput.press('Enter')
+    await searched
 
-    // Should find at least the seeded ticket
-    await expect(
-      page.locator('text=unreach').first(),
-    ).toBeVisible({ timeout: 10_000 })
+    await expect(matching).toBeVisible()
+    await expect(notMatching).toBeHidden()
   })
 
   test('5. customer reply on resolved ticket auto-reopens', async ({ page, browser }) => {
