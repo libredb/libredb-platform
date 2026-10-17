@@ -1,0 +1,248 @@
+name: libredb
+services:
+  edge:
+    image: docker.io/library/caddy@sha256:5555555555555555555555555555555555555555555555555555555555555555
+    restart: unless-stopped
+    ports:
+      - target: 443
+        published: "443"
+        protocol: tcp
+    volumes:
+      - /opt/libredb/edge:/etc/caddy:ro
+      - /opt/libredb/tls/edge:/etc/libredb/tls:ro
+      - edge-data:/data
+      - edge-config:/config
+    labels:
+      org.libredb.ca-sha256: cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+      org.libredb.tls-sha256: eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    networks:
+      edge:
+        aliases:
+          - platform.libredb.test
+          - studio.libredb.test
+          - auth.libredb.test
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - -q
+        - -O
+        - /dev/null
+        - http://127.0.0.1:2019/config/
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+  postgres:
+    image: docker.io/library/postgres@sha256:4444444444444444444444444444444444444444444444444444444444444444
+    restart: unless-stopped
+    command:
+      - postgres
+      - -c
+      - ssl=on
+      - -c
+      - ssl_cert_file=/etc/libredb/tls/server.crt
+      - -c
+      - ssl_key_file=/etc/libredb/tls/server.key
+      - -c
+      - hba_file=/etc/libredb/postgres/pg_hba.conf
+      - -c
+      - password_encryption=scram-sha-256
+    env_file:
+      - /opt/libredb/env/postgres.env
+    environment:
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256 --auth-local=scram-sha-256
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - /opt/libredb/tls/postgres:/etc/libredb/tls:ro
+      - /opt/libredb/postgres:/etc/libredb/postgres:ro
+    networks:
+      data: {}
+    healthcheck:
+      test:
+        - CMD
+        - pg_isready
+        - -h
+        - 127.0.0.1
+        - -U
+        - postgres
+        - -d
+        - postgres
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+  keycloak:
+    image: quay.io/keycloak/keycloak@sha256:3333333333333333333333333333333333333333333333333333333333333333
+    restart: unless-stopped
+    command:
+      - start
+    env_file:
+      - /opt/libredb/env/keycloak.env
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak?sslmode=verify-full&sslrootcert=/etc/libredb/ca/ca.crt
+      KC_DB_USERNAME: libredb_keycloak
+      KC_DB_POOL_MAX_SIZE: "20"
+      KC_HOSTNAME: https://auth.libredb.test
+      KC_HOSTNAME_ADMIN: http://127.0.0.1:18080
+      KC_PROXY_HEADERS: xforwarded
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+      KC_TRUSTSTORE_PATHS: /etc/libredb/ca/ca.crt
+      LIQUIBASE_ANALYTICS_ENABLED: "false"
+    ports:
+      - target: 8080
+        host_ip: 127.0.0.1
+        published: "18080"
+        protocol: tcp
+    volumes:
+      - /opt/libredb/ca:/etc/libredb/ca:ro
+    labels:
+      org.libredb.ca-sha256: cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    networks:
+      edge: {}
+      data: {}
+    healthcheck:
+      test:
+        - CMD
+        - bash
+        - -c
+        - "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && head -n 1 <&3 | grep -q ' 200 '"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 120s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+  platform-migrate:
+    image: ghcr.io/libredb/libredb-platform@sha256:1111111111111111111111111111111111111111111111111111111111111111
+    user: "1001"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    profiles:
+      - jobs
+    command:
+      - migrate
+    env_file:
+      - /opt/libredb/env/platform-migrate.env
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - /opt/libredb/ca:/etc/libredb/ca:ro
+    networks:
+      data: {}
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+  platform:
+    image: ghcr.io/libredb/libredb-platform@sha256:1111111111111111111111111111111111111111111111111111111111111111
+    user: "1001"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    command:
+      - serve
+    env_file:
+      - /opt/libredb/env/platform.env
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/.next/cache
+    volumes:
+      - platform-uploads:/app/uploads
+      - /opt/libredb/ca:/etc/libredb/ca:ro
+    labels:
+      org.libredb.ca-sha256: cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    networks:
+      edge: {}
+      data: {}
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health/live').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+  studio:
+    image: ghcr.io/libredb/libredb-studio@sha256:2222222222222222222222222222222222222222222222222222222222222222
+    hostname: libredb-studio
+    restart: unless-stopped
+    user: "1001"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    env_file:
+      - /opt/libredb/env/studio.env
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/.next/cache
+    volumes:
+      - studio-data:/app/data
+      - /opt/libredb/ca:/etc/libredb/ca:ro
+      - type: bind
+        source: /opt/libredb/secrets/studio-keyring.json
+        target: /etc/libredb/governance/keyring.json
+        read_only: true
+        bind:
+          create_host_path: false
+    labels:
+      org.libredb.ca-sha256: cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    networks:
+      edge: {}
+      data: {}
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/ready').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+networks:
+  edge: {}
+  data:
+    internal: true
+volumes:
+  edge-data: {}
+  edge-config: {}
+  postgres-data: {}
+  platform-uploads: {}
+  studio-data: {}

@@ -1,0 +1,121 @@
+name: Installer Nightly
+
+# The acceptance runs of the installer before a customer install, in Docker mode: the convergence matrix (a clean run
+# and a re-run converge with a managed or an external PostgreSQL and Keycloak), the independence of Platform and Studio
+# (each keeps serving while the other stops), and the network egress (nothing on the libredb networks sends a packet
+# to a non-private address). A scheduled run checks out the default branch.
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  matrix:
+    name: Converge ${{ matrix.combination }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        # The fixtures under installer/test/fixtures/configs/matrix/: a managed or external PostgreSQL with a managed or
+        # external Keycloak.
+        combination:
+          - managed-pg-managed-kc
+          - external-pg-managed-kc
+          - managed-pg-external-kc
+          - external-pg-external-kc
+    defaults:
+      run:
+        working-directory: installer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.2'
+      - run: bun install --frozen-lockfile
+      # A Studio chart pinned as git:<sha> is built from that Studio commit, so check it out next to the repo.
+      - name: Read the pinned Studio chart commit
+        id: studio
+        run: echo "commit=$(jq -r '.studioChart.version | select(startswith("git:")) | ltrimstr("git:")' release/release.config.json)" >> "$GITHUB_OUTPUT"
+      - if: steps.studio.outputs.commit != ''
+        uses: actions/checkout@v4
+        with:
+          repository: libredb/libredb-studio
+          ref: ${{ steps.studio.outputs.commit }}
+          path: studio-src
+      - name: Build the installer binary
+        run: bun run build
+        env:
+          LIBREDB_STUDIO_REPO: ${{ github.workspace }}/studio-src
+      - name: Resolve the test hostnames to this runner
+        run: echo "127.0.0.1 platform.libredb.test studio.libredb.test auth.libredb.test" | sudo tee -a /etc/hosts
+      # Each combination installs from nothing, applies, verifies, applies again with No changes and verifies again.
+      - name: Converge the combination as root
+        run: sudo env "LIBREDB_E2E_MATRIX=$LIBREDB_E2E_MATRIX" "$(command -v bun)" test test/e2e/matrix.test.ts
+        env:
+          LIBREDB_E2E_MATRIX: ${{ matrix.combination }}
+      - name: Show the installer state and logs
+        if: failure()
+        run: |
+          sudo ./dist/libredb-installer-linux-x64 status || true
+          sudo sh -c 'cat /opt/libredb/logs/*.log' || true
+          sudo docker compose -p libredb logs --no-color || true
+          sudo docker logs libredb-e2e-external-pg || true
+          sudo docker logs libredb-e2e-corp-keycloak || true
+
+  egress-and-independence:
+    name: Egress and independence
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    defaults:
+      run:
+        working-directory: installer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.2'
+      - run: bun install --frozen-lockfile
+      - name: Read the pinned Studio chart commit
+        id: studio
+        run: echo "commit=$(jq -r '.studioChart.version | select(startswith("git:")) | ltrimstr("git:")' release/release.config.json)" >> "$GITHUB_OUTPUT"
+      - if: steps.studio.outputs.commit != ''
+        uses: actions/checkout@v4
+        with:
+          repository: libredb/libredb-studio
+          ref: ${{ steps.studio.outputs.commit }}
+          path: studio-src
+      - name: Build the installer binary
+        run: bun run build
+        env:
+          LIBREDB_STUDIO_REPO: ${{ github.workspace }}/studio-src
+      - name: Resolve the test hostnames to this runner
+        run: echo "127.0.0.1 platform.libredb.test studio.libredb.test auth.libredb.test" | sudo tee -a /etc/hosts
+      # The browser specs run next to the containers they stop and start, and Chromium fails the requests in flight with
+      # ERR_NETWORK_CHANGED whenever an address of this runner changes: a container's start gives this runner's end of
+      # its veth an IPv6 link-local address once duplicate address detection ends, about 1.6 s later, and its stop
+      # removes it. Interfaces created from here on get no link-local address.
+      - name: Keep container starts and stops from changing the runner's addresses
+        run: sudo sysctl -w net.ipv6.conf.default.addr_gen_mode=1
+      - name: Install Chromium for the browser specs
+        run: bunx playwright install --with-deps chromium
+      # The images are pulled before the iptables rules count and drop every packet from the libredb networks to a
+      # non-private address; apply, verify and the interop suite then run, and the counter must stay at 0. The interop
+      # suite runs as root inside the test, with the runner's Chromium and its results outside the checkout.
+      - name: Check the network egress as root
+        run: |
+          sudo env "PATH=$PATH" "PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/ms-playwright" \
+            "LIBREDB_E2E_INTEROP_COMMAND=bunx playwright test --config e2e/playwright.config.ts --project=hostnames --output $RUNNER_TEMP/interop-results interop.spec.ts" \
+            "$(command -v bun)" test test/e2e/egress.test.ts
+      # The installation the egress test leaves: each app stops while the other keeps serving and starts again.
+      - name: Check that Platform and Studio work without each other
+        run: bunx playwright test --config e2e/playwright.config.ts --project=hostnames --output "$RUNNER_TEMP/independence-results" independence.spec.ts
+      - name: Show the installer state and logs
+        if: failure()
+        run: |
+          sudo ./dist/libredb-installer-linux-x64 status || true
+          sudo sh -c 'cat /opt/libredb/logs/*.log' || true
+          sudo docker compose -p libredb logs --no-color || true

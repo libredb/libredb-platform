@@ -1,0 +1,28 @@
+{
+	auto_https off
+}
+
+https://platform.libredb.test {
+	tls /etc/libredb/tls/platform.libredb.test.crt /etc/libredb/tls/platform.libredb.test.key
+	reverse_proxy platform:3000
+}
+
+https://studio.libredb.test {
+	tls /etc/libredb/tls/studio.libredb.test.crt /etc/libredb/tls/studio.libredb.test.key
+	reverse_proxy studio:3000
+}
+
+https://auth.libredb.test {
+	tls /etc/libredb/tls/auth.libredb.test.crt /etc/libredb/tls/auth.libredb.test.key
+	@noncanonical vars_regexp {http.request.orig_uri} `^[^?]*(\.\.|;|\\|%2[eEfF]|%5[cC])`
+	handle @noncanonical {
+		respond 400
+	}
+	@keycloak path /realms/libredb/* /resources/*
+	handle @keycloak {
+		reverse_proxy keycloak:8080
+	}
+	handle {
+		respond 404
+	}
+}

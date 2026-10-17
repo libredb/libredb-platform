@@ -1,0 +1,88 @@
+# Fixture servers for the tests that need real services.
+#
+# postgres: `npm run test:db` (tests/db, *.db.test.ts).
+# Storage is tmpfs, so every `up --force-recreate` starts from a fresh bootstrap.
+# TEST_POSTGRES_MAJOR picks the server version (15 is the minimum, because the
+# bridge views use the security_invoker reloption), TEST_POSTGRES_PORT the host port.
+#
+# keycloak, keycloak-proxied: `npm run test:integration` (*.integration.test.ts).
+# Both import tests/fixtures/keycloak/libredb-test-realm.json, the realm the
+# installer converges, on the Keycloak version the installer ships. Storage is
+# the container's own dev-file database, so `up --force-recreate` starts from a
+# fresh import.
+# keycloak serves its issuer on http://localhost:${TEST_KEYCLOAK_PORT:-58080}.
+# keycloak-proxied uses the hostname settings the installer gives managed
+# Keycloak: a public issuer behind an edge, and the admin URL on a loopback port
+# ${TEST_KEYCLOAK_PROXIED_PORT:-58081}, so a client calling it on localhost uses
+# a third URL, as Platform does with KEYCLOAK_ADMIN_URL.
+#
+# The project has its own name: database-compose.yml's development database
+# takes the directory's name, and a shared project would make its postgres
+# container this file's postgres service. A parallel run from another checkout
+# sets COMPOSE_PROJECT_NAME next to its ports.
+name: libredb-platform-test
+
+services:
+  postgres:
+    image: postgres:${TEST_POSTGRES_MAJOR:-18}
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "${TEST_POSTGRES_PORT:-55432}:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    volumes:
+      - ./docker/postgres/bootstrap.psql:/libredb/bootstrap.psql:ro
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # TCP on 127.0.0.1 is only up after the init scripts have finished.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d libredb"]
+      interval: 1s
+      timeout: 3s
+      retries: 60
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.1
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_HOSTNAME: http://localhost:${TEST_KEYCLOAK_PORT:-58080}
+      KC_HEALTH_ENABLED: "true"
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    ports:
+      - "${TEST_KEYCLOAK_PORT:-58080}:8080"
+    volumes:
+      - ./tests/fixtures/keycloak/libredb-test-realm.json:/opt/keycloak/data/import/libredb-realm.json:ro
+    healthcheck: &keycloak-healthcheck
+      # The image has no curl; bash reads /health/ready on the management port.
+      test:
+        - CMD-SHELL
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          grep -q '"status": "UP"' <&3
+      interval: 2s
+      timeout: 3s
+      retries: 90
+      start_period: 10s
+
+  keycloak-proxied:
+    image: quay.io/keycloak/keycloak:26.8.1
+    command: ["start", "--import-realm"]
+    environment:
+      KC_HOSTNAME: https://auth.libredb.test
+      KC_HOSTNAME_ADMIN: http://127.0.0.1:${TEST_KEYCLOAK_PROXIED_PORT:-58081}
+      KC_PROXY_HEADERS: xforwarded
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+      KC_CACHE: local
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    ports:
+      - "127.0.0.1:${TEST_KEYCLOAK_PROXIED_PORT:-58081}:8080"
+    volumes:
+      - ./tests/fixtures/keycloak/libredb-test-realm.json:/opt/keycloak/data/import/libredb-realm.json:ro
+    healthcheck: *keycloak-healthcheck

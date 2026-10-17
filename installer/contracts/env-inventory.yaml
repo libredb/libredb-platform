@@ -1,0 +1,394 @@
+# The environment inventory: the variables of Studio in a governance install, of Platform in a self-hosted install
+# and of Platform's migrate job, plus the other variables the installer writes. scripts/gen-contracts.ts turns it into
+# src/contracts/studio.ts and src/contracts/platform.ts, and the env renderers build every app environment only from
+# those generated descriptors.
+#
+# Fields of a variable:
+#   name      the environment variable.
+#   apps      the environments that receive it: studio, platform (the runtime) and platform-migrate (the migrate job).
+#   required  when the app requires it: always, oidc, governance, self-hosted, migrate, internal-ca,
+#             internal-console, during-rotation, https-proxy or optional.
+#   secret    true when the value is a secret or embeds one.
+#   producer  who sets it: installer (generated or derived), config (copied from the installation config),
+#             default (the app's own default, never written) or operator (set by hand, never written).
+#   value     the value template; {{name}} names an input of the renderer. For producer default it documents the
+#             app's default, and null means the app's built-in value. Producer operator has no value.
+#   when      for producers installer and config, the condition under which the installer writes it:
+#             always (the default), httpsProxy, keycloakAdminUrl (a managed Keycloak, or an external one with
+#             keycloak.external.adminUrl), logoutHintVerified, volumeSize, authSecretPrevious (while
+#             platform.authSecretPreviousFile is set) or license (while platform.licenseFile is set).
+#
+# The installer never writes runtime settings: Platform keeps them in its tables and Studio reads them through
+# bridge.settings_v1.
+variables:
+  # Studio, in a governance install.
+  - name: NEXT_PUBLIC_AUTH_PROVIDER
+    apps: [studio]
+    required: always
+    secret: false
+    producer: installer
+    value: oidc
+  - name: OIDC_ISSUER
+    apps: [studio]
+    required: oidc
+    secret: false
+    producer: installer
+    value: "{{issuer}}"
+  - name: OIDC_CLIENT_ID
+    apps: [studio]
+    required: oidc
+    secret: false
+    producer: installer
+    value: libredb-studio
+  - name: OIDC_CLIENT_SECRET
+    apps: [studio]
+    required: oidc
+    secret: true
+    producer: installer
+    value: "{{oidcClientSecret}}"
+  - name: OIDC_SCOPE
+    apps: [studio]
+    required: optional
+    secret: false
+    producer: default
+    value: openid profile email
+  - name: OIDC_ROLE_CLAIM
+    apps: [studio]
+    required: governance
+    secret: false
+    producer: installer
+    value: libredb_roles
+  - name: OIDC_ADMIN_ROLES
+    apps: [studio]
+    required: governance
+    secret: false
+    producer: installer
+    value: admin
+  - name: OIDC_USER_ROLES
+    apps: [studio]
+    required: governance
+    secret: false
+    producer: installer
+    value: user
+  - name: OIDC_PROMPT
+    apps: [studio]
+    required: optional
+    secret: false
+    producer: installer
+    value: omit
+  - name: OIDC_AUTO_REDIRECT
+    apps: [studio]
+    required: optional
+    secret: false
+    producer: installer
+    value: "true"
+  - name: OIDC_LOGOUT_HINT
+    apps: [studio]
+    required: optional
+    secret: false
+    producer: installer
+    value: "true"
+    when: logoutHintVerified
+  - name: AUTH_SESSION_TTL_SECONDS
+    apps: [studio]
+    required: optional
+    secret: false
+    producer: installer
+    value: "28800"
+  - name: JWT_SECRET
+    apps: [studio]
+    required: always
+    secret: true
+    producer: installer
+    value: "{{jwtSecret}}"
+  - name: AUTH_BOOTSTRAP
+    apps: [studio]
+    required: always
+    secret: false
+    producer: installer
+    value: "off"
+  - name: STORAGE_PROVIDER
+    apps: [studio]
+    required: always
+    secret: false
+    producer: installer
+    value: postgres
+  - name: STORAGE_POSTGRES_URL
+    apps: [studio]
+    required: always
+    secret: true
+    producer: installer
+    value: "{{studioDatabaseUrl}}"
+  - name: STORAGE_POSTGRES_SCHEMA
+    apps: [studio]
+    required: always
+    secret: false
+    producer: installer
+    value: studio
+  - name: STORAGE_ENCRYPTION_KEY
+    apps: [studio]
+    required: always
+    secret: true
+    producer: installer
+    value: "{{storageEncryptionKey}}"
+  - name: GOVERNANCE_SOURCE
+    apps: [studio]
+    required: governance
+    secret: false
+    producer: installer
+    value: postgres
+  - name: GOVERNANCE_POSTGRES_URL
+    apps: [studio]
+    required: governance
+    secret: true
+    producer: installer
+    value: "{{studioDatabaseUrl}}"
+  - name: GOVERNANCE_POSTGRES_SCHEMA
+    apps: [studio]
+    required: governance
+    secret: false
+    producer: installer
+    value: bridge
+  - name: GOVERNANCE_PRIVATE_KEYS_FILE
+    apps: [studio]
+    required: governance
+    secret: false
+    producer: installer
+    value: /etc/libredb/governance/keyring.json
+  - name: GOVERNANCE_REFRESH_MS
+    apps: [studio]
+    required: optional
+    secret: false
+    producer: default
+    value: "30000"
+  - name: GOVERNANCE_MAX_STALENESS_MS
+    apps: [studio]
+    required: optional
+    secret: false
+    producer: default
+    value: "120000"
+  - name: GOVERNANCE_ALLOWED_ENGINES
+    apps: [studio]
+    required: optional
+    secret: false
+    producer: default
+    value: null
+  - name: GOVERNANCE_INSTANCE_ID
+    apps: [studio]
+    required: governance
+    secret: false
+    producer: installer
+    value: libredb-studio
+  - name: NODE_EXTRA_CA_CERTS
+    apps: [studio, platform, platform-migrate]
+    required: internal-ca
+    secret: false
+    producer: installer
+    value: /etc/libredb/ca/ca.crt
+
+  # Platform, in a self-hosted install, and its migrate job.
+  - name: DEPLOYMENT_MODE
+    apps: [platform, platform-migrate]
+    required: always
+    secret: false
+    producer: installer
+    value: self-hosted
+  - name: DATABASE_URL
+    apps: [platform, platform-migrate]
+    required: always
+    secret: true
+    producer: installer
+    value: "{{platformDatabaseUrl}}"
+  - name: MIGRATE_DATABASE_URL
+    apps: [platform-migrate]
+    required: migrate
+    secret: true
+    producer: installer
+    value: "{{migrateDatabaseUrl}}"
+  - name: AUTH_SECRET
+    apps: [platform]
+    required: always
+    secret: true
+    producer: installer
+    value: "{{authSecret}}"
+  - name: AUTH_SECRET_PREVIOUS
+    apps: [platform]
+    required: during-rotation
+    secret: true
+    producer: config
+    value: "{{authSecretPrevious}}"
+    when: authSecretPrevious
+  - name: AUTH_URL
+    apps: [platform]
+    required: always
+    secret: false
+    producer: installer
+    value: "{{platformUrl}}"
+  - name: AUTH_KEYCLOAK_ID
+    apps: [platform]
+    required: self-hosted
+    secret: false
+    producer: installer
+    value: libredb-platform
+  - name: AUTH_KEYCLOAK_SECRET
+    apps: [platform]
+    required: self-hosted
+    secret: true
+    producer: installer
+    value: "{{oidcClientSecret}}"
+  - name: AUTH_KEYCLOAK_ISSUER
+    apps: [platform]
+    required: self-hosted
+    secret: false
+    producer: installer
+    value: "{{issuer}}"
+  - name: KEYCLOAK_ADMIN_URL
+    apps: [platform]
+    required: internal-console
+    secret: false
+    producer: installer
+    value: "{{keycloakAdminUrl}}"
+    when: keycloakAdminUrl
+  - name: PLATFORM_ROLE_CLAIM
+    apps: [platform]
+    required: optional
+    secret: false
+    producer: default
+    value: libredb_roles
+  - name: PLATFORM_ADMIN_ROLE
+    apps: [platform]
+    required: optional
+    secret: false
+    producer: default
+    value: admin
+  - name: STUDIO_USER_ROLE
+    apps: [platform]
+    required: optional
+    secret: false
+    producer: default
+    value: user
+  - name: PLATFORM_SESSION_RECHECK_SECONDS
+    apps: [platform]
+    required: optional
+    secret: false
+    producer: default
+    value: "300"
+  - name: PLATFORM_RECHECK_GRACE_SECONDS
+    apps: [platform]
+    required: optional
+    secret: false
+    producer: default
+    value: "900"
+  - name: DIRECTORY_SYNC_INTERVAL_SEC
+    apps: [platform]
+    required: optional
+    secret: false
+    producer: default
+    value: "60"
+  - name: QUERY_LOG_RETENTION_DAYS
+    apps: [platform]
+    required: optional
+    secret: false
+    producer: installer
+    value: "{{queryLogRetentionDays}}"
+  - name: STUDIO_PUBLIC_URL
+    apps: [platform]
+    required: self-hosted
+    secret: false
+    producer: installer
+    value: "{{studioUrl}}"
+  - name: BRIDGE_SEAL_PUBLIC_KEY
+    apps: [platform]
+    required: self-hosted
+    secret: false
+    producer: installer
+    value: "{{sealPublicKey}}"
+  - name: PLATFORM_ORGANIZATION_NAME
+    apps: [platform-migrate]
+    required: migrate
+    secret: false
+    producer: config
+    value: "{{organizationName}}"
+  - name: STORAGE_PROVIDER
+    apps: [platform]
+    required: optional
+    secret: false
+    producer: installer
+    value: LOCAL
+  - name: STORAGE_LOCAL_PATH
+    apps: [platform]
+    required: optional
+    secret: false
+    producer: installer
+    value: /app/uploads
+  - name: PLATFORM_DB_VOLUME_BYTES
+    apps: [platform]
+    required: optional
+    secret: false
+    producer: installer
+    value: "{{platformDbVolumeBytes}}"
+    when: volumeSize
+
+  # The other variables the installer writes.
+  - name: NO_PROXY
+    apps: [studio, platform]
+    required: optional
+    secret: false
+    producer: installer
+    value: "{{noProxy}}"
+  - name: no_proxy
+    apps: [studio, platform]
+    required: optional
+    secret: false
+    producer: installer
+    value: "{{noProxy}}"
+  - name: HTTPS_PROXY
+    apps: [studio, platform]
+    required: https-proxy
+    secret: false
+    producer: config
+    value: "{{httpsProxy}}"
+    when: httpsProxy
+  - name: NODE_USE_ENV_PROXY
+    apps: [studio, platform]
+    required: https-proxy
+    secret: false
+    producer: installer
+    value: "1"
+    when: httpsProxy
+  - name: PORT
+    apps: [studio, platform]
+    required: optional
+    secret: false
+    producer: installer
+    value: "3000"
+  - name: NODE_OPTIONS
+    apps: [studio]
+    required: optional
+    secret: false
+    producer: installer
+    value: --max-old-space-size=384
+  - name: PLATFORM_LICENSE
+    apps: [platform]
+    required: optional
+    secret: true
+    producer: config
+    value: "{{license}}"
+    when: license
+
+# Must be unset or false in Studio governance mode, because Studio's boot checks refuse them (Studio's GOVERNANCE.md,
+# Boot checks). LIBREDB_MCP_ENABLED and LIBREDB_AGENT_ENABLED stay here until Studio runs MCP and the agent under
+# governance.
+studioForbidden:
+  - ALLOW_CUSTOM_CONNECTIONS
+  - LIBREDB_EMBEDDED_SAMPLE
+  - SQLITE_EMBEDDED_SAMPLE
+  - SEED_CONFIG_PATH
+  - SEED_DISCOVERY_PATH
+  - ADMIN_PASSWORD
+  - USER_PASSWORD
+  - LAUNCH_TOKEN_SECRET
+  - BIGQUERY_SERVER_CREDENTIALS
+  - FIRESTORE_SERVER_CREDENTIALS
+  - LIBREDB_MCP_ENABLED
+  - LIBREDB_AGENT_ENABLED

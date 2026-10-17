@@ -1,0 +1,68 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+/test-results
+/playwright-report
+/blob-report
+/playwright/.cache
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+!.env.example
+
+# uploads
+uploads/
+
+# superpowers
+.superpowers/
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+.remember/
+
+# the image's migrator: dependencies and bundles (Dockerfile, migrator-deps and builder stages)
+/docker/migrator/node_modules
+/docker/migrator/dist
+
+# a site's installer files, which installer/README.md writes where the installer runs, and license files
+/libredb.yaml
+/provision.sql
+/keycloak-export/
+/ca.crt
+/installer/libredb.yaml
+/installer/provision.sql
+/installer/keycloak-export/
+/installer/ca.crt
+*.license

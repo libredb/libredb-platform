@@ -1,0 +1,11 @@
+# Invalid: the ports endpoint style is allowed only in Docker mode.
+apiVersion: install.libredb.org/v1
+kind: LibreDBInstallation
+metadata:
+  name: acme
+mode: kubernetes
+endpoints:
+  style: ports
+  host: lab.corp
+platform:
+  organizationName: Acme Corp

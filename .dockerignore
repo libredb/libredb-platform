@@ -1,0 +1,41 @@
+# An allowlist: the build context holds only what the Dockerfile copies and what `npm run build` and
+# `npm run build:migrator` read. Add a new build input here on purpose; scripts/ci/docker-context.test.ts checks this
+# file against the Dockerfile and the imports of every file it keeps.
+*
+
+!package.json
+!package-lock.json
+!tsconfig.json
+!next.config.ts
+!postcss.config.mjs
+!prisma.config.ts
+# The runner stage copies it to /app/LICENSE.
+!LICENSE
+!src
+!public
+!prisma/schema.prisma
+!prisma/migrations
+!prisma/seeds
+!scripts/maintain.ts
+# prisma/seeds/development.ts imports it, and `next build` type-checks that file.
+!scripts/dev/gen-seal-keypair.mjs
+!docker/entrypoint.sh
+!docker/prune-node-modules.sh
+!docker/migrator/package.json
+!docker/migrator/package-lock.json
+!docker/migrator/preflight.mjs
+!docker/migrator/prisma-cli-prune.txt
+!docker/migrator/prisma.config.mjs
+
+# Never a build input, even inside the directories above, so these lines come after them (the last matching line wins):
+# tests and their setup, documents, diagrams and design files.
+**/*.test.*
+**/*.spec.*
+src/shared/test-setup.ts
+**/*.md
+**/*.excalidraw
+**/*.drawio
+**/*.dio
+**/*.fig
+**/*.sketch
+**/.DS_Store

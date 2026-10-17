@@ -1,0 +1,80 @@
+# The files of the migrator's node_modules that the image's commands never open. The image runs `migrate`,
+# `migrate-status` and `migrate-resolve` with the Prisma CLI, and the seed and `maintain` with the generated client,
+# but never `prisma studio` or `prisma dev`, which load most of the CLI's dependencies. Under strace of every command
+# none of the `delete` paths was opened, and scripts/ci/docker-smoke.sh runs every command without them.
+#
+# docker/prune-node-modules.sh --prisma-cli reads this file in stage migrator-deps of the Dockerfile, after generate:
+#   delete <path>  deletes the path, and fails the build when it matches nothing;
+#   keep <path>    fails the build when the path is missing after the deletes: the files the commands load next to
+#                  the deleted ones.
+# A path is relative to node_modules, and a `*` in it matches as in sh. scripts/ci/docker-smoke.sh fails when the
+# image still holds a `delete` path.
+#
+# A Prisma release moves files, so the list names the version of prisma and @prisma/client it was checked against, and
+# docker/migrator/versions.test.ts fails when docker/migrator/package.json pins another: revisit every line with it.
+version 7.5.0
+
+# Prisma Studio: its browser UI, the esbuild metafiles and the data adapters of `prisma studio`. Every CLI command
+# opens the bff, mysql2, node-sqlite and postgresjs adapters when it starts.
+delete @prisma/studio-core/dist/ui
+delete @prisma/studio-core/dist/metafile-cjs.json
+delete @prisma/studio-core/dist/metafile-esm.json
+delete @prisma/studio-core/dist/data/mysql-core
+delete @prisma/studio-core/dist/data/pglite
+delete @prisma/studio-core/dist/data/postgres-core
+delete @prisma/studio-core/dist/data/sqlite-core
+delete @prisma/studio-core/dist/data/sqljs
+keep @prisma/studio-core/dist/data/bff/index.cjs
+keep @prisma/studio-core/dist/data/mysql2/index.cjs
+keep @prisma/studio-core/dist/data/node-sqlite/index.cjs
+keep @prisma/studio-core/dist/data/postgresjs/index.cjs
+
+# React, the peer dependency of Prisma Studio, with its dependencies and types.
+delete react
+delete react-dom
+delete scheduler
+delete @types/react
+delete csstype
+
+# The MySQL and postgres.js drivers, which the CLI imports only to run Studio's queries.
+delete mysql2
+delete aws-ssl-profiles
+delete denque
+delete generate-function
+delete iconv-lite
+delete is-property
+delete long
+delete lru.min
+delete named-placeholders
+delete safer-buffer
+delete seq-queue
+delete sqlstring
+delete postgres
+
+# The local database of `prisma dev` (@prisma/dev): PGlite, the query plan executor, the HTTP server and the parser of
+# the schema's syntax tree.
+delete @electric-sql
+delete @prisma/query-plan-executor
+delete hono
+delete @hono
+delete @mrleebo
+delete chevrotain
+delete @chevrotain
+delete regexp-to-ast
+delete lodash
+
+# The CLI's Wasm schema engine and query compilers: `migrate`, `migrate-status` and `migrate-resolve` run the native
+# schema engine of @prisma/engines.
+delete prisma/build/schema_engine_bg.wasm
+delete prisma/build/query_compiler_*
+keep prisma/build/index.js
+keep prisma/build/prisma_schema_build_bg.wasm
+keep @prisma/engines/schema-engine-*
+
+# The client runtime's query compilers, which generate copies into .prisma/client, and the raw Wasm it writes there:
+# the generated client loads its compiler from the base64 module.
+delete @prisma/client/runtime/query_compiler_*
+delete .prisma/client/query_compiler_fast_bg.wasm
+keep @prisma/client/runtime/client.js
+keep .prisma/client/query_compiler_fast_bg.js
+keep .prisma/client/query_compiler_fast_bg.wasm-base64.js

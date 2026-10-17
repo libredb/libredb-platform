@@ -1,0 +1,24 @@
+# The Docker configuration of the ports endpoint style: one host, lab.libredb.test, with Platform on 443,
+# Studio on 8443 and Keycloak on 9443, a managed PostgreSQL and a managed Keycloak.
+apiVersion: install.libredb.org/v1
+kind: LibreDBInstallation
+metadata:
+  name: e2e
+mode: docker
+endpoints:
+  style: ports
+  host: lab.libredb.test
+  ports:
+    platform: 443
+    studio: 8443
+    auth: 9443
+tls:
+  mode: generated
+postgres:
+  mode: managed
+keycloak:
+  mode: managed
+platform:
+  organizationName: LibreDB E2E
+docker:
+  systemdUnit: false

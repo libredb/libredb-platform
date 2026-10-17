@@ -1,0 +1,14 @@
+{
+  "name": "libredb-platform-migrator",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Elastic-2.0",
+  "description": "The dependencies of the image's migrate, maintain, migrate-status and migrate-resolve subcommands, pinned to the root's installed versions (docker/migrator/versions.test.ts).",
+  "dependencies": {
+    "@prisma/adapter-pg": "7.5.0",
+    "@prisma/client": "7.5.0",
+    "bcryptjs": "3.0.3",
+    "pg": "8.20.0",
+    "prisma": "7.5.0"
+  }
+}

@@ -1,0 +1,125 @@
+name: Installer Release
+
+on:
+  push:
+    tags:
+      - 'installer-v*'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Check and build the installer binary
+    runs-on: ubuntu-latest
+    # This job installs the dependencies and runs their code, so its token only reads.
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: installer
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      # The tag names the release that release/release.config.json and package.json describe, and release:record must
+      # have recorded that config in release/history/, because a published release cannot be corrected.
+      - name: Refuse a tag that is not the recorded release of the config
+        run: |
+          version=$(jq -r '.version' release/release.config.json)
+          package=$(jq -r '.version' package.json)
+          if [ "$GITHUB_REF_NAME" != "installer-v$version" ]; then
+            echo "::error::The tag $GITHUB_REF_NAME does not name version $version of release/release.config.json, the release it would publish"
+            exit 1
+          fi
+          if [ "$GITHUB_REF_NAME" != "installer-v$package" ]; then
+            echo "::error::The tag $GITHUB_REF_NAME does not name version $package of package.json, the version the binary reports"
+            exit 1
+          fi
+          history="release/history/$version.json"
+          if [ ! -f "$history" ]; then
+            echo "::error::$history does not exist: run bun run release:record and commit the file it writes before the tag installer-v$version"
+            exit 1
+          fi
+          if ! jq -n -e --slurpfile recorded "$history" --slurpfile configured release/release.config.json '$recorded == $configured' > /dev/null; then
+            echo "::error::$history differs from release/release.config.json, so it does not record the release that the tag $GITHUB_REF_NAME publishes"
+            exit 1
+          fi
+          echo "$GITHUB_REF_NAME names version $version of release/release.config.json and package.json, and $history records that config"
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.2'
+      - run: bun install --frozen-lockfile
+      - run: bun run release:check
+      - name: Read the pinned Studio chart commit
+        id: studio
+        run: echo "commit=$(jq -r '.studioChart.version | select(startswith("git:")) | ltrimstr("git:")' release/release.config.json)" >> "$GITHUB_OUTPUT"
+      - if: steps.studio.outputs.commit != ''
+        uses: actions/checkout@v4
+        with:
+          repository: libredb/libredb-studio
+          ref: ${{ steps.studio.outputs.commit }}
+          path: studio-src
+          persist-credentials: false
+      - run: bun run typecheck
+      - run: bun run coverage:check
+      # Release 1.0.0 runs on x86_64 Linux alone, because the Platform image is built for linux/amd64 only.
+      - name: Build the Linux x86_64 binary with the embedded release manifest and Studio chart
+        run: bun run build
+        env:
+          LIBREDB_STUDIO_REPO: ${{ github.workspace }}/studio-src
+      - name: Smoke test the x64 binary
+        run: ./dist/libredb-installer-linux-x64 version
+      - name: Copy the license next to the binary
+        run: cp ../LICENSE dist/LICENSE
+      - name: Write SHA256SUMS
+        working-directory: installer/dist
+        run: sha256sum libredb-installer-linux-x64 LICENSE > SHA256SUMS
+      - name: Hand the binary, LICENSE and SHA256SUMS to the publish job
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-release
+          path: |
+            installer/dist/libredb-installer-linux-x64
+            installer/dist/LICENSE
+            installer/dist/SHA256SUMS
+          if-no-files-found: error
+
+  # The only job that can write to the repository or sign with its OIDC identity. It checks out nothing, so no code of
+  # the repository or of its dependencies runs here: it attests and publishes the files the build job handed over.
+  publish:
+    name: Attest and publish the installer release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      # The attestation step needs id-token to sign with this job's OIDC identity, and attestations to store what it signs.
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: installer-release
+          path: dist
+      # download-artifact only warns when the files differ from the upload, so they are checked against SHA256SUMS.
+      - name: Check the binary and LICENSE against SHA256SUMS
+        working-directory: dist
+        run: sha256sum -c SHA256SUMS
+      # A signed build provenance that gh attestation verify checks against this repository; SHA256SUMS covers LICENSE.
+      - name: Attest the build provenance of the binary and SHA256SUMS
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            dist/libredb-installer-linux-x64
+            dist/SHA256SUMS
+      - name: Publish the GitHub release
+        working-directory: dist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "LibreDB installer ${GITHUB_REF_NAME#installer-v}" \
+            --latest \
+            --notes "The Linux x86_64 binary of the LibreDB installer, under the Elastic License 2.0 in LICENSE. Install it with the Docker install guide: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/docs/deploy/install-docker.md. Verify the downloads with: sha256sum -c --ignore-missing SHA256SUMS. With a GitHub login, check the build provenance of the binary with: gh attestation verify libredb-installer-linux-x64 --repo $GITHUB_REPOSITORY" \
+            libredb-installer-linux-x64 LICENSE SHA256SUMS

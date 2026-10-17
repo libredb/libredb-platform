@@ -1,0 +1,27 @@
+# The convergence matrix of the nightly run (test/e2e/matrix.test.ts): Docker mode with an external PostgreSQL that a
+# DBA provisions with the script of db-script (provisioning manual), and a managed Keycloak. The test starts the server
+# as pg.libredb.test with a certificate of the corp CA it writes to /etc/libredb-e2e/corp-db-ca.crt.
+apiVersion: install.libredb.org/v1
+kind: LibreDBInstallation
+metadata:
+  name: matrix-external-pg-managed-kc
+mode: docker
+endpoints:
+  hosts:
+    platform: platform.libredb.test
+    studio: studio.libredb.test
+    auth: auth.libredb.test
+tls:
+  mode: generated
+postgres:
+  mode: external
+  external:
+    host: pg.libredb.test
+    caBundleFile: /etc/libredb-e2e/corp-db-ca.crt
+    provisioning: manual
+keycloak:
+  mode: managed
+platform:
+  organizationName: LibreDB E2E
+docker:
+  systemdUnit: false

@@ -1,0 +1,30 @@
+# Development PostgreSQL for `npm run dev`.
+#
+# The container applies docker/postgres/bootstrap.psql at init with the
+# development passwords of docker/postgres/init/01-bootstrap.sh: database libredb with the roles
+# libredb_owner (migrations), libredb_platform (runtime) and libredb_studio, schema studio, and
+# the shadow database libredb_shadow. Never use these passwords outside development.
+# The bootstrap runs only on an empty data directory, so a database created before it is
+# recreated once with `docker compose -f database-compose.yml down -v`.
+#
+# DEV_POSTGRES_PORT picks the host port, DEV_POSTGRES_CONTAINER the container name.
+services:
+  postgres:
+    image: postgres:18
+    container_name: ${DEV_POSTGRES_CONTAINER:-libredb-platform-postgres}
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "${DEV_POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - ./docker/postgres/bootstrap.psql:/libredb/bootstrap.psql:ro
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # TCP on 127.0.0.1 is only up after the init scripts have finished.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d libredb"]
+      interval: 1s
+      timeout: 3s
+      retries: 60

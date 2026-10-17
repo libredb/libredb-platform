@@ -1,0 +1,121 @@
+name: Installer E2E
+
+on:
+  pull_request:
+    paths:
+      - 'installer/**'
+      - '.github/workflows/installer-e2e.yml'
+  # Every night as well, on main: a scheduled run checks out the default branch.
+  schedule:
+    - cron: '30 2 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  postgres:
+    name: PostgreSQL integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: installer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.2'
+      - run: bun install --frozen-lockfile
+      # Provisions one server per PostgreSQL major version, 14 to 18, on a private Docker network without host ports.
+      - name: Provision PostgreSQL 14, 15, 16, 17 and 18
+        run: bun test test/integration/postgres
+      # Runs the managed Keycloak on a provisioned PostgreSQL behind the edge, publishing only loopback ports.
+      - name: Keycloak access handover
+        run: bun test test/integration/keycloak
+
+  docker:
+    name: Docker end-to-end tests
+    runs-on: ubuntu-latest
+    # Its steps took about 60 minutes in a Docker-in-Docker host on 2026-10-17, so the first runs on a GitHub runner get
+    # room to finish instead of failing on time alone.
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: installer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.2'
+      - run: bun install --frozen-lockfile
+      # A Studio chart pinned as git:<sha> is built from that Studio commit, so check it out next to the repo.
+      - name: Read the pinned Studio chart commit
+        id: studio
+        run: echo "commit=$(jq -r '.studioChart.version | select(startswith("git:")) | ltrimstr("git:")' release/release.config.json)" >> "$GITHUB_OUTPUT"
+      - if: steps.studio.outputs.commit != ''
+        uses: actions/checkout@v4
+        with:
+          repository: libredb/libredb-studio
+          ref: ${{ steps.studio.outputs.commit }}
+          path: studio-src
+      - name: Build the installer binary
+        run: bun run build
+        env:
+          LIBREDB_STUDIO_REPO: ${{ github.workspace }}/studio-src
+      - name: Resolve the test hostnames to this runner
+        run: echo "127.0.0.1 platform.libredb.test studio.libredb.test auth.libredb.test lab.libredb.test" | sudo tee -a /etc/hosts
+      # The browser specs run next to the containers they stop and start, and Chromium fails the requests in flight with
+      # ERR_NETWORK_CHANGED whenever an address of this runner changes: a container's start gives this runner's end of
+      # its veth an IPv6 link-local address once duplicate address detection ends, about 1.6 s later, and its stop
+      # removes it. Interfaces created from here on get no link-local address.
+      - name: Keep container starts and stops from changing the runner's addresses
+        run: sudo sysctl -w net.ipv6.conf.default.addr_gen_mode=1
+      # The test of a verified license in test/e2e/docker-platform.test.ts needs LIBREDB_E2E_LICENSE_FILE, the file of a
+      # license that the Platform image verifies for platform.libredb.test, and the repository secret LIBREDB_E2E_LICENSE
+      # holds that license. A run without the secret, such as one for a pull request from a fork, skips that test.
+      - name: Write the CI license to a file
+        env:
+          LIBREDB_E2E_LICENSE: ${{ secrets.LIBREDB_E2E_LICENSE }}
+        run: |
+          if [ -z "$LIBREDB_E2E_LICENSE" ]; then
+            echo "::notice::The secret LIBREDB_E2E_LICENSE is not set, so the test of a verified license in test/e2e/docker-platform.test.ts is skipped"
+            exit 0
+          fi
+          umask 077
+          printf '%s' "$LIBREDB_E2E_LICENSE" > "$RUNNER_TEMP/libredb-e2e.license"
+          echo "LIBREDB_E2E_LICENSE_FILE=$RUNNER_TEMP/libredb-e2e.license" >> "$GITHUB_ENV"
+      # bun test runs the files of a directory in no fixed order, and an install against an external Keycloak leaves
+      # nothing behind, so the managed install that the browser specs sign in to comes from docker-studio, run last.
+      # The ports style installs over the hostnames style, so it runs after the hostnames browser specs.
+      # The convergence matrix and the egress test run in installer-nightly.yml.
+      # sudo resets the environment, so the first command passes LIBREDB_E2E_LICENSE_FILE on to the tests itself.
+      - name: Run the Docker end-to-end tests as root
+        run: |
+          sudo env "LIBREDB_E2E_LICENSE_FILE=$LIBREDB_E2E_LICENSE_FILE" "$(command -v bun)" test --path-ignore-patterns 'test/e2e/docker-studio.test.ts' --path-ignore-patterns 'test/e2e/docker-ports.test.ts' --path-ignore-patterns 'test/e2e/matrix.test.ts' --path-ignore-patterns 'test/e2e/egress.test.ts' test/e2e
+          sudo "$(command -v bun)" test test/e2e/docker-studio.test.ts
+      # The browser specs run against the installation the end-to-end tests leave, whose first admin never signed in,
+      # and the interop suite (e2e/interop.spec.ts) is one of them.
+      - name: Install Chromium for the browser specs
+        run: bunx playwright install --with-deps chromium
+      - name: Run the browser specs and the interop suite
+        run: |
+          sudo install -m 0600 -o "$(id -un)" /opt/libredb/secrets/first-admin.txt "$RUNNER_TEMP/first-admin.txt"
+          bunx playwright test --config e2e/playwright.config.ts --project hostnames
+        env:
+          LIBREDB_E2E_FIRST_ADMIN_PASSWORD_FILE: ${{ runner.temp }}/first-admin.txt
+          LIBREDB_E2E_ACCOUNT_FILE: ${{ runner.temp }}/first-admin-hostnames.json
+      - name: Run the ports style end-to-end test as root
+        run: sudo "$(command -v bun)" test test/e2e/docker-ports.test.ts
+      - name: Run the browser specs of the ports style
+        run: |
+          sudo install -m 0600 -o "$(id -un)" /opt/libredb/secrets/first-admin.txt "$RUNNER_TEMP/first-admin-ports.txt"
+          bunx playwright test --config e2e/playwright.config.ts --project ports
+        env:
+          LIBREDB_E2E_FIRST_ADMIN_PASSWORD_FILE: ${{ runner.temp }}/first-admin-ports.txt
+          LIBREDB_E2E_ACCOUNT_FILE: ${{ runner.temp }}/first-admin-ports.json
+      - name: Show the installer state and logs
+        if: failure()
+        run: |
+          sudo ./dist/libredb-installer-linux-x64 status || true
+          sudo sh -c 'cat /opt/libredb/logs/*.log' || true
+          sudo docker compose -p libredb logs --no-color || true

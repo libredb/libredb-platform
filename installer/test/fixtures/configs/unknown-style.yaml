@@ -1,0 +1,14 @@
+# Invalid: endpoints.style names a style the installer does not know.
+apiVersion: install.libredb.org/v1
+kind: LibreDBInstallation
+metadata:
+  name: acme
+mode: docker
+endpoints:
+  style: subdomains
+  hosts:
+    platform: platform.libredb.test
+    studio: studio.libredb.test
+    auth: auth.libredb.test
+platform:
+  organizationName: Acme Corp

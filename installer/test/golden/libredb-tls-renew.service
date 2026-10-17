@@ -1,0 +1,11 @@
+[Unit]
+Description=LibreDB certificate renewal: libredb-installer apply --renew-certificates
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/libredb
+ExecStart=/opt/libredb/bin/libredb-installer apply --renew-certificates --yes -c /opt/libredb/libredb.yaml
+TimeoutStartSec=0

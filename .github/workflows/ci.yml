@@ -1,0 +1,147 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_VERSION: '24'
+
+jobs:
+  lint-typecheck:
+    name: Lint & Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run lint
+      - run: npm run typecheck
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm test
+
+  db-tests:
+    name: Database Tests (PostgreSQL ${{ matrix.postgres }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 15 is the minimum supported version, because the bridge views use the security_invoker reloption.
+        postgres: ['15', '18']
+    env:
+      TEST_POSTGRES_MAJOR: ${{ matrix.postgres }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run test:db
+      # Fails (exit code 2) when prisma/schema.prisma has changes that no migration in prisma/migrations holds.
+      # It empties the shadow database first, so it passes on every run and not only on a fresh database.
+      - name: Drift check
+        env:
+          SHADOW_DATABASE_URL: postgresql://libredb_owner:libredb_owner_dev@127.0.0.1:55432/libredb_shadow
+        run: npm run db:drift
+      - if: always()
+        run: docker compose -f docker-compose.test.yml down -v
+
+  integration:
+    name: Integration Tests (Keycloak)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      - run: npm ci
+      - run: npx prisma generate
+      - run: docker compose -f docker-compose.test.yml up -d --wait keycloak keycloak-proxied
+      - run: npm run test:integration
+      - if: failure()
+        run: docker compose -f docker-compose.test.yml logs keycloak keycloak-proxied
+      - if: always()
+        run: docker compose -f docker-compose.test.yml down -v
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run build
+
+  e2e-self-hosted:
+    name: E2E Tests (self-hosted)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npx playwright install --with-deps chromium
+      # Every later step, the server and the Playwright run read the self-hosted environment.
+      - name: Load the self-hosted environment
+        run: grep -Ev '^(#|$)' e2e/self-hosted/platform.env >> "$GITHUB_ENV"
+      - run: docker compose -f docker-compose.test.yml up -d --wait postgres keycloak
+      # MIGRATE_DATABASE_URL connects as the owner role, and the self-hosted seed creates the install tenant.
+      - run: npx prisma migrate deploy
+      - run: npx prisma db seed
+      - run: npm run build
+      - name: Start Platform on port 3100
+        run: |
+          npx next start -p 3100 > next-start.log 2>&1 &
+          for _ in $(seq 1 60); do
+            curl -sf -o /dev/null http://localhost:3100/login && exit 0
+            sleep 1
+          done
+          cat next-start.log
+          exit 1
+      - run: npm run test:e2e:self-hosted
+      - if: failure()
+        run: |
+          cat next-start.log
+          docker compose -f docker-compose.test.yml logs keycloak
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-self-hosted
+          path: test-results/
+      - if: always()
+        run: docker compose -f docker-compose.test.yml down -v
+
+  docker-smoke:
+    name: Docker Smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Builds the runner image and runs every subcommand against PostgreSQL over verified TLS, with Keycloak for maintain.
+      - run: scripts/ci/docker-smoke.sh

@@ -1,0 +1,34 @@
+# The Docker configuration of the provided TLS end-to-end test: the customer's chain and key per public hostname and
+# the CA they validate against. test/e2e/docker-tls-modes.test.ts writes a test CA and those files under
+# /var/lib/libredb-e2e/tls-modes before it applies.
+apiVersion: install.libredb.org/v1
+kind: LibreDBInstallation
+metadata:
+  name: e2e
+mode: docker
+endpoints:
+  hosts:
+    platform: platform.libredb.test
+    studio: studio.libredb.test
+    auth: auth.libredb.test
+tls:
+  mode: provided
+  caBundleFile: /var/lib/libredb-e2e/tls-modes/ca.crt
+  provided:
+    platform:
+      certificateFile: /var/lib/libredb-e2e/tls-modes/platform.crt
+      keyFile: /var/lib/libredb-e2e/tls-modes/platform.key
+    studio:
+      certificateFile: /var/lib/libredb-e2e/tls-modes/studio.crt
+      keyFile: /var/lib/libredb-e2e/tls-modes/studio.key
+    auth:
+      certificateFile: /var/lib/libredb-e2e/tls-modes/auth.crt
+      keyFile: /var/lib/libredb-e2e/tls-modes/auth.key
+postgres:
+  mode: managed
+keycloak:
+  mode: managed
+platform:
+  organizationName: LibreDB E2E
+docker:
+  systemdUnit: false

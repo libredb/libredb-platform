@@ -1,0 +1,30 @@
+# The Docker configuration of the external Keycloak end-to-end test: the three .test hostnames, a managed PostgreSQL,
+# and realm corp of the customer's own Keycloak at auth.libredb.test, reused through its Admin API with the secret of
+# a provisioning client that the customer gives realm-admin in that realm. The test sets the port of the base URL and
+# the customer's CA through --set overrides.
+apiVersion: install.libredb.org/v1
+kind: LibreDBInstallation
+metadata:
+  name: e2e-external-kc
+mode: docker
+endpoints:
+  hosts:
+    platform: platform.libredb.test
+    studio: studio.libredb.test
+    auth: auth.libredb.test
+tls:
+  mode: generated
+postgres:
+  mode: managed
+keycloak:
+  mode: external
+  realm: corp
+  external:
+    baseUrl: https://auth.libredb.test:8443
+    adminRealm: corp
+    adminClientId: corp-provisioner
+    adminClientSecretEnv: LIBREDB_E2E_CORP_ADMIN_SECRET
+platform:
+  organizationName: LibreDB E2E
+docker:
+  systemdUnit: false

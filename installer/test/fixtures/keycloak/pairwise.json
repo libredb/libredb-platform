@@ -1,0 +1,751 @@
+{
+  "realm": "libredb",
+  "defaultClientScopes": [
+    "profile",
+    "email",
+    "roles",
+    "web-origins",
+    "acr",
+    "basic"
+  ],
+  "clientScopes": [
+    {
+      "representation": {
+        "id": "62ea4833-1137-40ea-89cb-bc97e2033f27",
+        "name": "offline_access",
+        "description": "OpenID Connect built-in scope: offline_access",
+        "protocol": "openid-connect",
+        "attributes": {
+          "consent.screen.text": "${offlineAccessScopeConsentText}",
+          "display.on.consent.screen": "true"
+        }
+      },
+      "scopeMappings": {}
+    },
+    {
+      "representation": {
+        "id": "37a31515-d1aa-4ddb-9372-6e9fd5a9cbc1",
+        "name": "libredb-roles",
+        "description": "The LibreDB client roles in the claim libredb_roles",
+        "protocol": "openid-connect",
+        "attributes": {
+          "include.in.token.scope": "false",
+          "display.on.consent.screen": "false",
+          "libredb.managed": "true"
+        },
+        "protocolMappers": [
+          {
+            "id": "d40e55c9-af05-4682-a0c2-07c0e93b4746",
+            "name": "libredb roles",
+            "protocol": "openid-connect",
+            "protocolMapper": "oidc-usermodel-client-role-mapper",
+            "consentRequired": false,
+            "config": {
+              "introspection.token.claim": "true",
+              "multivalued": "true",
+              "userinfo.token.claim": "true",
+              "id.token.claim": "true",
+              "access.token.claim": "true",
+              "claim.name": "libredb_roles",
+              "jsonType.label": "String",
+              "usermodel.clientRoleMapping.clientId": "libredb"
+            }
+          }
+        ]
+      },
+      "scopeMappings": {
+        "libredb": [
+          "admin",
+          "user"
+        ]
+      }
+    },
+    {
+      "representation": {
+        "id": "c6131022-d6f1-49d7-bf35-aabccd3b7c40",
+        "name": "email",
+        "description": "OpenID Connect built-in scope: email",
+        "protocol": "openid-connect",
+        "attributes": {
+          "include.in.token.scope": "true",
+          "consent.screen.text": "${emailScopeConsentText}",
+          "display.on.consent.screen": "true"
+        }
+      },
+      "scopeMappings": {}
+    },
+    {
+      "representation": {
+        "id": "4dd36acf-4fd7-49d9-85f3-627fa02dc5c8",
+        "name": "profile",
+        "description": "OpenID Connect built-in scope: profile",
+        "protocol": "openid-connect",
+        "attributes": {
+          "include.in.token.scope": "true",
+          "consent.screen.text": "${profileScopeConsentText}",
+          "display.on.consent.screen": "true"
+        }
+      },
+      "scopeMappings": {}
+    },
+    {
+      "representation": {
+        "id": "113eed3f-a9bc-4f95-895c-6714c19d3707",
+        "name": "phone",
+        "description": "OpenID Connect built-in scope: phone",
+        "protocol": "openid-connect",
+        "attributes": {
+          "include.in.token.scope": "true",
+          "consent.screen.text": "${phoneScopeConsentText}",
+          "display.on.consent.screen": "true"
+        }
+      },
+      "scopeMappings": {}
+    },
+    {
+      "representation": {
+        "id": "e9f450cb-787a-4231-a3da-ebae5c8b797c",
+        "name": "acr",
+        "description": "OpenID Connect scope for add acr (authentication context class reference) to the token",
+        "protocol": "openid-connect",
+        "attributes": {
+          "include.in.token.scope": "false",
+          "display.on.consent.screen": "false"
+        }
+      },
+      "scopeMappings": {}
+    },
+    {
+      "representation": {
+        "id": "40452226-af72-42e5-887c-a519bb58bf55",
+        "name": "organization",
+        "description": "Additional claims about the organization a subject belongs to",
+        "protocol": "openid-connect",
+        "attributes": {
+          "include.in.token.scope": "true",
+          "consent.screen.text": "${organizationScopeConsentText}",
+          "display.on.consent.screen": "true"
+        }
+      },
+      "scopeMappings": {}
+    },
+    {
+      "representation": {
+        "id": "584d7ac4-01a6-4234-9138-0bb388f20e6e",
+        "name": "basic",
+        "description": "OpenID Connect scope for add all basic claims to the token",
+        "protocol": "openid-connect",
+        "attributes": {
+          "include.in.token.scope": "false",
+          "display.on.consent.screen": "false"
+        }
+      },
+      "scopeMappings": {}
+    },
+    {
+      "representation": {
+        "id": "1e102d3d-3275-4c4b-b11c-7982bfea4d1a",
+        "name": "web-origins",
+        "description": "OpenID Connect scope for add allowed web origins to the access token",
+        "protocol": "openid-connect",
+        "attributes": {
+          "include.in.token.scope": "false",
+          "display.on.consent.screen": "false"
+        }
+      },
+      "scopeMappings": {}
+    },
+    {
+      "representation": {
+        "id": "0cf31ec5-14ef-4e68-a94b-b7169d0dc1a6",
+        "name": "roles",
+        "description": "OpenID Connect scope for add user roles to the access token",
+        "protocol": "openid-connect",
+        "attributes": {
+          "include.in.token.scope": "false",
+          "consent.screen.text": "${rolesScopeConsentText}",
+          "display.on.consent.screen": "true"
+        }
+      },
+      "scopeMappings": {}
+    },
+    {
+      "representation": {
+        "id": "a923b22a-d1fd-4eb1-89f2-19903126f703",
+        "name": "microprofile-jwt",
+        "description": "Microprofile - JWT built-in scope",
+        "protocol": "openid-connect",
+        "attributes": {
+          "include.in.token.scope": "true",
+          "display.on.consent.screen": "false"
+        }
+      },
+      "scopeMappings": {}
+    },
+    {
+      "representation": {
+        "id": "4924daa4-bc36-41d5-8321-e0d0802cdc13",
+        "name": "service_account",
+        "description": "Specific scope for a client enabled for service accounts",
+        "protocol": "openid-connect",
+        "attributes": {
+          "include.in.token.scope": "false",
+          "display.on.consent.screen": "false"
+        }
+      },
+      "scopeMappings": {}
+    },
+    {
+      "representation": {
+        "id": "92cf611d-bcfa-4374-bc7a-6bd874513b80",
+        "name": "address",
+        "description": "OpenID Connect built-in scope: address",
+        "protocol": "openid-connect",
+        "attributes": {
+          "include.in.token.scope": "true",
+          "consent.screen.text": "${addressScopeConsentText}",
+          "display.on.consent.screen": "true"
+        }
+      },
+      "scopeMappings": {}
+    }
+  ],
+  "clients": [
+    {
+      "representation": {
+        "id": "7c80e808-c85c-4a1d-a3b5-e5a77b8f50df",
+        "clientId": "libredb",
+        "name": "LibreDB roles",
+        "description": "Holds the LibreDB client roles admin and user. Every flow is disabled and no secret is used.",
+        "surrogateAuthRequired": false,
+        "enabled": true,
+        "alwaysDisplayInConsole": false,
+        "clientAuthenticatorType": "client-secret",
+        "secret": "generated-by-keycloak",
+        "redirectUris": [],
+        "webOrigins": [],
+        "notBefore": 0,
+        "bearerOnly": false,
+        "consentRequired": false,
+        "standardFlowEnabled": false,
+        "implicitFlowEnabled": false,
+        "directAccessGrantsEnabled": false,
+        "serviceAccountsEnabled": false,
+        "publicClient": false,
+        "frontchannelLogout": false,
+        "protocol": "openid-connect",
+        "attributes": {
+          "realm_client": "false",
+          "oidc.ciba.grant.enabled": "false",
+          "client.secret.creation.time": "1792025383",
+          "backchannel.logout.session.required": "true",
+          "standard.token.exchange.enabled": "false",
+          "oauth2.device.authorization.grant.enabled": "false",
+          "backchannel.logout.revoke.offline.tokens": "false",
+          "libredb.managed": "true"
+        },
+        "authenticationFlowBindingOverrides": {},
+        "fullScopeAllowed": true,
+        "nodeReRegistrationTimeout": -1,
+        "defaultClientScopes": [
+          "web-origins",
+          "acr",
+          "profile",
+          "roles",
+          "basic",
+          "email"
+        ],
+        "optionalClientScopes": [
+          "address",
+          "phone",
+          "offline_access",
+          "organization",
+          "microprofile-jwt"
+        ],
+        "access": {
+          "view": true,
+          "configure": true,
+          "manage": true
+        }
+      },
+      "roles": [
+        {
+          "id": "db5f69a0-6436-40e0-bab5-36d4cff0ad26",
+          "name": "admin",
+          "description": "LibreDB administrator",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "7c80e808-c85c-4a1d-a3b5-e5a77b8f50df",
+          "attributes": {
+            "libredb.managed": [
+              "true"
+            ]
+          }
+        },
+        {
+          "id": "b6c16676-219f-4ece-8e6f-8a6b5774dc59",
+          "name": "user",
+          "description": "LibreDB user",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "7c80e808-c85c-4a1d-a3b5-e5a77b8f50df",
+          "attributes": {
+            "libredb.managed": [
+              "true"
+            ]
+          }
+        }
+      ],
+      "scopeMappings": {}
+    },
+    {
+      "representation": {
+        "id": "30125ccf-ecc1-41a1-83e5-3a40691dd583",
+        "clientId": "libredb-studio",
+        "name": "LibreDB Studio",
+        "surrogateAuthRequired": false,
+        "enabled": true,
+        "alwaysDisplayInConsole": false,
+        "clientAuthenticatorType": "client-secret",
+        "secret": "studio-client-secret-for-tests",
+        "redirectUris": [
+          "https://studio.libredb.test/api/auth/oidc/callback"
+        ],
+        "webOrigins": [
+          "https://studio.libredb.test"
+        ],
+        "notBefore": 0,
+        "bearerOnly": false,
+        "consentRequired": false,
+        "standardFlowEnabled": true,
+        "implicitFlowEnabled": false,
+        "directAccessGrantsEnabled": false,
+        "serviceAccountsEnabled": false,
+        "publicClient": false,
+        "frontchannelLogout": false,
+        "protocol": "openid-connect",
+        "attributes": {
+          "realm_client": "false",
+          "oidc.ciba.grant.enabled": "false",
+          "backchannel.logout.session.required": "true",
+          "standard.token.exchange.enabled": "false",
+          "post.logout.redirect.uris": "https://studio.libredb.test/login",
+          "oauth2.device.authorization.grant.enabled": "false",
+          "pkce.code.challenge.method": "S256",
+          "backchannel.logout.revoke.offline.tokens": "false",
+          "libredb.managed": "true"
+        },
+        "authenticationFlowBindingOverrides": {},
+        "fullScopeAllowed": true,
+        "nodeReRegistrationTimeout": -1,
+        "protocolMappers": [
+          {
+            "id": "ad703d3b-a747-4af5-acc9-3c926f1d94d5",
+            "name": "studio audience",
+            "protocol": "openid-connect",
+            "protocolMapper": "oidc-audience-mapper",
+            "consentRequired": false,
+            "config": {
+              "included.client.audience": "libredb-studio",
+              "id.token.claim": "false",
+              "access.token.claim": "true"
+            }
+          }
+        ],
+        "defaultClientScopes": [
+          "web-origins",
+          "acr",
+          "profile",
+          "roles",
+          "libredb-roles",
+          "basic",
+          "email"
+        ],
+        "optionalClientScopes": [
+          "address",
+          "phone",
+          "offline_access",
+          "organization",
+          "microprofile-jwt"
+        ],
+        "access": {
+          "view": true,
+          "configure": true,
+          "manage": true
+        }
+      },
+      "roles": [],
+      "scopeMappings": {}
+    },
+    {
+      "representation": {
+        "id": "2fee9771-a24b-4929-97dd-67ebeb95a1dd",
+        "clientId": "libredb-platform",
+        "name": "LibreDB Platform",
+        "surrogateAuthRequired": false,
+        "enabled": true,
+        "alwaysDisplayInConsole": false,
+        "clientAuthenticatorType": "client-secret",
+        "secret": "platform-client-secret-for-tests",
+        "redirectUris": [
+          "https://platform.libredb.test/api/auth/callback/keycloak"
+        ],
+        "webOrigins": [
+          "https://platform.libredb.test"
+        ],
+        "notBefore": 0,
+        "bearerOnly": false,
+        "consentRequired": false,
+        "standardFlowEnabled": true,
+        "implicitFlowEnabled": false,
+        "directAccessGrantsEnabled": false,
+        "serviceAccountsEnabled": true,
+        "publicClient": false,
+        "frontchannelLogout": false,
+        "protocol": "openid-connect",
+        "attributes": {
+          "realm_client": "false",
+          "oidc.ciba.grant.enabled": "false",
+          "backchannel.logout.session.required": "true",
+          "standard.token.exchange.enabled": "false",
+          "post.logout.redirect.uris": "https://platform.libredb.test/login",
+          "oauth2.device.authorization.grant.enabled": "false",
+          "pkce.code.challenge.method": "S256",
+          "backchannel.logout.revoke.offline.tokens": "false",
+          "libredb.managed": "true",
+          "use.refresh.tokens": "true"
+        },
+        "authenticationFlowBindingOverrides": {},
+        "fullScopeAllowed": true,
+        "nodeReRegistrationTimeout": -1,
+        "protocolMappers": [
+          {
+            "id": "12c4079e-4637-4538-856e-934111fda6b0",
+            "name": "pairwise subject",
+            "protocol": "openid-connect",
+            "protocolMapper": "oidc-sha256-pairwise-sub-mapper",
+            "consentRequired": false,
+            "config": {
+              "pairwiseSubAlgorithmSalt": "f50df96b-6fe6-4743-978e-19cad91c813f"
+            }
+          }
+        ],
+        "defaultClientScopes": [
+          "web-origins",
+          "service_account",
+          "acr",
+          "profile",
+          "roles",
+          "libredb-roles",
+          "basic",
+          "email"
+        ],
+        "optionalClientScopes": [
+          "address",
+          "phone",
+          "offline_access",
+          "organization",
+          "microprofile-jwt"
+        ],
+        "access": {
+          "view": true,
+          "configure": true,
+          "manage": true
+        }
+      },
+      "roles": [],
+      "scopeMappings": {
+        "realm-management": [
+          "view-clients",
+          "view-users"
+        ]
+      },
+      "serviceAccount": {
+        "id": "984bdc1d-d119-4f5b-a2ff-85de1fab2158",
+        "clientRoles": {
+          "realm-management": [
+            "view-clients",
+            "view-users"
+          ]
+        }
+      }
+    },
+    {
+      "representation": {
+        "id": "5a889c2e-8201-4ad0-b9ec-f0898c300844",
+        "clientId": "realm-management",
+        "name": "${client_realm-management}",
+        "surrogateAuthRequired": false,
+        "enabled": true,
+        "alwaysDisplayInConsole": false,
+        "clientAuthenticatorType": "client-secret",
+        "redirectUris": [],
+        "webOrigins": [],
+        "notBefore": 0,
+        "bearerOnly": true,
+        "consentRequired": false,
+        "standardFlowEnabled": true,
+        "implicitFlowEnabled": false,
+        "directAccessGrantsEnabled": false,
+        "serviceAccountsEnabled": false,
+        "publicClient": false,
+        "frontchannelLogout": false,
+        "protocol": "openid-connect",
+        "attributes": {
+          "realm_client": "true"
+        },
+        "authenticationFlowBindingOverrides": {},
+        "fullScopeAllowed": false,
+        "nodeReRegistrationTimeout": 0,
+        "defaultClientScopes": [
+          "web-origins",
+          "acr",
+          "profile",
+          "roles",
+          "basic",
+          "email"
+        ],
+        "optionalClientScopes": [
+          "address",
+          "phone",
+          "offline_access",
+          "organization",
+          "microprofile-jwt"
+        ],
+        "access": {
+          "view": true,
+          "configure": false,
+          "manage": false
+        }
+      },
+      "roles": [
+        {
+          "id": "cc174c4a-0655-4467-8d16-b48fdaec5750",
+          "name": "impersonation",
+          "description": "${role_impersonation}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "5a889c2e-8201-4ad0-b9ec-f0898c300844",
+          "attributes": {}
+        },
+        {
+          "id": "10b0d7ea-9e36-435d-8782-c14309b2008c",
+          "name": "query-organizations",
+          "description": "${role_query-organizations}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "5a889c2e-8201-4ad0-b9ec-f0898c300844",
+          "attributes": {}
+        },
+        {
+          "id": "5414bc6c-90c2-4497-9612-bca5b6397efa",
+          "name": "view-clients",
+          "description": "${role_view-clients}",
+          "composite": true,
+          "clientRole": true,
+          "containerId": "5a889c2e-8201-4ad0-b9ec-f0898c300844",
+          "attributes": {}
+        },
+        {
+          "id": "69dce64d-d66c-4fae-9e6c-6312db6c7491",
+          "name": "create-client",
+          "description": "${role_create-client}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "5a889c2e-8201-4ad0-b9ec-f0898c300844",
+          "attributes": {}
+        },
+        {
+          "id": "c26ede89-0ab2-43c9-bf96-3751a618390b",
+          "name": "manage-users",
+          "description": "${role_manage-users}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "5a889c2e-8201-4ad0-b9ec-f0898c300844",
+          "attributes": {}
+        },
+        {
+          "id": "3cec36e7-b436-431b-be45-41f6d26f4e7b",
+          "name": "view-users",
+          "description": "${role_view-users}",
+          "composite": true,
+          "clientRole": true,
+          "containerId": "5a889c2e-8201-4ad0-b9ec-f0898c300844",
+          "attributes": {}
+        },
+        {
+          "id": "7e370913-d55e-4326-b9fc-25e3bcb8b0f1",
+          "name": "manage-clients",
+          "description": "${role_manage-clients}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "5a889c2e-8201-4ad0-b9ec-f0898c300844",
+          "attributes": {}
+        },
+        {
+          "id": "82e52224-ea93-44bf-9f86-6eaa624812ca",
+          "name": "view-events",
+          "description": "${role_view-events}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "5a889c2e-8201-4ad0-b9ec-f0898c300844",
+          "attributes": {}
+        },
+        {
+          "id": "ea7c96c5-0fc3-4c94-8892-e96fed998798",
+          "name": "manage-organizations",
+          "description": "${role_manage-organizations}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "5a889c2e-8201-4ad0-b9ec-f0898c300844",
+          "attributes": {}
+        },
+        {
+          "id": "bff525ad-7efc-446d-9c9e-dfdc8ea93a6a",
+          "name": "manage-authorization",
+          "description": "${role_manage-authorization}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "5a889c2e-8201-4ad0-b9ec-f0898c300844",
+          "attributes": {}
+        },
+        {
+          "id": "0baa592a-ded2-45a3-876e-0c1f2ac383f5",
+          "name": "view-realm",
+          "description": "${role_view-realm}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "5a889c2e-8201-4ad0-b9ec-f0898c300844",
+          "attributes": {}
+        },
+        {
+          "id": "0c0d46f0-e35d-4a51-97aa-2afffa20b53a",
+          "name": "query-users",
+          "description": "${role_query-users}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "5a889c2e-8201-4ad0-b9ec-f0898c300844",
+          "attributes": {}
+        },
+        {
+          "id": "90215421-51c2-40c2-bef0-bc9ab0b54f2b",
+          "name": "view-authorization",
+          "description": "${role_view-authorization}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "5a889c2e-8201-4ad0-b9ec-f0898c300844",
+          "attributes": {}
+        },
+        {
+          "id": "f076608c-1181-447b-9fca-619374bdbf21",
+          "name": "manage-identity-providers",
+          "description": "${role_manage-identity-providers}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "5a889c2e-8201-4ad0-b9ec-f0898c300844",
+          "attributes": {}
+        },
+        {
+          "id": "506ebe7b-a831-4d2a-bbae-fe897d87db42",
+          "name": "manage-events",
+          "description": "${role_manage-events}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "5a889c2e-8201-4ad0-b9ec-f0898c300844",
+          "attributes": {}
+        },
+        {
+          "id": "5906c5b4-ee8a-425b-9a7f-db15d02c5669",
+          "name": "realm-admin",
+          "description": "${role_realm-admin}",
+          "composite": true,
+          "clientRole": true,
+          "containerId": "5a889c2e-8201-4ad0-b9ec-f0898c300844",
+          "attributes": {}
+        },
+        {
+          "id": "535d8b5b-0b72-4eba-9430-1ac106c7d4bc",
+          "name": "query-realms",
+          "description": "${role_query-realms}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "5a889c2e-8201-4ad0-b9ec-f0898c300844",
+          "attributes": {}
+        },
+        {
+          "id": "a33776d8-0aef-4ccb-a988-1cd0b2c50d29",
+          "name": "view-organizations",
+          "description": "${role_view-organizations}",
+          "composite": true,
+          "clientRole": true,
+          "containerId": "5a889c2e-8201-4ad0-b9ec-f0898c300844",
+          "attributes": {}
+        },
+        {
+          "id": "66beb80e-6c33-4f7e-8a8a-05bcd947f480",
+          "name": "manage-realm",
+          "description": "${role_manage-realm}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "5a889c2e-8201-4ad0-b9ec-f0898c300844",
+          "attributes": {}
+        },
+        {
+          "id": "e72c0531-aeab-474f-a0bb-60da434f3f04",
+          "name": "query-groups",
+          "description": "${role_query-groups}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "5a889c2e-8201-4ad0-b9ec-f0898c300844",
+          "attributes": {}
+        },
+        {
+          "id": "cdd2c01a-b46a-4930-ab01-c510e705787b",
+          "name": "query-clients",
+          "description": "${role_query-clients}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "5a889c2e-8201-4ad0-b9ec-f0898c300844",
+          "attributes": {}
+        },
+        {
+          "id": "af142c1f-2f45-4a15-87b6-5975404abc8b",
+          "name": "view-identity-providers",
+          "description": "${role_view-identity-providers}",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "5a889c2e-8201-4ad0-b9ec-f0898c300844",
+          "attributes": {}
+        }
+      ],
+      "scopeMappings": {}
+    }
+  ],
+  "users": [
+    {
+      "id": "9ec26021-ead1-428d-85ab-d3ba665b8fbc",
+      "username": "libredb-admin",
+      "clientRoles": {
+        "libredb": [
+          "admin"
+        ]
+      }
+    },
+    {
+      "id": "4a0e2bdb-4709-4fdc-a2f3-4b62ad601336",
+      "username": "libredb-user-manager",
+      "clientRoles": {
+        "realm-management": [
+          "view-clients",
+          "manage-users",
+          "view-users",
+          "query-groups"
+        ]
+      }
+    }
+  ],
+  "createdUsers": [
+    "libredb-admin",
+    "libredb-user-manager"
+  ]
+}

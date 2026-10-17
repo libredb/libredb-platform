@@ -1,0 +1,10 @@
+[Unit]
+Description=Renew the LibreDB certificates once a year
+
+[Timer]
+OnCalendar=yearly
+Persistent=true
+Unit=libredb-tls-renew.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,94 @@
+name: Docker Build & Push
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+    # A push to main that changes only the installer leaves the image as it is. GitHub evaluates path filters for
+    # branch pushes alone, so every v* tag builds.
+    paths-ignore:
+      - 'installer/**'
+      - '.github/workflows/installer*.yml'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-push:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # A release version is published once: an installer release pins its digest, and a re-run of its tag would push
+      # another digest under it. Only a tag vX.Y.Z names a version, and only the registry's answer "not found" lets the
+      # build go on, so a lookup that fails for any other reason stops the run too.
+      - name: Refuse to publish a release version twice
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}
+        run: |
+          if ! printf '%s\n' "$GITHUB_REF_NAME" | grep -Eqx 'v[0-9]+\.[0-9]+\.[0-9]+'; then
+            echo "::error::$GITHUB_REF_NAME is not a release tag vX.Y.Z, so it names no version to publish"
+            exit 1
+          fi
+          reference="$IMAGE:${GITHUB_REF_NAME#v}"
+          if lookup=$(docker buildx imagetools inspect "$reference" 2>&1); then
+            echo "::error::$reference already exists, and a release version is never published twice: tag a new version instead"
+            exit 1
+          fi
+          case "$lookup" in
+            *"$reference: not found"*) echo "$reference is not published yet" ;;
+            *)
+              printf '%s\n' "$lookup"
+              echo "::error::The registry did not answer whether $reference exists"
+              exit 1
+              ;;
+          esac
+
+      # A push to main publishes main and sha-<7 hex>, and a v* tag its version, its major.minor and latest, so no push
+      # to main moves a version. latest names the release built last, not the highest version: a build of v1.0.1 after
+      # v1.1.0 moves it back to 1.0.1.
+      - uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
+        id: meta
+        with:
+          images: ghcr.io/${{ github.repository }}
+          flavor: |
+            latest=false
+          tags: |
+            type=raw,value=main,enable={{is_default_branch}}
+            type=sha,enable={{is_default_branch}}
+            type=semver,pattern={{version}},enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+          # The action derives this label from the license GitHub detects, and GitHub detects no Elastic License 2.0;
+          # build-push-action sets these labels over the Dockerfile's, so the license is named here too.
+          labels: |
+            org.opencontainers.image.licenses=Elastic-2.0
+
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          target: runner
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            AUTH_SECRET_BUILD=build-secret-placeholder-min-32-chars

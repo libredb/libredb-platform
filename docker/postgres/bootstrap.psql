@@ -1,0 +1,30 @@
+-- LibreDB database bootstrap, which docs/deploy/platform-runtime.md describes.
+-- Run once as a superuser or a role with CREATEROLE and CREATEDB, connected to
+-- any database other than libredb, with psql -v ON_ERROR_STOP=1 and the psql
+-- variables owner_pw, platform_pw and studio_pw.
+
+-- Passwords come from psql variables; the installer sends SCRAM verifiers, never cleartext.
+CREATE ROLE libredb_owner    LOGIN PASSWORD :'owner_pw'
+  NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS CONNECTION LIMIT 5;
+CREATE ROLE libredb_platform LOGIN PASSWORD :'platform_pw'
+  NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS CONNECTION LIMIT 25;
+CREATE ROLE libredb_studio   LOGIN PASSWORD :'studio_pw'
+  NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS CONNECTION LIMIT 30;
+
+CREATE DATABASE libredb OWNER libredb_owner ENCODING 'UTF8' TEMPLATE template0;
+
+\connect libredb
+
+REVOKE ALL ON DATABASE libredb FROM PUBLIC;
+GRANT CONNECT ON DATABASE libredb TO libredb_owner, libredb_platform, libredb_studio;
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
+
+CREATE SCHEMA studio AUTHORIZATION libredb_studio;
+
+ALTER ROLE libredb_owner    IN DATABASE libredb SET search_path = platform;
+ALTER ROLE libredb_platform IN DATABASE libredb SET search_path = platform;
+ALTER ROLE libredb_studio   IN DATABASE libredb SET search_path = studio;
+-- Never set idle_session_timeout for libredb_studio: it would kill the LISTEN connection.
+ALTER ROLE libredb_studio   IN DATABASE libredb SET statement_timeout = '30s';
+ALTER ROLE libredb_studio   IN DATABASE libredb SET idle_in_transaction_session_timeout = '60s';
+ALTER ROLE libredb_platform IN DATABASE libredb SET idle_in_transaction_session_timeout = '60s';

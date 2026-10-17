@@ -1,0 +1,29 @@
+# The Docker configuration of the external TLS end-to-end test: an upstream proxy terminates TLS for the three .test
+# hostnames with a certificate from the test CA and forwards plain HTTP to the edge on port 8080.
+# test/e2e/docker-tls-modes.test.ts writes that CA under /var/lib/libredb-e2e/tls-modes and starts the proxy at
+# 10.213.0.10 on the edge network, the one address whose X-Forwarded-* headers the edge trusts.
+apiVersion: install.libredb.org/v1
+kind: LibreDBInstallation
+metadata:
+  name: e2e
+mode: docker
+endpoints:
+  hosts:
+    platform: platform.libredb.test
+    studio: studio.libredb.test
+    auth: auth.libredb.test
+tls:
+  mode: external
+  caBundleFile: /var/lib/libredb-e2e/tls-modes/ca.crt
+  external:
+    httpPort: 8080
+    trustedProxies:
+      - 10.213.0.10/32
+postgres:
+  mode: managed
+keycloak:
+  mode: managed
+platform:
+  organizationName: LibreDB E2E
+docker:
+  systemdUnit: false

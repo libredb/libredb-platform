@@ -1,0 +1,5 @@
+export { trackEvent, getUserStats } from './lib/achievements'
+export { ACHIEVEMENTS, ACHIEVEMENT_CATEGORIES } from './lib/achievement-definitions'
+export type { AchievementCode, AchievementCategory } from './lib/achievement-definitions'
+export { AchievementBadge } from './components/achievement-badge'
+export { StreakDisplay } from './components/streak-display'

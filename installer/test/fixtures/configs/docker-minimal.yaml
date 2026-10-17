@@ -1,0 +1,13 @@
+# The smallest valid Docker-mode installation: every other field takes its default.
+apiVersion: install.libredb.org/v1
+kind: LibreDBInstallation
+metadata:
+  name: acme
+mode: docker
+endpoints:
+  hosts:
+    platform: platform.libredb.test
+    studio: studio.libredb.test
+    auth: auth.libredb.test
+platform:
+  organizationName: Acme Corp

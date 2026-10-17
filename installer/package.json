@@ -1,0 +1,31 @@
+{
+  "name": "libredb-installer",
+  "version": "1.0.0",
+  "private": true,
+  "license": "Elastic-2.0",
+  "type": "module",
+  "packageManager": "bun@1.4.2",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test test/unit",
+    "coverage:check": "bun test test/unit --coverage && bun scripts/check-coverage.ts coverage/lcov.info",
+    "test:int": "bun test test/integration",
+    "test:e2e": "bun test test/e2e",
+    "gen:contracts": "bun scripts/gen-contracts.ts",
+    "embed": "bun scripts/embed-release.ts",
+    "release:check": "bun scripts/check-release-compat.ts",
+    "release:record": "bun scripts/record-release.ts",
+    "build": "bun scripts/build.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.58.2",
+    "@types/bun": "1.4.2",
+    "typescript": "6.0.3"
+  },
+  "dependencies": {
+    "@peculiar/x509": "2.1.0",
+    "reflect-metadata": "0.2.2",
+    "yaml": "2.9.1",
+    "zod": "4.3.6"
+  }
+}

@@ -1,0 +1,106 @@
+name: Installer
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'installer/**'
+      - 'tests/fixtures/governance/STUDIO_TAG'
+      - '.github/workflows/installer.yml'
+  pull_request:
+    paths:
+      - 'installer/**'
+      - 'tests/fixtures/governance/STUDIO_TAG'
+      - '.github/workflows/installer.yml'
+
+jobs:
+  installer:
+    name: Typecheck, coverage & build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: installer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.2'
+      - run: bun install --frozen-lockfile
+      # A Studio chart pinned as git:<sha> is built from that Studio commit, so check it out next to the repo.
+      - name: Read the pinned Studio chart commit
+        id: studio
+        run: echo "commit=$(jq -r '.studioChart.version | select(startswith("git:")) | ltrimstr("git:")' release/release.config.json)" >> "$GITHUB_OUTPUT"
+      - if: steps.studio.outputs.commit != ''
+        uses: actions/checkout@v4
+        with:
+          repository: libredb/libredb-studio
+          ref: ${{ steps.studio.outputs.commit }}
+          path: studio-src
+      - name: Embed the release manifest and the pinned Studio chart
+        run: bun run embed
+        env:
+          LIBREDB_STUDIO_REPO: ${{ github.workspace }}/studio-src
+      - run: bun run typecheck
+      - run: bun run coverage:check
+      - run: bun run build
+        env:
+          LIBREDB_STUDIO_REPO: ${{ github.workspace }}/studio-src
+      - name: Smoke test the x64 binary
+        run: |
+          ./dist/libredb-installer-linux-x64 version
+          ./dist/libredb-installer-linux-x64 images list
+          if ./dist/libredb-installer-linux-x64 images list | grep -v '@sha256:'; then
+            echo "::error::images list printed a reference without a digest"
+            exit 1
+          fi
+
+  release-compat:
+    name: Release contract compatibility
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: installer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.2'
+      - run: bun install --frozen-lockfile
+      # Refuses a Studio pin other than Platform's STUDIO_TAG, its chart, or the digest the registry reports, and a
+      # Platform digest other than the one the registry reports for images.platform.version.
+      - run: bun run release:check
+        env:
+          LIBREDB_RELEASE_REGISTRY: ${{ vars.LIBREDB_APP_REGISTRY }}
+
+  contracts:
+    name: Rendered environments against the pinned app images
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: installer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.2'
+      - run: bun install --frozen-lockfile
+      # Boots the pinned Platform and Studio images with the rendered env files on a private Docker network, so an app
+      # release that renames or adds a required variable fails here before a release pins it.
+      - run: bun test test/integration/contracts
+        env:
+          LIBREDB_IT_APP_REGISTRY: ${{ vars.LIBREDB_APP_REGISTRY }}
+
+  tls-arm64:
+    name: TLS unit tests on linux-arm64
+    runs-on: ubuntu-24.04-arm
+    defaults:
+      run:
+        working-directory: installer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.2'
+      - run: bun install --frozen-lockfile
+      - run: bun test test/unit/tls

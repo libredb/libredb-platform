@@ -1,0 +1,49 @@
+{
+  "version": "1.0.0",
+  "images": {
+    "platform": {
+      "repository": "ghcr.io/libredb/libredb-platform",
+      "version": "1.0.0",
+      "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "studio": {
+      "repository": "ghcr.io/libredb/libredb-studio",
+      "version": "git:efc6e1b699fbca3af7490180fda3499ef5a09424",
+      "digest": "sha256:3d40594e475e3a4e30592ec93fc82a599149f10dad4e6c24f9889e362e3298ce"
+    },
+    "keycloak": {
+      "repository": "quay.io/keycloak/keycloak",
+      "version": "26.8.1",
+      "digest": "sha256:79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244"
+    },
+    "postgres": {
+      "repository": "docker.io/library/postgres",
+      "version": "18.6",
+      "digest": "sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336"
+    },
+    "edge": {
+      "repository": "docker.io/library/caddy",
+      "version": "2.11.7",
+      "digest": "sha256:685ae3d7c34d9b5f8caeddc5d14051db7bbd88ff1f5a2fa0c16bd8ca328fb7af"
+    }
+  },
+  "studioChart": {
+    "name": "libredb-studio",
+    "version": "git:efc6e1b699fbca3af7490180fda3499ef5a09424",
+    "repository": "https://libredb.org/libredb-studio/",
+    "sha256": "479f423eee554d0d809de31f93c58ee27d5112c91dacbb8a609bc7511222d166"
+  },
+  "minimums": {
+    "dockerEngine": "28.0.0",
+    "compose": "2.24.0",
+    "kubernetes": "1.28.0"
+  },
+  "studio": {
+    "logoutHintVerified": true,
+    "reportedVersion": "0.18.3"
+  },
+  "contracts": {
+    "platformPublishes": [1],
+    "studioSupports": [1]
+  }
+}

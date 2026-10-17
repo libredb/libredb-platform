@@ -1,0 +1,733 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Every model and enum lives in schema platform, which libredb_owner owns.
+// Prisma never diffs schema bridge, whose objects come from raw SQL in the migrations.
+datasource db {
+  provider = "postgresql"
+  schemas  = ["platform"]
+}
+
+// ─── IDENTITY ────────────────────────────────────────────
+
+model Tenant {
+  id           String     @id @default(cuid())
+  name         String
+  slug         String     @unique
+  logoUrl      String?
+  settings     Json?
+  active       Boolean    @default(true)
+  planConfigId String
+  planConfig   PlanConfig @relation(fields: [planConfigId], references: [id])
+
+  members       TenantMember[]
+  roles         Role[]
+  invitations   Invitation[]
+  connections   DatabaseConnection[]
+  subscription  Subscription?
+  tickets       SupportTicket[]
+  supportTags   SupportTag[]
+  notifications Notification[]
+  sharedQueries SharedQuery[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("tenants")
+  @@schema("platform")
+}
+
+// A user is keyed by keycloakId, the OIDC sub of the Keycloak issuer, and never by email.
+// email is a display label that two users may share; cloud password users have no keycloakId.
+model User {
+  id            String  @id @default(cuid())
+  keycloakId    String? @unique
+  email         String
+  name          String?
+  avatarUrl     String?
+  active        Boolean @default(true)
+  emailVerified Boolean @default(false)
+  locale        String  @default("en")
+
+  memberships        TenantMember[]
+  preferences        UserPreference?
+  notifications      Notification[]
+  adminActions       AdminAction[]
+  passwordCredential PasswordCredential?
+  createdConnections DatabaseConnection[]
+  grantsGiven        ConnectionGrant[]
+  sessionRevocations SessionRevocation[]
+
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([email])
+  @@map("users")
+  @@schema("platform")
+}
+
+// The password of a cloud Credentials login.
+// email is the lower-cased sign-in name, unique across credentials, and the migration adds CHECK (email = lower(email)).
+model PasswordCredential {
+  userId       String   @id
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email        String   @unique
+  passwordHash String
+  updatedAt    DateTime @updatedAt
+
+  @@map("password_credentials")
+  @@schema("platform")
+}
+
+model TenantMember {
+  id        String  @id @default(cuid())
+  tenantId  String
+  tenant    Tenant  @relation(fields: [tenantId], references: [id])
+  userId    String
+  user      User    @relation(fields: [userId], references: [id])
+  isDefault Boolean @default(false)
+  active    Boolean @default(true)
+
+  roles UserRole[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, userId])
+  @@map("tenant_members")
+  @@schema("platform")
+}
+
+model Role {
+  id          String  @id @default(cuid())
+  code        String
+  name        String
+  description String?
+  isSystem    Boolean @default(false)
+  tenantId    String?
+  tenant      Tenant? @relation(fields: [tenantId], references: [id])
+
+  users       UserRole[]
+  permissions RolePermission[]
+  menus       MenuRole[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, code])
+  @@map("roles")
+  @@schema("platform")
+}
+
+model Permission {
+  id          String  @id @default(cuid())
+  code        String  @unique
+  name        String
+  category    String
+  description String?
+
+  roles RolePermission[]
+
+  @@map("permissions")
+  @@schema("platform")
+}
+
+model UserRole {
+  membershipId String
+  roleId       String
+  membership   TenantMember @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  role         Role         @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([membershipId, roleId])
+  @@map("user_roles")
+  @@schema("platform")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+  @@schema("platform")
+}
+
+model Invitation {
+  id         String    @id @default(cuid())
+  tenantId   String
+  tenant     Tenant    @relation(fields: [tenantId], references: [id])
+  email      String
+  roleId     String
+  token      String    @unique
+  expiresAt  DateTime
+  acceptedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@unique([tenantId, email])
+  @@map("invitations")
+  @@schema("platform")
+}
+
+// ─── MENU ────────────────────────────────────────────────
+
+model Menu {
+  id          String  @id @default(cuid())
+  code        String  @unique
+  name        String
+  description String?
+  url         String?
+  icon        String?
+  sortOrder   Int     @default(0)
+  active      Boolean @default(true)
+  parentId    String?
+  parent      Menu?   @relation("MenuHierarchy", fields: [parentId], references: [id])
+  children    Menu[]  @relation("MenuHierarchy")
+  level       Int     @default(0)
+
+  roles MenuRole[]
+
+  @@map("menus")
+  @@schema("platform")
+}
+
+model MenuRole {
+  menuId String
+  roleId String
+  menu   Menu   @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([menuId, roleId])
+  @@map("menu_roles")
+  @@schema("platform")
+}
+
+// ─── GOVERNANCE ──────────────────────────────────────────
+
+// A governed connection, which Studio reads through bridge.connections_v1.
+// Platform generates the id with crypto.randomUUID() before sealing, because the AAD of both envelopes binds it,
+// and readSecret and writeSecret are lsb1 envelopes that Platform seals for Studio and never opens.
+// The migration adds the column CHECKs, among them one that keeps credential keys out of the definition.
+// It also adds the rebind trigger that refuses a changed id, engine or definition without newly sealed secrets, and
+// the bridge_notify trigger of kind connections.
+// The columns the contract exposes stay text, so the types of the view match the contract.
+model DatabaseConnection {
+  id          String    @id
+  tenantId    String
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
+  name        String
+  engine      String
+  environment String?
+  groupName   String?
+  color       String?
+  definition  Json      @db.JsonB
+  readSecret  String
+  writeSecret String?
+  mcpEnabled  Boolean   @default(false)
+  active      Boolean   @default(true)
+  deletedAt   DateTime? @db.Timestamptz(3)
+  createdById String
+  createdBy   User      @relation(fields: [createdById], references: [id])
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime  @default(now()) @updatedAt @db.Timestamptz(3)
+
+  grants ConnectionGrant[]
+
+  @@index([tenantId])
+  @@map("database_connections")
+  @@schema("platform")
+}
+
+enum GrantLevel {
+  read
+  write
+
+  @@schema("platform")
+}
+
+// A Keycloak user's access to a connection, which Studio reads through bridge.grants_v1.
+// subject is the Keycloak user id, the OIDC sub of the issuer, and subjectUsername and subjectEmail are what
+// the directory reported when the grant was made, kept for display only.
+// The migration adds CHECKs (subjectKind only user in v1, subject from 1 to 512 characters, an expiry after the grant
+// time) and the bridge_notify trigger of kind grants.
+// bridge.grants_v1 publishes level as text, so the enum never reaches the contract.
+model ConnectionGrant {
+  id              String             @id @default(cuid())
+  connectionId    String
+  connection      DatabaseConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  subjectKind     String             @default("user")
+  subject         String
+  subjectUsername String
+  subjectEmail    String?
+  level           GrantLevel
+  expiresAt       DateTime?          @db.Timestamptz(3)
+  grantedById     String
+  grantedBy       User               @relation(fields: [grantedById], references: [id])
+  grantedAt       DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime           @default(now()) @updatedAt @db.Timestamptz(3)
+
+  @@unique([connectionId, subjectKind, subject])
+  @@index([subject])
+  @@map("connection_grants")
+  @@schema("platform")
+}
+
+// Append-only log of admin changes. libredb_platform has INSERT and SELECT only,
+// and the migration adds a CHECK on action. Write it through recordAdminAction() in src/shared/lib/admin-actions.ts.
+model AdminAction {
+  id         String   @id @default(cuid())
+  actorId    String
+  actor      User     @relation(fields: [actorId], references: [id])
+  action     String
+  targetType String
+  targetId   String
+  before     Json?
+  after      Json?
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+
+  @@map("admin_actions")
+  @@schema("platform")
+}
+
+// One sealed test envelope per seal key id, which Studio reads through bridge.seal_canary_v1 and opens on every load.
+// The migration adds the CHECKs on kid and envelope and the bridge_notify trigger of kind canary.
+model SealCanary {
+  kid       String   @id
+  envelope  String
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@map("seal_canary")
+  @@schema("platform")
+}
+
+// The runtime settings Studio accepts from Platform, one row per key of Studio's settings registry.
+// Rows come only from migrations generated by scripts/generate-studio-settings-allowlist.mjs; libredb_platform reads them and cannot write them.
+// The migration adds the CHECKs on key, valueType and allowedValues and the bridge_notify trigger of kind settings.
+model StudioSettingKey {
+  key           String          @id
+  valueType     String
+  allowedValues Json?           @db.JsonB
+  minValue      BigInt?
+  maxValue      BigInt?
+  sinceContract Int             @default(1) @db.SmallInt
+  description   String
+  settings      StudioSetting[]
+
+  @@map("studio_setting_keys")
+  @@schema("platform")
+}
+
+// The value an admin set for an allowlisted key, which Studio reads through bridge.settings_v1; a key without a row takes Studio's default.
+// The trigger platform.studio_settings_validate() checks the value against its allowlist row and stamps updatedAt,
+// and the bridge_notify trigger of kind settings tells Studio to reload.
+// updatedBy holds the users.id of the admin, or system:seed for a seeded value.
+model StudioSetting {
+  key        String           @id
+  settingKey StudioSettingKey @relation(fields: [key], references: [key], onDelete: Cascade)
+  value      Json             @db.JsonB
+  updatedAt  DateTime         @default(now()) @updatedAt @db.Timestamptz(3)
+  updatedBy  String
+
+  @@map("studio_settings")
+  @@schema("platform")
+}
+
+// A deny-only revocation of every Studio session and MCP token of a Keycloak user, which Studio reads through
+// bridge.session_revocations_v1 as the latest revokedBefore per subject: it refuses a session issued at or before that
+// time. subject is the Keycloak user id, the OIDC sub of the issuer.
+// reason is admin for "Revoke Studio sessions" and the break-glass statement of docs/deploy/platform-runtime.md, and
+// user-disabled, user-deleted or role-removed for directory sync. createdById is the admin who revoked, or null for
+// directory sync and the break-glass statement.
+// The database generates id, so the break-glass statement runs as plain SQL; the default is written as PostgreSQL
+// stores it, so that the drift check finds no difference.
+// The migration adds CHECKs (subject from 1 to 512 characters, reason in that vocabulary) and the
+// bridge_notify trigger of kind revocations. Write it through insertSessionRevocation() in
+// src/shared/lib/governance/session-revocations.ts.
+model SessionRevocation {
+  id            String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  subject       String
+  revokedBefore DateTime @default(now()) @db.Timestamptz(3)
+  reason        String
+  createdById   String?
+  createdBy     User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt     DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([subject, revokedBefore(sort: Desc)])
+  @@map("session_revocations")
+  @@schema("platform")
+}
+
+// The members of the two LibreDB roles as directory sync last listed them in Keycloak, the snapshot that
+// makes a lost role, a disabled account and a deleted user detectable across restarts and replicas.
+// subject is the Keycloak user id; roles holds admin and user, the LibreDB roles under their own names
+// whatever PLATFORM_ADMIN_ROLE and STUDIO_USER_ROLE call them in the realm.
+// Only src/shared/lib/jobs/tasks/directory-sync.ts writes it, in the transaction that inserts the revocations it detects.
+model DirectoryMember {
+  subject     String   @id
+  username    String
+  email       String?
+  roles       String[]
+  enabled     Boolean
+  firstSeenAt DateTime @db.Timestamptz(3)
+  lastSeenAt  DateTime @db.Timestamptz(3)
+
+  @@map("directory_members")
+  @@schema("platform")
+}
+
+// ─── CONFIGURATION ───────────────────────────────────────
+
+model PlanConfig {
+  id          String  @id @default(cuid())
+  code        String  @unique
+  name        String
+  description String?
+  isDefault   Boolean @default(false)
+  sortOrder   Int     @default(0)
+
+  maxUsers         Int @default(1)
+  maxConnections   Int @default(3)
+  queryHistoryDays Int @default(7)
+
+  featureSharedQueries    Boolean @default(false)
+  featureAdvancedRbac     Boolean @default(false)
+  featureAuditLog         Boolean @default(false)
+  featurePerfTracking     Boolean @default(false)
+  featureDataMasking      Boolean @default(false)
+  featureSamlSso          Boolean @default(false)
+  featureScimProvisioning Boolean @default(false)
+  featureSelfHosted       Boolean @default(false)
+  featureApiAccess        Boolean @default(false)
+
+  pricePerUserMonthly Decimal? @db.Decimal(10, 2)
+  stripePriceId       String?
+
+  tenants Tenant[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("plan_configs")
+  @@schema("platform")
+}
+
+model ReferenceType {
+  id          String  @id @default(cuid())
+  code        String  @unique
+  name        String  @unique
+  description String?
+  category    String?
+  isSystem    Boolean @default(false)
+  isActive    Boolean @default(true)
+  sortOrder   Int     @default(0)
+
+  values ReferenceValue[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("reference_types")
+  @@schema("platform")
+}
+
+model ReferenceValue {
+  id              String        @id @default(cuid())
+  referenceTypeId String
+  referenceType   ReferenceType @relation(fields: [referenceTypeId], references: [id], onDelete: Cascade)
+  code            String        @unique
+  name            String
+  description     String?
+  translations    Json?         @db.JsonB
+  colorCode       String?
+  icon            String?
+  isActive        Boolean       @default(true)
+  sortOrder       Int           @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("reference_values")
+  @@schema("platform")
+}
+
+// ─── SUPPORT ─────────────────────────────────────────────
+
+model SupportTicket {
+  id           String  @id @default(cuid())
+  tenantId     String?
+  tenant       Tenant? @relation(fields: [tenantId], references: [id])
+  // Ticket numbers are scoped to tenant (so each tenant can have its own
+  // TKT-0001 series). Composite unique index below, NOT a global @unique.
+  ticketNumber String
+
+  subject          String
+  description      String? // LEGACY: superseded by descriptionRich and descriptionPlain, still used by existing code
+  descriptionRich  String? // Tiptap HTML
+  descriptionPlain String? // tsvector source + fallback
+
+  status   String @default("OPEN")
+  priority String @default("MEDIUM")
+  category String @default("GENERAL")
+
+  createdByUserId  String
+  assignedToUserId String?
+
+  lastActivityAt  DateTime  @default(now())
+  firstResponseAt DateTime?
+  resolvedAt      DateTime?
+  closedAt        DateTime?
+  reopenedCount   Int       @default(0)
+
+  satisfactionRating  Int?
+  satisfactionComment String?
+  satisfactionAt      DateTime?
+
+  messages   SupportMessage[]
+  activities SupportActivity[]
+  tags       SupportTicketTag[]
+
+  // A GENERATED ALWAYS AS ... STORED column, which the baseline migration defines by hand because Prisma cannot.
+  // Prisma reads a generation expression as a default, so the default repeats it as PostgreSQL prints it, which keeps
+  // `prisma migrate diff` from reporting drift. Change the migration and this line together.
+  searchVector Unsupported("tsvector")? @default(dbgenerated("(setweight(to_tsvector('simple'::regconfig, COALESCE(subject, ''::text)), 'A'::\"char\") || setweight(to_tsvector('simple'::regconfig, COALESCE(\"descriptionPlain\", ''::text)), 'B'::\"char\"))"))
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, ticketNumber])
+  @@index([tenantId, status, lastActivityAt])
+  @@index([assignedToUserId, status])
+  @@index([searchVector], type: Gin)
+  @@map("support_tickets")
+  @@schema("platform")
+}
+
+model SupportMessage {
+  id               String        @id @default(cuid())
+  ticketId         String
+  ticket           SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  senderUserId     String
+  content          String? // LEGACY: superseded by bodyRich and bodyPlain, still used by existing code
+  bodyRich         String? // Tiptap HTML (sanitized)
+  bodyPlain        String? // tsvector source + fallback
+  isInternal       Boolean       @default(false)
+  editedAt         DateTime?
+  mentionedUserIds String[]      @default([])
+
+  attachments SupportAttachment[]
+
+  // A generated column like SupportTicket.searchVector; change it together with the migration that defines it.
+  searchVector Unsupported("tsvector")? @default(dbgenerated("to_tsvector('simple'::regconfig, COALESCE(\"bodyPlain\", ''::text))"))
+
+  createdAt DateTime @default(now())
+
+  @@index([ticketId, createdAt])
+  @@index([searchVector], type: Gin)
+  @@map("support_messages")
+  @@schema("platform")
+}
+
+model SupportAttachment {
+  id               String         @id @default(cuid())
+  messageId        String
+  message          SupportMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  uploadedByUserId String
+
+  fileName     String
+  fileSize     Int
+  mimeType     String
+  storageKey   String
+  thumbnailKey String?
+  width        Int?
+  height       Int?
+
+  createdAt DateTime @default(now())
+
+  @@index([messageId])
+  @@map("support_attachments")
+  @@schema("platform")
+}
+
+model SupportActivity {
+  id          String        @id @default(cuid())
+  ticketId    String
+  ticket      SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  actorUserId String?
+  type        String
+  metadata    Json?
+  createdAt   DateTime      @default(now())
+
+  @@index([ticketId, createdAt])
+  @@map("support_activities")
+  @@schema("platform")
+}
+
+model SupportTag {
+  id              String  @id @default(cuid())
+  tenantId        String?
+  tenant          Tenant? @relation(fields: [tenantId], references: [id])
+  name            String
+  colorCode       String?
+  description     String?
+  createdByUserId String
+
+  tickets SupportTicketTag[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, name])
+  @@map("support_tags")
+  @@schema("platform")
+}
+
+model SupportTicketTag {
+  ticketId        String
+  tagId           String
+  createdByUserId String
+  createdAt       DateTime @default(now())
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  tag    SupportTag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([ticketId, tagId])
+  @@index([tagId])
+  @@map("support_ticket_tags")
+  @@schema("platform")
+}
+
+// ─── PLATFORM ────────────────────────────────────────────
+
+model Notification {
+  id        String   @id @default(cuid())
+  tenantId  String?
+  tenant    Tenant?  @relation(fields: [tenantId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  type      String
+  title     String
+  message   String
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, read, createdAt])
+  @@map("notifications")
+  @@schema("platform")
+}
+
+model Subscription {
+  id                   String    @id @default(cuid())
+  tenantId             String    @unique
+  tenant               Tenant    @relation(fields: [tenantId], references: [id])
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  status               String    @default("active")
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean   @default(false)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@map("subscriptions")
+  @@schema("platform")
+}
+
+model UserPreference {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id])
+  savedQueries      Json?
+  editorSettings    Json?
+  recentConnections Json?
+  updatedAt         DateTime @updatedAt
+
+  @@map("user_preferences")
+  @@schema("platform")
+}
+
+model SharedQuery {
+  id              String   @id @default(cuid())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+  name            String
+  description     String?
+  sql             String
+  connectionId    String?
+  createdByUserId String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([tenantId])
+  @@map("shared_queries")
+  @@schema("platform")
+}
+
+// ─── GAMIFICATION ────────────────────────────────────────
+
+model Achievement {
+  id          String  @id @default(cuid())
+  code        String  @unique
+  name        String
+  description String
+  icon        String
+  category    String
+  threshold   Int     @default(1)
+  xp          Int     @default(10)
+  isActive    Boolean @default(true)
+  sortOrder   Int     @default(0)
+
+  userAchievements UserAchievement[]
+
+  @@map("achievements")
+  @@schema("platform")
+}
+
+model UserAchievement {
+  id            String      @id @default(cuid())
+  userId        String
+  achievementId String
+  achievement   Achievement @relation(fields: [achievementId], references: [id])
+  progress      Int         @default(0)
+  unlockedAt    DateTime?
+  notified      Boolean     @default(false)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([userId, achievementId])
+  @@map("user_achievements")
+  @@schema("platform")
+}
+
+model UserStreak {
+  id              String    @id @default(cuid())
+  userId          String    @unique
+  currentStreak   Int       @default(0)
+  longestStreak   Int       @default(0)
+  lastActiveDate  DateTime?
+  totalActiveDays Int       @default(0)
+  updatedAt       DateTime  @updatedAt
+
+  @@map("user_streaks")
+  @@schema("platform")
+}
+
+// ─── JOBS ────────────────────────────────────────────────
+
+// One row per scheduled task, written by src/shared/lib/jobs/scheduler.ts.
+// lastError never holds a secret; state is the task's own bookkeeping between runs.
+model SchedulerRun {
+  task            String    @id
+  lastStartedAt   DateTime? @db.Timestamptz(3)
+  lastSucceededAt DateTime? @db.Timestamptz(3)
+  lastFailedAt    DateTime? @db.Timestamptz(3)
+  lastError       String?
+  lastDurationMs  Int?
+  state           Json?     @db.JsonB
+
+  @@map("scheduler_runs")
+  @@schema("platform")
+}

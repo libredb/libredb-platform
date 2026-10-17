@@ -1,0 +1,31 @@
+# The convergence matrix of the nightly run (test/e2e/matrix.test.ts): Docker mode with a managed PostgreSQL and realm
+# corp of the customer's own Keycloak at auth.libredb.test, reused through its Admin API with the secret of the
+# provisioning client corp-provisioner. The test starts that Keycloak with a certificate of the corp CA it writes to
+# /etc/libredb-e2e/corp-keycloak-ca.crt, and sets another port of the base URL with --set when it serves on one.
+apiVersion: install.libredb.org/v1
+kind: LibreDBInstallation
+metadata:
+  name: matrix-managed-pg-external-kc
+mode: docker
+endpoints:
+  hosts:
+    platform: platform.libredb.test
+    studio: studio.libredb.test
+    auth: auth.libredb.test
+tls:
+  mode: generated
+postgres:
+  mode: managed
+keycloak:
+  mode: external
+  realm: corp
+  external:
+    baseUrl: https://auth.libredb.test:8443
+    adminRealm: corp
+    adminClientId: corp-provisioner
+    adminClientSecretEnv: LIBREDB_E2E_CORP_ADMIN_SECRET
+    caBundleFile: /etc/libredb-e2e/corp-keycloak-ca.crt
+platform:
+  organizationName: LibreDB E2E
+docker:
+  systemdUnit: false

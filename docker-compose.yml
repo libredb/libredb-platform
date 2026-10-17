@@ -1,0 +1,64 @@
+# Quick start: the Platform image in cloud mode with its own PostgreSQL, on one machine.
+#
+#   docker compose up -d --wait
+#
+# Then open http://localhost:3000, or the port APP_PORT names, and register an account.
+# postgres applies docker/postgres/bootstrap.psql at init with the development passwords of
+# docker/postgres/init/01-bootstrap.sh, as database-compose.yml does, and publishes no port.
+# migrate runs the image's migrate command once with the migrate container's environment of
+# docs/deploy/platform-runtime.md, and app runs serve after migrate has succeeded.
+# PLATFORM_ORGANIZATION_NAME and NODE_EXTRA_CA_CERTS stay unset: the seed reads the first in self-hosted mode only,
+# and nothing here uses an internal CA. Set BOOTSTRAP_ADMIN_EMAIL and BOOTSTRAP_ADMIN_PASSWORD before the first `up`
+# to have the seed create a platform admin.
+# Every password and secret below is a development value, so never use this file for a real install.
+# `docker compose down -v` removes the database and the uploads.
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    volumes:
+      - ./docker/postgres/bootstrap.psql:/libredb/bootstrap.psql:ro
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      # TCP on 127.0.0.1 is only up after the init scripts have finished.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d libredb"]
+      interval: 1s
+      timeout: 3s
+      retries: 60
+
+  migrate:
+    build: .
+    command: migrate
+    environment:
+      MIGRATE_DATABASE_URL: postgresql://libredb_owner:libredb_owner_dev@postgres:5432/libredb?schema=platform
+      DATABASE_URL: postgresql://libredb_platform:libredb_platform_dev@postgres:5432/libredb?schema=platform
+      DEPLOYMENT_MODE: cloud
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  app:
+    build: .
+    command: serve
+    environment:
+      DEPLOYMENT_MODE: cloud
+      DATABASE_URL: postgresql://libredb_platform:libredb_platform_dev@postgres:5432/libredb?schema=platform
+      AUTH_SECRET: docker-compose-auth-secret-not-for-production-use
+      AUTH_URL: http://localhost:${APP_PORT:-3000}
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  postgres-data:
+  uploads:

@@ -1,0 +1,46 @@
+# Findings of gitleaks 8.30.1 that are test data and not secrets, each suppressed by its exact fingerprint.
+# A fingerprint names one file, rule and line, so a secret added to another file, or to another line of these files, is still reported.
+# A fingerprint without a commit matches in both `gitleaks dir` and `gitleaks git`.
+# An edit that moves one of these lines makes gitleaks report it again: classify it again before you change its fingerprint.
+
+# Studio's lsb1 conformance vectors, vendored by scripts/vendor-studio-governance.mjs and pinned by sha256.
+# Each match is a vector's ephemeralPrivateKey, a test key that the file's testKeys.notice derives from a published label.
+tests/fixtures/governance/lsb1-vectors.json:generic-api-key:37
+tests/fixtures/governance/lsb1-vectors.json:generic-api-key:71
+tests/fixtures/governance/lsb1-vectors.json:generic-api-key:111
+tests/fixtures/governance/lsb1-vectors.json:generic-api-key:155
+tests/fixtures/governance/lsb1-vectors.json:generic-api-key:203
+tests/fixtures/governance/lsb1-vectors.json:generic-api-key:250
+tests/fixtures/governance/lsb1-vectors.json:generic-api-key:293
+tests/fixtures/governance/lsb1-vectors.json:generic-api-key:335
+tests/fixtures/governance/lsb1-vectors.json:generic-api-key:387
+tests/fixtures/governance/lsb1-vectors.json:generic-api-key:433
+tests/fixtures/governance/lsb1-vectors.json:generic-api-key:479
+tests/fixtures/governance/lsb1-vectors.json:generic-api-key:525
+tests/fixtures/governance/lsb1-vectors.json:generic-api-key:571
+tests/fixtures/governance/lsb1-vectors.json:generic-api-key:617
+tests/fixtures/governance/lsb1-vectors.json:generic-api-key:663
+tests/fixtures/governance/lsb1-vectors.json:generic-api-key:709
+tests/fixtures/governance/lsb1-vectors.json:generic-api-key:755
+tests/fixtures/governance/lsb1-vectors.json:generic-api-key:801
+tests/fixtures/governance/lsb1-vectors.json:generic-api-key:847
+tests/fixtures/governance/lsb1-vectors.json:generic-api-key:893
+tests/fixtures/governance/lsb1-vectors.json:generic-api-key:940
+
+# The X25519 private keys of Alice and Bob from RFC 7748 section 6.1, as base64url.
+# Line 20 of keyring.test.ts is Alice's key with the bits that X25519 clamps already cleared and set.
+installer/test/unit/secrets/keyring.test.ts:generic-api-key:10
+installer/test/unit/secrets/keyring.test.ts:generic-api-key:16
+installer/test/unit/secrets/keyring.test.ts:generic-api-key:20
+installer/test/unit/secrets/file-store.test.ts:generic-api-key:65
+installer/test/unit/secrets/file-store.test.ts:generic-api-key:70
+
+# The SHA-256 of the string auth-secret-value, and a made-up secret-shaped value that the test expects the state store to refuse without echoing it.
+installer/test/unit/state/file-store.test.ts:generic-api-key:21
+installer/test/unit/state/file-store.test.ts:generic-api-key:123
+
+# The container name of the external Keycloak in the installer's end-to-end suite.
+installer/test/e2e/support/externals.ts:generic-api-key:25
+
+# A fixed UUID that stands in for the random user id Auth.js gives an OAuth sign-in.
+src/shared/lib/identity/auth-callbacks.test.ts:generic-api-key:25

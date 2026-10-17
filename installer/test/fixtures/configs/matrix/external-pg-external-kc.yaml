@@ -1,0 +1,36 @@
+# The convergence matrix of the nightly run (test/e2e/matrix.test.ts): Docker mode with an external PostgreSQL that the
+# installer provisions as the admin role corp_dba, whose password it reads from LIBREDB_PG_ADMIN_PASSWORD, and realm
+# corp of the customer's own Keycloak, reused with the secret of corp-provisioner from LIBREDB_E2E_CORP_ADMIN_SECRET.
+# The test starts both with certificates of the corp CAs it writes under /etc/libredb-e2e.
+apiVersion: install.libredb.org/v1
+kind: LibreDBInstallation
+metadata:
+  name: matrix-external-pg-external-kc
+mode: docker
+endpoints:
+  hosts:
+    platform: platform.libredb.test
+    studio: studio.libredb.test
+    auth: auth.libredb.test
+tls:
+  mode: generated
+postgres:
+  mode: external
+  external:
+    host: pg.libredb.test
+    adminUser: corp_dba
+    adminPasswordEnv: LIBREDB_PG_ADMIN_PASSWORD
+    caBundleFile: /etc/libredb-e2e/corp-db-ca.crt
+keycloak:
+  mode: external
+  realm: corp
+  external:
+    baseUrl: https://auth.libredb.test:8443
+    adminRealm: corp
+    adminClientId: corp-provisioner
+    adminClientSecretEnv: LIBREDB_E2E_CORP_ADMIN_SECRET
+    caBundleFile: /etc/libredb-e2e/corp-keycloak-ca.crt
+platform:
+  organizationName: LibreDB E2E
+docker:
+  systemdUnit: false
