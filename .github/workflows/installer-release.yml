@@ -11,7 +11,7 @@ permissions:
 jobs:
   build:
     name: Check and build the installer binary
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # This job installs the dependencies and runs their code, so its token only reads.
     permissions:
       contents: read
@@ -19,7 +19,7 @@ jobs:
       run:
         working-directory: installer
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
       # The tag names the release that release/release.config.json and package.json describe, and release:record must
@@ -46,7 +46,7 @@ jobs:
             exit 1
           fi
           echo "$GITHUB_REF_NAME names version $version of release/release.config.json and package.json, and $history records that config"
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: '1.4.2'
       - run: bun install --frozen-lockfile
@@ -55,7 +55,7 @@ jobs:
         id: studio
         run: echo "commit=$(jq -r '.studioChart.version | select(startswith("git:")) | ltrimstr("git:")' release/release.config.json)" >> "$GITHUB_OUTPUT"
       - if: steps.studio.outputs.commit != ''
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           repository: libredb/libredb-studio
           ref: ${{ steps.studio.outputs.commit }}
@@ -76,7 +76,7 @@ jobs:
         working-directory: installer/dist
         run: sha256sum libredb-installer-linux-x64 LICENSE > SHA256SUMS
       - name: Hand the binary, LICENSE and SHA256SUMS to the publish job
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: installer-release
           path: |
@@ -90,14 +90,14 @@ jobs:
   publish:
     name: Attest and publish the installer release
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
       # The attestation step needs id-token to sign with this job's OIDC identity, and attestations to store what it signs.
       id-token: write
       attestations: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: installer-release
           path: dist
@@ -107,7 +107,7 @@ jobs:
         run: sha256sum -c SHA256SUMS
       # A signed build provenance that gh attestation verify checks against this repository; SHA256SUMS covers LICENSE.
       - name: Attest the build provenance of the binary and SHA256SUMS
-        uses: actions/attest@v4
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: |
             dist/libredb-installer-linux-x64

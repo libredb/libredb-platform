@@ -3,19 +3,22 @@ import { db } from '@/shared/lib/db'
 import { NotFoundError } from '@/shared/lib/errors'
 import type { CreateTicketData, UpdateTicketData, InboxFilters } from './support.schema'
 
+/** The `support_tickets` composite (tenantId, ticketNumber) unique index of the baseline migration. */
+const TICKET_NUMBER_INDEX = 'support_tickets_tenantId_ticketNumber_key'
+
 /**
  * True when the error is a Prisma P2002 unique-constraint violation on the
  * `support_tickets` composite (tenantId, ticketNumber) index, the signal
- * that two concurrent creates picked the same sequence number. Prisma 7
- * names the violated columns through the driver adapter, quoted as
- * PostgreSQL prints them, and no longer in `meta.target`.
+ * that two concurrent creates picked the same sequence number. Since Prisma
+ * 7.10, @prisma/adapter-pg names the violated constraint in
+ * `constraint.index`, as PostgreSQL reports it for every unique violation,
+ * instead of its columns.
  */
 function isTicketNumberCollision(err: unknown): boolean {
   if (!(err instanceof Prisma.PrismaClientKnownRequestError)) return false
   if (err.code !== 'P2002') return false
-  const adapterError = err.meta?.driverAdapterError as { cause?: { constraint?: { fields?: unknown } } } | undefined
-  const fields = adapterError?.cause?.constraint?.fields
-  return Array.isArray(fields) && fields.some(field => field === '"ticketNumber"')
+  const adapterError = err.meta?.driverAdapterError as { cause?: { constraint?: { index?: unknown } } } | undefined
+  return adapterError?.cause?.constraint?.index === TICKET_NUMBER_INDEX
 }
 
 export type InboxScope =

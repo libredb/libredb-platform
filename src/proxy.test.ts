@@ -84,6 +84,19 @@ describe('proxy', () => {
     expect(location.searchParams.get('callbackUrl')).toBe('/connections')
   })
 
+  it('sends a session read that holds no user to /login, as it does a missing session', async () => {
+    // next-auth 5.0.0-beta.30 handed the handler an error object as request.auth for a malformed callback-url cookie
+    // (GHSA-8fpg-xm3f-6cx3), and a truthy request.auth must not count as a session.
+    readSession.mockResolvedValue({ message: 'There was a problem with the server configuration.' } as unknown as Session)
+
+    for (const path of ['/connections', '/admin/users']) {
+      const response = await request(path)
+
+      expect(response.status, path).toBe(307)
+      expect(new URL(response.headers.get('location') ?? '').pathname, path).toBe('/login')
+    }
+  })
+
   it('sends a session without PLATFORM_ADMIN or PLATFORM_TECH from /admin to /', async () => {
     readSession.mockResolvedValue(sessionWithRoles(['TENANT_ADMIN']))
 

@@ -121,6 +121,17 @@ function valueOf(step: string[], key: string): string | undefined {
   return undefined
 }
 
+/**
+ * The action of a step's `uses:` as owner/repo@vMAJOR: for a commit SHA with its release in a `# vX.Y.Z` comment, the
+ * major of that release, and otherwise the reference as the workflow writes it.
+ */
+function actionOf(step: string[]): string | undefined {
+  const uses = valueOf(step, 'uses')
+  if (uses === undefined) return undefined
+  const pinned = /^(\S+)@[0-9a-f]{40} # (v\d+)\.\d+\.\d+$/.exec(uses)
+  return pinned ? `${pinned[1]}@${pinned[2]}` : uses
+}
+
 /** The value of one of a job's own one-line keys, such as `needs:`. */
 function jobValueOf(job: Job, key: string): string | undefined {
   const pattern = new RegExp(`^ {4}${key}:\\s*(.+)$`)
@@ -171,6 +182,11 @@ function blockOf(step: string[], key: string): string[] {
   }
   const indent = Math.min(...body.filter(line => line.trim() !== '').map(line => line.length - line.trimStart().length))
   return body.map(line => line.slice(indent))
+}
+
+/** The source of a regular expression that matches `text` alone: every special character escaped, the backslash too. */
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 interface StepRun {
@@ -346,7 +362,7 @@ describe('.github/workflows', () => {
 
     const published = run('v1.0.0', 0, '')
     expect(published.status).toBe(1)
-    expect(published.stdout).toMatch(new RegExp(`^::error::${reference.replace(/[.]/g, '\\.')} already exists`, 'm'))
+    expect(published.stdout).toMatch(new RegExp(`^::error::${escapeRegExp(reference)} already exists`, 'm'))
 
     // A lookup that fails for any other reason, such as a refused token, does not tell that the version is free.
     const refused = run('v1.0.0', 1, 'ERROR: failed to authorize: failed to fetch anonymous token: 403 Forbidden')
@@ -420,20 +436,20 @@ describe('.github/workflows', () => {
 
     // It checks out nothing, so no code of the repository or of its dependencies runs while it holds those scopes.
     const steps = stepsOf(publish!)
-    expect(steps.flatMap(step => valueOf(step, 'uses') ?? []))
+    expect(steps.flatMap(step => actionOf(step) ?? []))
       .toEqual(['actions/download-artifact@v4', 'actions/attest@v4'])
     const commands = commandsOf(publish!).join('\n').replace(/\\\n/g, ' ').split('\n')
     expect(commands.map(command => command.split(/\s+/).slice(0, 3).join(' ')))
       .toEqual(['sha256sum -c SHA256SUMS', 'gh release create'])
 
     // actions/attest-build-provenance became a wrapper of actions/attest in v4, which GitHub recommends instead.
-    const attest = steps.findIndex(step => valueOf(step, 'uses') === 'actions/attest@v4')
+    const attest = steps.findIndex(step => actionOf(step) === 'actions/attest@v4')
     expect(blockOf(steps[attest], 'subject-path')).toEqual(['dist/libredb-installer-linux-x64', 'dist/SHA256SUMS'])
     // download-artifact only warns when the files differ from the upload, so they are checked against the SHA256SUMS
     // of the build job before the attestation, and a failed check or attestation publishes nothing.
     const running = (pattern: RegExp) =>
       steps.findIndex(step => commandsOf({ name: publish!.name, lines: step }).some(command => pattern.test(command)))
-    const download = steps.findIndex(step => valueOf(step, 'uses') === 'actions/download-artifact@v4')
+    const download = steps.findIndex(step => actionOf(step) === 'actions/download-artifact@v4')
     const check = running(/^sha256sum -c SHA256SUMS$/)
     expect(valueOf(steps[check], 'working-directory')).toBe('dist')
     expect(download).toBeLessThan(check)
@@ -538,27 +554,26 @@ describe('.github/workflows', () => {
     }
   })
 
-  it('every workflow pins an action outside actions/* by a full commit SHA with its release in a comment, and names an action of actions/* by its major tag', () => {
+  it('every workflow pins each action that is not a local ./ path to a full commit SHA, with the full version of its release in a # vX.Y.Z comment', () => {
     const references = readdirSync(WORKFLOWS).filter(file => file.endsWith('.yml')).flatMap(file =>
       readWorkflow(file).split('\n').flatMap((line, index) => {
         const uses = /^\s*(?:- )?uses:\s*(.+?)\s*$/.exec(line)
         return uses ? [{ where: `${file}:${index + 1}`, value: uses[1] }] : []
       }))
-    expect(references.length, 'an action reference').toBeGreaterThan(0)
-    for (const { where, value } of references) {
-      const reference = /^([\w.-]+)\/[\w./-]+@(\S+?)(?:\s+#\s*(.*))?$/.exec(value)
-      expect(reference, `${where}: ${value} is not of the form owner/repo@ref`).not.toBeNull()
-      const [, owner, ref, comment] = reference!
-      if (owner === 'actions') {
-        expect({ ref, comment }, where).toEqual({ ref: expect.stringMatching(/^v\d+$/), comment: undefined })
-      } else {
-        // The owner of an action can move any of its tags to other code, and a commit SHA names one tree for good.
-        expect({ ref, comment }, where).toEqual({
-          ref: expect.stringMatching(/^[0-9a-f]{40}$/),
-          comment: expect.stringMatching(/^v\d+(\.\d+){0,2}$/),
-        })
-      }
-    }
+    const remote = references.filter(({ value }) => !value.startsWith('./'))
+    expect(remote.length, 'an action reference').toBeGreaterThan(0)
+    // The owner of an action can move any of its tags to other code, and moves a major tag such as v4 with every
+    // release, while a commit SHA names one tree for good. The comment names the release whose tag points to it.
+    expect(remote.filter(({ value }) => !/^[\w.-]+\/[\w./-]+@[0-9a-f]{40} # v\d+\.\d+\.\d+$/.test(value))).toEqual([])
+  })
+
+  it('every job of every workflow runs on a pinned runner image, ubuntu-24.04 or ubuntu-24.04-arm, and none on a *-latest label', () => {
+    // GitHub moves a *-latest label to a newer image on its own schedule, which changes the system and the tools under
+    // every job at once, so each job names the image it runs on.
+    const jobs = readdirSync(WORKFLOWS).filter(file => file.endsWith('.yml')).flatMap(file =>
+      jobsOf(readWorkflow(file)).map(job => ({ job: `${file}: ${job.name}`, runsOn: jobValueOf(job, 'runs-on') })))
+    expect(jobs.length, 'a job').toBeGreaterThan(0)
+    expect(jobs.filter(({ runsOn }) => runsOn !== 'ubuntu-24.04' && runsOn !== 'ubuntu-24.04-arm')).toEqual([])
   })
 
   it('installer-e2e.yml hands the Docker end-to-end tests the license of the secret LIBREDB_E2E_LICENSE in a 0600 file, and notes the skipped test without it', () => {
@@ -597,6 +612,32 @@ describe('.github/workflows', () => {
     for (const { index, command } of platformRuns) {
       expect(index, command).toBeGreaterThan(write)
       expect(command).toMatch(/^sudo env "LIBREDB_E2E_LICENSE_FILE=\$LIBREDB_E2E_LICENSE_FILE" "\$\(command -v bun\)" test /)
+    }
+  })
+})
+
+describe('escapeRegExp', () => {
+  it('makes a regular expression that matches its text alone, a backslash and every other special character included', () => {
+    // The u flag refuses a lone { } or ], which an expression without it takes literally.
+    const literal = (text: string) => new RegExp(`^${escapeRegExp(text)}$`, 'u')
+    // Each text holds a special character, next to a text that the expression would match with that character left
+    // unescaped: the backslash of C:\d would make \d match any digit.
+    const texts: [text: string, unescapedMatch: string][] = [
+      [String.raw`C:\d`, 'C:5'],
+      ['a.b', 'axb'],
+      ['a*', 'aa'],
+      ['a+', 'aa'],
+      ['a?', ''],
+      ['a{2}', 'aa'],
+      ['(a)', 'a'],
+      ['[ab]', 'a'],
+      ['a|b', 'a'],
+      ['^a', 'a'],
+      ['a$', 'a'],
+    ]
+    for (const [text, unescapedMatch] of texts) {
+      expect(text).toMatch(literal(text))
+      expect(unescapedMatch).not.toMatch(literal(text))
     }
   })
 })

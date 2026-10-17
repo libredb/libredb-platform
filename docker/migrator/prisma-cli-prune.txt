@@ -12,7 +12,7 @@
 #
 # A Prisma release moves files, so the list names the version of prisma and @prisma/client it was checked against, and
 # docker/migrator/versions.test.ts fails when docker/migrator/package.json pins another: revisit every line with it.
-version 7.5.0
+version 7.10.1
 
 # Prisma Studio: its browser UI, the esbuild metafiles and the data adapters of `prisma studio`. Every CLI command
 # opens the bff, mysql2, node-sqlite and postgresjs adapters when it starts.
@@ -29,17 +29,18 @@ keep @prisma/studio-core/dist/data/mysql2/index.cjs
 keep @prisma/studio-core/dist/data/node-sqlite/index.cjs
 keep @prisma/studio-core/dist/data/postgresjs/index.cjs
 
-# React, the peer dependency of Prisma Studio, with its dependencies and types.
+# React, the peer dependency of Prisma Studio, with its dependencies and types, and lodash, which Studio's charts
+# (@visx/responsive and @visx/shape) load.
 delete react
 delete react-dom
 delete scheduler
 delete @types/react
 delete csstype
+delete lodash
 
 # The MySQL and postgres.js drivers, which the CLI imports only to run Studio's queries.
 delete mysql2
 delete aws-ssl-profiles
-delete denque
 delete generate-function
 delete iconv-lite
 delete is-property
@@ -47,21 +48,11 @@ delete long
 delete lru.min
 delete named-placeholders
 delete safer-buffer
-delete seq-queue
-delete sqlstring
 delete postgres
 
-# The local database of `prisma dev` (@prisma/dev): PGlite, the query plan executor, the HTTP server and the parser of
-# the schema's syntax tree.
+# The local database of `prisma dev` (@prisma/dev): PGlite and the query plan executor.
 delete @electric-sql
 delete @prisma/query-plan-executor
-delete hono
-delete @hono
-delete @mrleebo
-delete chevrotain
-delete @chevrotain
-delete regexp-to-ast
-delete lodash
 
 # The CLI's Wasm schema engine and query compilers: `migrate`, `migrate-status` and `migrate-resolve` run the native
 # schema engine of @prisma/engines.

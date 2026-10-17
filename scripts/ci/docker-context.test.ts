@@ -17,6 +17,10 @@ interface Pattern {
   regexp: RegExp
 }
 
+// What patternmatcher's shouldEscape escapes: the characters special in a regular expression that a pattern takes
+// literally. `[`, `]` and `^` pass through as they do there, so `[ab]` and `[^a]` stay character classes.
+const ESCAPED = '.+(){}|$'
+
 /**
  * The regular expression of a pattern, built the way moby/patternmatcher builds it: `*` and `?` never match a `/`,
  * `**` matches any number of directories, and the pattern must match the whole path.
@@ -31,7 +35,7 @@ function compile(pattern: string): RegExp {
     } else if (char === '*') source += '[^/]*'
     else if (char === '?') source += '[^/]'
     else if (char === '\\') source += `\\${pattern[++index] ?? '\\'}`
-    else source += char.replace(/[.+(){}|$]/, '\\$&')
+    else source += ESCAPED.includes(char) ? `\\${char}` : char
   }
   return new RegExp(`^${source}$`)
 }
@@ -123,6 +127,31 @@ function importTarget(file: string, specifier: string): string | undefined {
 function importSpecifiers(source: string): string[] {
   return [...source.matchAll(/(?:\bfrom|\bimport|\brequire)\s*\(?\s*['"]([^'"\n]+)['"]/g)].map(match => match[1])
 }
+
+describe('compile', () => {
+  it('matches each . + ( ) { } | $ of a pattern as that character alone, the second of each as well as the first', () => {
+    // Each pattern holds its characters twice, next to a path that it would match with the second ones left unescaped.
+    const patterns: [pattern: string, secondUnescapedMatch: string][] = [
+      ['a.b.c', 'a.bxc'],
+      ['a+b+', 'a+bb'],
+      ['(a)(b)', '(a)b'],
+      ['a{2}b{2}', 'a{2}bb'],
+      ['a|b|c', 'a|b'],
+      ['a$b$', 'a$b'],
+    ]
+    for (const [pattern, secondUnescapedMatch] of patterns) {
+      expect(pattern).toMatch(compile(pattern))
+      expect(secondUnescapedMatch).not.toMatch(compile(pattern))
+    }
+  })
+
+  it('keeps [ ] and the ^ of [^ ] as a character class, as patternmatcher does', () => {
+    expect('a.ts').toMatch(compile('[ab].ts'))
+    expect('[ab].ts').not.toMatch(compile('[ab].ts'))
+    expect('b.ts').toMatch(compile('[^a].ts'))
+    expect('a.ts').not.toMatch(compile('[^a].ts'))
+  })
+})
 
 describe('.dockerignore', () => {
   it('keeps tests, docs, CI, compose files, screenshots, local files and new top-level files out', () => {

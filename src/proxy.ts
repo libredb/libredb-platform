@@ -19,8 +19,9 @@ const requireSession = Promise.resolve(
     const { pathname } = request.nextUrl
     const session = request.auth
 
-    // No session, or one that the jwt callback has just ended
-    if (!session) {
+    // No session, one that the jwt callback has just ended, or a read that holds no user: next-auth 5.0.0-beta.30 handed
+    // the handler a truthy error object here for a malformed callback-url cookie (GHSA-8fpg-xm3f-6cx3).
+    if (!session?.user) {
       const loginUrl = new URL('/login', request.url)
       loginUrl.searchParams.set('callbackUrl', pathname)
       return NextResponse.redirect(loginUrl)

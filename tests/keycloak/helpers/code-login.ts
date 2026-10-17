@@ -47,13 +47,12 @@ function base64Url(buffer: Buffer): string {
   return buffer.toString('base64url')
 }
 
-function decodeHtmlAttribute(value: string): string {
-  return value
-    .replace(/&amp;/g, '&')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
+const HTML_ENTITIES: Record<string, string> = { '&amp;': '&', '&quot;': '"', '&#39;': "'", '&lt;': '<', '&gt;': '>' }
+
+// Decodes the entities of HTML_ENTITIES in one pass, so the & that &amp; decodes to never starts another entity:
+// &amp;lt; decodes to &lt;, not to <.
+export function decodeHtmlAttribute(value: string): string {
+  return value.replace(/&(?:amp|quot|#39|lt|gt);/g, entity => HTML_ENTITIES[entity])
 }
 
 // Keeps the latest value of every cookie Keycloak sets during the login.

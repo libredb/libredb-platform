@@ -379,7 +379,7 @@ The state is kept in `/opt/libredb/state/state.json` (mode 0600), which holds na
 `/opt/libredb/state/lock` holds the pid and host of a running `apply`, and a second run exits 5 while it is held.
 Every `preflight`, `plan`, `apply`, `verify` and `db-shell` writes a log to `/opt/libredb/logs/installer-<timestamp>.log`, redacted like everything the installer prints.
 
-`test/fixtures/configs/docker.yaml` is the configuration of the Docker end-to-end tests, which `.github/workflows/installer-e2e.yml` runs as root on `ubuntu-latest` for every pull request that touches `installer/` and nightly on `main`.
+`test/fixtures/configs/docker.yaml` is the configuration of the Docker end-to-end tests, which `.github/workflows/installer-e2e.yml` runs as root on `ubuntu-24.04` for every pull request that touches `installer/` and nightly on `main`.
 A variant of it gets a fixture of its own or applies `--set` overrides.
 `LIBREDB_E2E_IMAGES_REGISTRY` sets `images.registry` for every run of the end-to-end tests, such as `registry.example.com/libredb` for images that exist only in a registry mirror.
 `LIBREDB_E2E_LICENSE_FILE` names the file of a license that the Platform image verifies for `platform.libredb.test`, which the test of a verified license in `test/e2e/docker-platform.test.ts` installs, and that test is skipped without it; `installer-e2e.yml` writes the file from the repository secret `LIBREDB_E2E_LICENSE`.

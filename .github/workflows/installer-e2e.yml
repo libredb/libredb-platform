@@ -15,14 +15,14 @@ permissions:
 jobs:
   postgres:
     name: PostgreSQL integration tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     defaults:
       run:
         working-directory: installer
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: '1.4.2'
       - run: bun install --frozen-lockfile
@@ -35,7 +35,7 @@ jobs:
 
   docker:
     name: Docker end-to-end tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Its steps took about 60 minutes in a Docker-in-Docker host on 2026-10-17, so the first runs on a GitHub runner get
     # room to finish instead of failing on time alone.
     timeout-minutes: 90
@@ -43,8 +43,8 @@ jobs:
       run:
         working-directory: installer
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: '1.4.2'
       - run: bun install --frozen-lockfile
@@ -53,7 +53,7 @@ jobs:
         id: studio
         run: echo "commit=$(jq -r '.studioChart.version | select(startswith("git:")) | ltrimstr("git:")' release/release.config.json)" >> "$GITHUB_OUTPUT"
       - if: steps.studio.outputs.commit != ''
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           repository: libredb/libredb-studio
           ref: ${{ steps.studio.outputs.commit }}
