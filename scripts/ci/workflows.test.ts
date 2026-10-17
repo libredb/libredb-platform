@@ -121,6 +121,17 @@ function valueOf(step: string[], key: string): string | undefined {
   return undefined
 }
 
+/**
+ * The action of a step's `uses:` as owner/repo@vMAJOR: for a commit SHA with its release in a `# vX.Y.Z` comment, the
+ * major of that release, and otherwise the reference as the workflow writes it.
+ */
+function actionOf(step: string[]): string | undefined {
+  const uses = valueOf(step, 'uses')
+  if (uses === undefined) return undefined
+  const pinned = /^(\S+)@[0-9a-f]{40} # (v\d+)\.\d+\.\d+$/.exec(uses)
+  return pinned ? `${pinned[1]}@${pinned[2]}` : uses
+}
+
 /** The value of one of a job's own one-line keys, such as `needs:`. */
 function jobValueOf(job: Job, key: string): string | undefined {
   const pattern = new RegExp(`^ {4}${key}:\\s*(.+)$`)
@@ -425,20 +436,20 @@ describe('.github/workflows', () => {
 
     // It checks out nothing, so no code of the repository or of its dependencies runs while it holds those scopes.
     const steps = stepsOf(publish!)
-    expect(steps.flatMap(step => valueOf(step, 'uses') ?? []))
+    expect(steps.flatMap(step => actionOf(step) ?? []))
       .toEqual(['actions/download-artifact@v4', 'actions/attest@v4'])
     const commands = commandsOf(publish!).join('\n').replace(/\\\n/g, ' ').split('\n')
     expect(commands.map(command => command.split(/\s+/).slice(0, 3).join(' ')))
       .toEqual(['sha256sum -c SHA256SUMS', 'gh release create'])
 
     // actions/attest-build-provenance became a wrapper of actions/attest in v4, which GitHub recommends instead.
-    const attest = steps.findIndex(step => valueOf(step, 'uses') === 'actions/attest@v4')
+    const attest = steps.findIndex(step => actionOf(step) === 'actions/attest@v4')
     expect(blockOf(steps[attest], 'subject-path')).toEqual(['dist/libredb-installer-linux-x64', 'dist/SHA256SUMS'])
     // download-artifact only warns when the files differ from the upload, so they are checked against the SHA256SUMS
     // of the build job before the attestation, and a failed check or attestation publishes nothing.
     const running = (pattern: RegExp) =>
       steps.findIndex(step => commandsOf({ name: publish!.name, lines: step }).some(command => pattern.test(command)))
-    const download = steps.findIndex(step => valueOf(step, 'uses') === 'actions/download-artifact@v4')
+    const download = steps.findIndex(step => actionOf(step) === 'actions/download-artifact@v4')
     const check = running(/^sha256sum -c SHA256SUMS$/)
     expect(valueOf(steps[check], 'working-directory')).toBe('dist')
     expect(download).toBeLessThan(check)
@@ -543,27 +554,17 @@ describe('.github/workflows', () => {
     }
   })
 
-  it('every workflow pins an action outside actions/* by a full commit SHA with its release in a comment, and names an action of actions/* by its major tag', () => {
+  it('every workflow pins each action that is not a local ./ path to a full commit SHA, with the full version of its release in a # vX.Y.Z comment', () => {
     const references = readdirSync(WORKFLOWS).filter(file => file.endsWith('.yml')).flatMap(file =>
       readWorkflow(file).split('\n').flatMap((line, index) => {
         const uses = /^\s*(?:- )?uses:\s*(.+?)\s*$/.exec(line)
         return uses ? [{ where: `${file}:${index + 1}`, value: uses[1] }] : []
       }))
-    expect(references.length, 'an action reference').toBeGreaterThan(0)
-    for (const { where, value } of references) {
-      const reference = /^([\w.-]+)\/[\w./-]+@(\S+?)(?:\s+#\s*(.*))?$/.exec(value)
-      expect(reference, `${where}: ${value} is not of the form owner/repo@ref`).not.toBeNull()
-      const [, owner, ref, comment] = reference!
-      if (owner === 'actions') {
-        expect({ ref, comment }, where).toEqual({ ref: expect.stringMatching(/^v\d+$/), comment: undefined })
-      } else {
-        // The owner of an action can move any of its tags to other code, and a commit SHA names one tree for good.
-        expect({ ref, comment }, where).toEqual({
-          ref: expect.stringMatching(/^[0-9a-f]{40}$/),
-          comment: expect.stringMatching(/^v\d+(\.\d+){0,2}$/),
-        })
-      }
-    }
+    const remote = references.filter(({ value }) => !value.startsWith('./'))
+    expect(remote.length, 'an action reference').toBeGreaterThan(0)
+    // The owner of an action can move any of its tags to other code, and moves a major tag such as v4 with every
+    // release, while a commit SHA names one tree for good. The comment names the release whose tag points to it.
+    expect(remote.filter(({ value }) => !/^[\w.-]+\/[\w./-]+@[0-9a-f]{40} # v\d+\.\d+\.\d+$/.test(value))).toEqual([])
   })
 
   it('every job of every workflow runs on a pinned runner image, ubuntu-24.04 or ubuntu-24.04-arm, and none on a *-latest label', () => {
