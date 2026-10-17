@@ -17,6 +17,8 @@ interface ConversationSidebarProps {
   priorityValues: ReferenceValue[]
   categoryValues: ReferenceValue[]
   members: MemberItem[]
+  /** Display names by user id of the users the ticket page loaded, the assignee among them. */
+  userMap: Record<string, string>
   tags: TagItem[]
   availableTags: TagItem[]
   onStatusChange: (v: string) => void
@@ -32,8 +34,27 @@ interface ConversationSidebarProps {
   tenantPlan: string | null
 }
 
+const UNASSIGNED = 'UNASSIGNED'
+
+/** A select's items, which give its trigger the name of the selected value instead of the value itself. */
+function referenceItems(values: ReferenceValue[]) {
+  return values.map(v => ({ value: v.code, label: v.name }))
+}
+
 export function ConversationSidebar(props: ConversationSidebarProps) {
   const { ticket, canManage, members, statusValues, priorityValues, categoryValues, tags, availableTags } = props
+  const assigneeId: string | null = ticket.assignedToUserId ?? null
+  // The staff options hold ten people at most, so they can miss the assignee, who then gets an option of their own.
+  const assigneeItems = [
+    { value: UNASSIGNED, label: 'Unassigned' },
+    ...members.map(m => ({ value: m.userId, label: m.userName })),
+    ...(assigneeId && !members.some(m => m.userId === assigneeId)
+      ? [{ value: assigneeId, label: props.userMap[assigneeId] ?? 'Unknown user' }]
+      : []),
+  ]
+  const statusItems = referenceItems(statusValues)
+  const priorityItems = referenceItems(priorityValues)
+  const categoryItems = referenceItems(categoryValues)
 
   return (
     <aside className="w-[220px] shrink-0 space-y-4 border-l bg-card p-4 text-xs">
@@ -54,11 +75,10 @@ export function ConversationSidebar(props: ConversationSidebarProps) {
       <section>
         <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Assigned To</div>
         {canManage ? (
-          <Select value={ticket.assignedToUserId ?? 'UNASSIGNED'} onValueChange={v => props.onAssigneeChange(v === 'UNASSIGNED' ? null : v)}>
+          <Select items={assigneeItems} value={assigneeId ?? UNASSIGNED} onValueChange={v => props.onAssigneeChange(v === UNASSIGNED ? null : v)}>
             <SelectTrigger className="h-8 w-full"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="UNASSIGNED">Unassigned</SelectItem>
-              {members.map(m => <SelectItem key={m.userId} value={m.userId}>{m.userName}</SelectItem>)}
+              {assigneeItems.map(a => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}
             </SelectContent>
           </Select>
         ) : (
@@ -69,9 +89,9 @@ export function ConversationSidebar(props: ConversationSidebarProps) {
       <section>
         <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Status</div>
         {canManage ? (
-          <Select value={ticket.status} onValueChange={props.onStatusChange}>
+          <Select items={statusItems} value={ticket.status} onValueChange={props.onStatusChange}>
             <SelectTrigger className="h-8 w-full"><SelectValue /></SelectTrigger>
-            <SelectContent>{statusValues.map(s => <SelectItem key={s.code} value={s.code}>{s.name}</SelectItem>)}</SelectContent>
+            <SelectContent>{statusItems.map(i => <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>)}</SelectContent>
           </Select>
         ) : <span>{statusValues.find(s => s.code === ticket.status)?.name}</span>}
       </section>
@@ -79,9 +99,9 @@ export function ConversationSidebar(props: ConversationSidebarProps) {
       <section>
         <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Priority</div>
         {canManage ? (
-          <Select value={ticket.priority} onValueChange={props.onPriorityChange}>
+          <Select items={priorityItems} value={ticket.priority} onValueChange={props.onPriorityChange}>
             <SelectTrigger className="h-8 w-full"><SelectValue /></SelectTrigger>
-            <SelectContent>{priorityValues.map(p => <SelectItem key={p.code} value={p.code}>{p.name}</SelectItem>)}</SelectContent>
+            <SelectContent>{priorityItems.map(i => <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>)}</SelectContent>
           </Select>
         ) : <span>{priorityValues.find(p => p.code === ticket.priority)?.name}</span>}
       </section>
@@ -89,9 +109,9 @@ export function ConversationSidebar(props: ConversationSidebarProps) {
       <section>
         <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Category</div>
         {canManage ? (
-          <Select value={ticket.category} onValueChange={props.onCategoryChange}>
+          <Select items={categoryItems} value={ticket.category} onValueChange={props.onCategoryChange}>
             <SelectTrigger className="h-8 w-full"><SelectValue /></SelectTrigger>
-            <SelectContent>{categoryValues.map(c => <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>)}</SelectContent>
+            <SelectContent>{categoryItems.map(i => <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>)}</SelectContent>
           </Select>
         ) : <span>{categoryValues.find(c => c.code === ticket.category)?.name}</span>}
       </section>

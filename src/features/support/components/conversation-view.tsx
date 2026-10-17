@@ -162,6 +162,7 @@ export function ConversationView(props: ConversationViewProps) {
         priorityValues={props.priorityValues}
         categoryValues={props.categoryValues}
         members={props.members}
+        userMap={props.userMap}
         tags={ticket.tags.map((tt: any) => tt.tag)}
         availableTags={props.availableTags}
         customerName={props.customerName}
