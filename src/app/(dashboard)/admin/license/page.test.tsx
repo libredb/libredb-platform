@@ -165,14 +165,14 @@ describe('LicensePage', () => {
     expect(screen.getByRole('region', { name: 'Renew' })).toHaveTextContent('platform.licenseFile')
   })
 
-  it('tells an admin where license keys come from: Sekoya Tech at info@libredb.org', async () => {
+  it('tells an admin where license keys come from: SEKOYA GRUP BİLİŞİM VE TEKNOLOJİ LİMİTED ŞİRKETİ at info@libredb.org', async () => {
     setInstall(FREE, [holder('kc-bob', 'bob')])
 
     await renderPage()
 
     const renew = screen.getByRole('region', { name: 'Renew' })
     expect(renew).toHaveTextContent(
-      'License keys come from Sekoya Tech: write to info@libredb.org for a new license or a renewal.',
+      'License keys come from SEKOYA GRUP BİLİŞİM VE TEKNOLOJİ LİMİTED ŞİRKETİ: write to info@libredb.org for a new license or a renewal.',
     )
     expect(within(renew).getByRole('link', { name: 'info@libredb.org' }))
       .toHaveAttribute('href', 'mailto:info@libredb.org')

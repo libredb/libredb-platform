@@ -4,7 +4,7 @@
 // LIBREDB_INSTALLER_BIN names another installer binary than dist/libredb-installer-linux-x64, and
 // LIBREDB_E2E_IMAGES_REGISTRY sets images.registry for every run, such as registry.example.com/libredb for images
 // that exist only in a registry mirror. LIBREDB_E2E_LICENSE_FILE names a license file that the keys of the Platform
-// image verify for the host platform.libredb.test, such as one Sekoya Tech issued for that host; the test of a verified
+// image verify for the host platform.libredb.test, such as one SEKOYA GRUP BİLİŞİM VE TEKNOLOJİ LİMİTED ŞİRKETİ issued for that host; the test of a verified
 // license needs it and is skipped without it, while the other license tests apply tokens that no key signed.
 import { beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";

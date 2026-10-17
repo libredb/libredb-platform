@@ -254,7 +254,7 @@ A refused or failed first sign-in of an admin lands on the sign-in page:
 Once an admin exists, the first sign-in of another admin asks Keycloak whether each admin still holds a seat, which needs the Admin API rights of the service account, `view-users` and `view-clients`, listed in the [Keycloak contract](#keycloak-contract).
 When Keycloak cannot be read, that sign-in fails on `/login?error=AdminSeatCheckFailed` and Platform logs the cause; the sign-in of an admin who has signed in before never asks Keycloak about seats.
 
-License keys come from Sekoya Tech: write to [info@libredb.org](mailto:info@libredb.org) for a new license or a renewal, with what the [Docker install guide](install-docker.md#request-a-license) lists.
+License keys come from SEKOYA GRUP BİLİŞİM VE TEKNOLOJİ LİMİTED ŞİRKETİ: write to [info@libredb.org](mailto:info@libredb.org) for a new license or a renewal, with what the [Docker install guide](install-docker.md#request-a-license) lists.
 To install or renew a license, save the license file you receive at the path that the installer's `platform.licenseFile` names and run `libredb-installer apply -c <libredb.yaml>`, which recreates Platform with it; without the installer, set `PLATFORM_LICENSE` to the token the file holds and restart `serve`.
 
 ## Rotation runbooks

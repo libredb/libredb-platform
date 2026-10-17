@@ -33,9 +33,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <div className="mx-auto w-full max-w-[340px]">{children}</div>
         </div>
 
-        <div className="hidden items-center justify-between text-[10px] text-muted-foreground/60 lg:flex">
-          <span>© {new Date().getFullYear()} LibreDB</span>
-          <span>SOC 2 · GDPR</span>
+        <div className="hidden text-[10px] text-muted-foreground/60 lg:block">
+          © {new Date().getFullYear()} SEKOYA GRUP BİLİŞİM VE TEKNOLOJİ LİMİTED ŞİRKETİ
         </div>
       </main>
     </div>
