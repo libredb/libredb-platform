@@ -24,8 +24,8 @@ export const deleteMessage = safeAction(
     const updated = await db.supportMessage.update({
       where: { id: data.id },
       data: {
-        bodyRich: '<p><em>[mesaj silindi]</em></p>',
-        bodyPlain: '[mesaj silindi]',
+        bodyRich: '<p><em>[message deleted]</em></p>',
+        bodyPlain: '[message deleted]',
         editedAt: new Date(),
       },
     })

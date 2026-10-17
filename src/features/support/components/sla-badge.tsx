@@ -11,18 +11,17 @@ interface SlaBadgeProps {
   }
 }
 
-// Unit abbreviations (Turkish): "g" = gün, "sa" = saat, "dk" = dakika.
-// The previous single-letter "s"/"d" suffixes were ambiguous: "s" reads
-// as saniye and "d" as day, so we use unambiguous 2-letter forms.
+// Unit abbreviations: "d" = days, "h" = hours, "m" = minutes.
+// The badge never shows seconds or months, so "m" always reads as minutes.
 function fmt(ms: number): string {
   const abs = Math.abs(ms)
   const totalMin = Math.floor(abs / 60_000)
   const d = Math.floor(totalMin / (60 * 24))
   const h = Math.floor((totalMin % (60 * 24)) / 60)
   const m = totalMin % 60
-  if (d > 0) return `${d}g ${h}sa ${m}dk`
-  if (h > 0) return `${h}sa ${m}dk`
-  return `${m}dk`
+  if (d > 0) return `${d}d ${h}h ${m}m`
+  if (h > 0) return `${h}h ${m}m`
+  return `${m}m`
 }
 
 export function SlaBadge({ ticket }: SlaBadgeProps) {
@@ -34,16 +33,16 @@ export function SlaBadge({ ticket }: SlaBadgeProps) {
   })
 
   if (s.firstResponse && 'overdue' in s.firstResponse && s.firstResponse.overdue) {
-    return <span className="text-destructive">🔴 {fmt(-s.firstResponse.remainingMs)} geç · ilk yanıt SLA</span>
+    return <span className="text-destructive">🔴 {fmt(-s.firstResponse.remainingMs)} overdue · first response SLA</span>
   }
   if (s.firstResponse && 'overdue' in s.firstResponse) {
-    return <span>⏱ {fmt(s.firstResponse.remainingMs)} · ilk yanıt</span>
+    return <span>⏱ {fmt(s.firstResponse.remainingMs)} · first response</span>
   }
   if ('overdue' in s.resolution && s.resolution.overdue) {
-    return <span className="text-destructive">🔴 {fmt(-s.resolution.remainingMs)} geç · çözüm SLA</span>
+    return <span className="text-destructive">🔴 {fmt(-s.resolution.remainingMs)} overdue · resolution SLA</span>
   }
   if ('overdue' in s.resolution) {
-    return <span>⏱ {fmt(s.resolution.remainingMs)} · çözüm</span>
+    return <span>⏱ {fmt(s.resolution.remainingMs)} · resolution</span>
   }
-  return <span className="text-muted-foreground">✓ SLA karşılandı</span>
+  return <span className="text-muted-foreground">✓ SLA met</span>
 }

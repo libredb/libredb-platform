@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import { formatDistanceToNow } from 'date-fns'
-import { tr } from 'date-fns/locale'
 import { Badge } from '@/shared/components/ui/badge'
 import { calculateSlaStatus } from '@/features/support/lib/support-sla'
 
@@ -21,7 +20,7 @@ export function InboxListRow({
         <span className="font-mono">{ticket.ticketNumber}</span>
         <span className="flex items-center gap-1">
           {sla.overallBreached && <span className="text-destructive">SLA</span>}
-          <time>{formatDistanceToNow(new Date(ticket.lastActivityAt), { addSuffix: false, locale: tr })}</time>
+          <time>{formatDistanceToNow(new Date(ticket.lastActivityAt), { addSuffix: false })}</time>
         </span>
       </div>
       <div className="mt-1 truncate text-sm font-medium">{ticket.subject}</div>

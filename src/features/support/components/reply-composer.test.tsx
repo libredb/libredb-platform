@@ -30,7 +30,7 @@ const taskItem = (checked: boolean, ...content: JSONContent[]): JSONContent =>
  * its HTML must match, so that content the editor failed to render cannot pass.
  */
 const COMPOSER_CONTENT: Array<[string, JSONContent, string]> = [
-  ['a paragraph with a hard break', paragraph(text('Merhaba'), { type: 'hardBreak' }, text('dünya')), 'p > br'],
+  ['a paragraph with a hard break', paragraph(text('Hello'), { type: 'hardBreak' }, text('world')), 'p > br'],
   [
     'bold, italic, underline and strike text',
     paragraph(marked('b', 'bold'), marked('i', 'italic'), marked('u', 'underline'), marked('s', 'strike')),
@@ -87,20 +87,20 @@ const COMPOSER_CONTENT: Array<[string, JSONContent, string]> = [
 describe('ReplyComposer', () => {
   it('enables the send button once the editor holds text', async () => {
     const { container } = render(<ReplyComposer allowInternalToggle={false} onSend={vi.fn()} />)
-    expect(await screen.findByRole('button', { name: 'Gönder' })).toBeDisabled()
+    expect(await screen.findByRole('button', { name: 'Send' })).toBeDisabled()
 
     const editor = mountedEditor(container)
     act(() => {
-      editor.commands.insertContent('Bağlanamıyorum')
+      editor.commands.insertContent('Cannot connect')
     })
 
-    expect(editor.getText()).toBe('Bağlanamıyorum')
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Gönder' })).toBeEnabled())
+    expect(editor.getText()).toBe('Cannot connect')
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled())
   })
 
   it.each(COMPOSER_CONTENT)('keeps %s through sanitizeTicketHtml unchanged', async (_name, content, selector) => {
     const { container } = render(<ReplyComposer allowInternalToggle={false} onSend={vi.fn()} />)
-    await screen.findByRole('button', { name: 'Gönder' })
+    await screen.findByRole('button', { name: 'Send' })
     const editor = mountedEditor(container)
     act(() => {
       editor.commands.setContent({ type: 'doc', content: [content] })

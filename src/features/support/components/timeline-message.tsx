@@ -73,13 +73,13 @@ export function TimelineMessage({
           )}
           <span>·</span>
           <time>{format(new Date(message.createdAt), 'HH:mm · d MMM')}</time>
-          {message.editedAt && <span className="italic">(düzenlendi)</span>}
+          {message.editedAt && <span className="italic">(edited)</span>}
           {canEdit && onEditRequest && (
             <button
               type="button"
               onClick={onEditRequest}
               className="ml-auto hidden rounded p-1 hover:bg-accent group-hover:inline-flex"
-              title="Düzenle"
+              title="Edit"
             >
               <PencilIcon className="size-3" />
             </button>

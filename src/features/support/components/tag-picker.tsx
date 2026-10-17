@@ -31,7 +31,7 @@ export function TagPicker({ ticketTags, availableTags, canManage, onAdd, onRemov
         >
           {t.name}
           {canManage && (
-            <button onClick={() => onRemove(t.id)} aria-label={`${t.name} kaldir`} type="button">
+            <button onClick={() => onRemove(t.id)} aria-label={`Remove ${t.name}`} type="button">
               <XIcon className="size-2.5" />
             </button>
           )}
@@ -42,15 +42,15 @@ export function TagPicker({ ticketTags, availableTags, canManage, onAdd, onRemov
           <PopoverTrigger
             render={
               <Button variant="outline" size="sm" className="h-5 gap-1 px-1.5 text-[10px]">
-                <PlusIcon className="size-3" /> Ekle
+                <PlusIcon className="size-3" /> Add
               </Button>
             }
           />
           <PopoverContent className="w-56 p-0" align="start">
             <Command>
-              <CommandInput placeholder="Tag ara..." />
+              <CommandInput placeholder="Search tags..." />
               <CommandList>
-                <CommandEmpty>Sonuc yok</CommandEmpty>
+                <CommandEmpty>No results</CommandEmpty>
                 <CommandGroup>
                   {pickable.map(t => (
                     <CommandItem

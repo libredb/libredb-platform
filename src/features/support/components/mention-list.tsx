@@ -53,7 +53,7 @@ export const MentionList = forwardRef<
   if (items.length === 0) {
     return (
       <div className="rounded-md border border-border bg-popover p-2 text-xs text-muted-foreground shadow-md">
-        Eşleşen ajan yok
+        No matching agents
       </div>
     )
   }

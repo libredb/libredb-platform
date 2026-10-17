@@ -36,7 +36,7 @@ interface ReplyComposerProps {
 }
 
 export function ReplyComposer({
-  placeholder = 'Yanıt yaz... (⌘⏎ gönder)',
+  placeholder = 'Write a reply... (⌘⏎ to send)',
   allowInternalToggle,
   onSend,
   defaultInternal = false,
@@ -186,11 +186,11 @@ export function ReplyComposer({
               <span className="flex items-center gap-1"><LockIcon className="size-3" /> Internal note</span>
             </label>
           )}
-          <span>Ctrl+Enter gönder</span>
+          <span>Ctrl+Enter to send</span>
         </div>
         <Button onClick={() => void handleSend()} disabled={!hasContent || isPending}>
           <SendIcon className="size-4" />
-          {isPending ? 'Gönderiliyor...' : 'Gönder'}
+          {isPending ? 'Sending...' : 'Send'}
         </Button>
       </div>
     </div>

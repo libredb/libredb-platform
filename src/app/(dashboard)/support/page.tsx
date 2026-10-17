@@ -9,7 +9,7 @@ export default async function SupportIndexPage() {
     <div className="flex h-full items-center justify-center">
       <div className="max-w-sm space-y-3 text-center text-muted-foreground">
         <MessageSquareIcon className="mx-auto size-10 opacity-50" />
-        <div className="text-sm">Soldaki listeden bir ticket seçin ya da üstten yeni ticket oluşturun.</div>
+        <div className="text-sm">Select a ticket from the list on the left, or create a new one with the button at the top.</div>
       </div>
     </div>
   )

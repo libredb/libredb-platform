@@ -38,7 +38,7 @@ export function ConversationSidebar(props: ConversationSidebarProps) {
   return (
     <aside className="w-[220px] shrink-0 space-y-4 border-l bg-card p-4 text-xs">
       <section>
-        <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Müşteri</div>
+        <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Customer</div>
         <div className="font-medium">{props.customerName}</div>
         {props.customerEmail && <div className="text-muted-foreground">{props.customerEmail}</div>}
       </section>
@@ -52,22 +52,22 @@ export function ConversationSidebar(props: ConversationSidebarProps) {
       </section>
 
       <section>
-        <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Atanmış</div>
+        <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Assigned To</div>
         {canManage ? (
           <Select value={ticket.assignedToUserId ?? 'UNASSIGNED'} onValueChange={v => props.onAssigneeChange(v === 'UNASSIGNED' ? null : v)}>
             <SelectTrigger className="h-8 w-full"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="UNASSIGNED">Atanmamış</SelectItem>
+              <SelectItem value="UNASSIGNED">Unassigned</SelectItem>
               {members.map(m => <SelectItem key={m.userId} value={m.userId}>{m.userName}</SelectItem>)}
             </SelectContent>
           </Select>
         ) : (
-          <span>{ticket.assignedToUserId ? (members.find(m => m.userId === ticket.assignedToUserId)?.userName ?? 'Atanmış') : 'Atanmamış'}</span>
+          <span>{ticket.assignedToUserId ? (members.find(m => m.userId === ticket.assignedToUserId)?.userName ?? 'Assigned') : 'Unassigned'}</span>
         )}
       </section>
 
       <section>
-        <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Durum</div>
+        <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Status</div>
         {canManage ? (
           <Select value={ticket.status} onValueChange={props.onStatusChange}>
             <SelectTrigger className="h-8 w-full"><SelectValue /></SelectTrigger>
@@ -77,7 +77,7 @@ export function ConversationSidebar(props: ConversationSidebarProps) {
       </section>
 
       <section>
-        <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Öncelik</div>
+        <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Priority</div>
         {canManage ? (
           <Select value={ticket.priority} onValueChange={props.onPriorityChange}>
             <SelectTrigger className="h-8 w-full"><SelectValue /></SelectTrigger>
@@ -87,7 +87,7 @@ export function ConversationSidebar(props: ConversationSidebarProps) {
       </section>
 
       <section>
-        <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Kategori</div>
+        <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Category</div>
         {canManage ? (
           <Select value={ticket.category} onValueChange={props.onCategoryChange}>
             <SelectTrigger className="h-8 w-full"><SelectValue /></SelectTrigger>
@@ -97,7 +97,7 @@ export function ConversationSidebar(props: ConversationSidebarProps) {
       </section>
 
       <section>
-        <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Etiketler</div>
+        <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Tags</div>
         <TagPicker ticketTags={tags} availableTags={availableTags} canManage={canManage} onAdd={props.onTagAdd} onRemove={props.onTagRemove} />
       </section>
 
@@ -108,16 +108,16 @@ export function ConversationSidebar(props: ConversationSidebarProps) {
 
       <section className="space-y-1 border-t pt-3">
         <div className="flex justify-between text-muted-foreground">
-          <span>Açıldı</span><time>{format(new Date(ticket.createdAt), 'd MMM · HH:mm')}</time>
+          <span>Created</span><time>{format(new Date(ticket.createdAt), 'd MMM · HH:mm')}</time>
         </div>
         {ticket.firstResponseAt && (
           <div className="flex justify-between text-muted-foreground">
-            <span>İlk yanıt</span><time>{format(new Date(ticket.firstResponseAt), 'd MMM · HH:mm')}</time>
+            <span>First response</span><time>{format(new Date(ticket.firstResponseAt), 'd MMM · HH:mm')}</time>
           </div>
         )}
         {ticket.resolvedAt && (
           <div className="flex justify-between text-muted-foreground">
-            <span>Çözüldü</span><time>{format(new Date(ticket.resolvedAt), 'd MMM · HH:mm')}</time>
+            <span>Resolved</span><time>{format(new Date(ticket.resolvedAt), 'd MMM · HH:mm')}</time>
           </div>
         )}
         {ticket.reopenedCount > 0 && (

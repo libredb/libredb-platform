@@ -28,7 +28,7 @@ export function ConversationTimeline({
   }, [items.length])
 
   if (items.length === 0) {
-    return <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">Henüz mesaj yok.</div>
+    return <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">No messages yet.</div>
   }
 
   return (
@@ -38,7 +38,7 @@ export function ConversationTimeline({
         {items.map(item => {
           if (item.kind === 'message') {
             const m = item.data
-            const senderName = userMap[m.senderUserId] ?? 'Bilinmeyen'
+            const senderName = userMap[m.senderUserId] ?? 'Unknown'
             const senderRole = platformStaffIds.has(m.senderUserId) ? 'agent' : 'customer'
             return (
               <TimelineMessage

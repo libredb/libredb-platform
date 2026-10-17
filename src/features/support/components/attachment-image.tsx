@@ -25,7 +25,7 @@ export function AttachmentImage({ fileName, thumbUrl, fullUrl }: AttachmentImage
         <DialogContent className="max-w-5xl">
           <img src={fullUrl} alt={fileName} className="max-h-[80vh] w-auto rounded-md" />
           <div className="text-center text-xs text-muted-foreground">{fileName}</div>
-          <a href={fullUrl} download={fileName} className="text-center text-xs underline">İndir</a>
+          <a href={fullUrl} download={fileName} className="text-center text-xs underline">Download</a>
         </DialogContent>
       </Dialog>
     </>

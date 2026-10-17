@@ -46,7 +46,7 @@ export function TicketForm({ onDone, onCancel }: TicketFormProps) {
   })
 
   const { execute, isPending } = useAction(createTicket, {
-    successMessage: 'Ticket oluşturuldu',
+    successMessage: 'Ticket created',
     onSuccess: (ticket: { id: string }) => {
       if (onDone) onDone(ticket.id)
       else router.push(`/support/${ticket.id}`)
@@ -61,8 +61,8 @@ export function TicketForm({ onDone, onCancel }: TicketFormProps) {
   return (
     <div className="space-y-4">
       <div>
-        <Label htmlFor="subject">Konu</Label>
-        <Input id="subject" placeholder="Kısa özet" {...form.register('subject')} />
+        <Label htmlFor="subject">Subject</Label>
+        <Input id="subject" placeholder="Short summary" {...form.register('subject')} />
         {form.formState.errors.subject && (
           <p className="mt-1 text-xs text-destructive">
             {form.formState.errors.subject.message}
@@ -71,7 +71,7 @@ export function TicketForm({ onDone, onCancel }: TicketFormProps) {
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <Label>Öncelik</Label>
+          <Label>Priority</Label>
           <Select defaultValue="MEDIUM" onValueChange={v => { if (v) form.setValue('priority', v) }}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -80,7 +80,7 @@ export function TicketForm({ onDone, onCancel }: TicketFormProps) {
           </Select>
         </div>
         <div>
-          <Label>Kategori</Label>
+          <Label>Category</Label>
           <Select defaultValue="GENERAL" onValueChange={v => { if (v) form.setValue('category', v) }}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -90,9 +90,9 @@ export function TicketForm({ onDone, onCancel }: TicketFormProps) {
         </div>
       </div>
       <div>
-        <Label>Açıklama</Label>
+        <Label>Description</Label>
         <ReplyComposer
-          placeholder="Sorununuzu detaylı yazın…"
+          placeholder="Describe your issue in detail…"
           allowInternalToggle={false}
           isPending={isPending}
           onSend={async (payload) => {
@@ -121,7 +121,7 @@ export function TicketForm({ onDone, onCancel }: TicketFormProps) {
         />
       </div>
       <div className="flex justify-end">
-        <Button type="button" variant="outline" onClick={handleCancel}>İptal</Button>
+        <Button type="button" variant="outline" onClick={handleCancel}>Cancel</Button>
       </div>
     </div>
   )

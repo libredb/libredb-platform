@@ -52,7 +52,7 @@ export function DropzoneOverlay({ containerRef, onFiles }: DropzoneOverlayProps)
     <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-lg bg-background/85 backdrop-blur-sm ring-2 ring-primary ring-offset-2 ring-offset-background">
       <div className="flex flex-col items-center gap-2 text-primary">
         <UploadCloudIcon className="size-8" />
-        <span className="text-sm font-medium">Dosyayı bırak</span>
+        <span className="text-sm font-medium">Drop files here</span>
       </div>
     </div>
   )
