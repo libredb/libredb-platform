@@ -71,6 +71,18 @@ describe('seedProduction', () => {
     expect(legacy.rows).toEqual([])
   })
 
+  it('seeds no translation of a reference value, because the UI is English only', async () => {
+    vi.stubEnv('DEPLOYMENT_MODE', 'cloud')
+    bootstrapAdmin(undefined, undefined)
+
+    await seedProduction()
+
+    const translated = await superuser.query<{ code: string }>(
+      `SELECT code FROM platform.reference_values WHERE translations IS NOT NULL ORDER BY code`,
+    )
+    expect(translated.rows).toEqual([])
+  })
+
   it('cloud: seeds no plan price, so an admin sets every price', async () => {
     vi.stubEnv('DEPLOYMENT_MODE', 'cloud')
     bootstrapAdmin(undefined, undefined)

@@ -239,36 +239,36 @@ export async function seedProduction() {
     {
       type: { code: 'TICKET_PRIORITY', name: 'Ticket Priority', category: 'SUPPORT', isSystem: true },
       values: [
-        { code: 'LOW', name: 'Low', sortOrder: 0, colorCode: '#6b7280', translations: { tr: { name: 'Düşük' } } },
-        { code: 'MEDIUM', name: 'Medium', sortOrder: 1, colorCode: '#f59e0b', translations: { tr: { name: 'Orta' } } },
-        { code: 'HIGH', name: 'High', sortOrder: 2, colorCode: '#ef4444', translations: { tr: { name: 'Yüksek' } } },
-        { code: 'URGENT', name: 'Urgent', sortOrder: 3, colorCode: '#dc2626', translations: { tr: { name: 'Acil' } } },
+        { code: 'LOW', name: 'Low', sortOrder: 0, colorCode: '#6b7280' },
+        { code: 'MEDIUM', name: 'Medium', sortOrder: 1, colorCode: '#f59e0b' },
+        { code: 'HIGH', name: 'High', sortOrder: 2, colorCode: '#ef4444' },
+        { code: 'URGENT', name: 'Urgent', sortOrder: 3, colorCode: '#dc2626' },
       ],
     },
     {
       type: { code: 'TICKET_CATEGORY', name: 'Ticket Category', category: 'SUPPORT', isSystem: true },
       values: [
-        { code: 'GENERAL', name: 'General', sortOrder: 0, translations: { tr: { name: 'Genel' } } },
-        { code: 'BILLING', name: 'Billing', sortOrder: 1, translations: { tr: { name: 'Faturalandırma' } } },
-        { code: 'TECHNICAL', name: 'Technical', sortOrder: 2, translations: { tr: { name: 'Teknik' } } },
+        { code: 'GENERAL', name: 'General', sortOrder: 0 },
+        { code: 'BILLING', name: 'Billing', sortOrder: 1 },
+        { code: 'TECHNICAL', name: 'Technical', sortOrder: 2 },
       ],
     },
     {
       type: { code: 'TICKET_STATUS', name: 'Ticket Status', category: 'SUPPORT', isSystem: true },
       values: [
-        { code: 'OPEN', name: 'Open', sortOrder: 0, colorCode: '#3b82f6', translations: { tr: { name: 'Açık' } } },
-        { code: 'IN_PROGRESS', name: 'In Progress', sortOrder: 1, colorCode: '#f59e0b', translations: { tr: { name: 'İşlemde' } } },
-        { code: 'RESOLVED', name: 'Resolved', sortOrder: 2, colorCode: '#22c55e', translations: { tr: { name: 'Çözüldü' } } },
-        { code: 'CLOSED', name: 'Closed', sortOrder: 3, colorCode: '#6b7280', translations: { tr: { name: 'Kapatıldı' } } },
+        { code: 'OPEN', name: 'Open', sortOrder: 0, colorCode: '#3b82f6' },
+        { code: 'IN_PROGRESS', name: 'In Progress', sortOrder: 1, colorCode: '#f59e0b' },
+        { code: 'RESOLVED', name: 'Resolved', sortOrder: 2, colorCode: '#22c55e' },
+        { code: 'CLOSED', name: 'Closed', sortOrder: 3, colorCode: '#6b7280' },
       ],
     },
     {
       type: { code: 'DATABASE_ENVIRONMENT', name: 'Database Environment', category: 'GOVERNANCE', isSystem: true },
       values: [
-        { code: 'PRODUCTION', name: 'Production', sortOrder: 0, colorCode: '#ef4444', translations: { tr: { name: 'Prodüksiyon' } } },
-        { code: 'STAGING', name: 'Staging', sortOrder: 1, colorCode: '#f59e0b', translations: { tr: { name: 'Staging' } } },
-        { code: 'DEVELOPMENT', name: 'Development', sortOrder: 2, colorCode: '#22c55e', translations: { tr: { name: 'Geliştirme' } } },
-        { code: 'TEST', name: 'Test', sortOrder: 3, colorCode: '#6b7280', translations: { tr: { name: 'Test' } } },
+        { code: 'PRODUCTION', name: 'Production', sortOrder: 0, colorCode: '#ef4444' },
+        { code: 'STAGING', name: 'Staging', sortOrder: 1, colorCode: '#f59e0b' },
+        { code: 'DEVELOPMENT', name: 'Development', sortOrder: 2, colorCode: '#22c55e' },
+        { code: 'TEST', name: 'Test', sortOrder: 3, colorCode: '#6b7280' },
       ],
     },
     {

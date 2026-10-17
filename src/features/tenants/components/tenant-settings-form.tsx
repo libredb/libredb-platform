@@ -13,44 +13,31 @@ import {
   CardHeader,
   CardTitle,
 } from '@/shared/components/ui/card'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/shared/components/ui/select'
 import { useAction } from '@/shared/hooks/use-action'
 import { updateSettings, type UpdateSettingsData } from '../actions/update-settings'
 
 const settingsSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   logoUrl: z.string().url('Must be a valid URL').or(z.literal('')).optional(),
-  locale: z.enum(['en', 'tr']).default('en'),
 })
 
 interface TenantSettingsFormProps {
   tenant: {
     name: string
     logoUrl: string | null
-    settings: Record<string, unknown> | null
   }
 }
 
 export function TenantSettingsForm({ tenant }: TenantSettingsFormProps) {
-  const currentLocale = (tenant.settings?.locale as string) ?? 'en'
-
   const {
     register,
     handleSubmit,
-    setValue,
     formState: { errors },
   } = useForm<UpdateSettingsData>({
     resolver: zodResolver(settingsSchema) as any,
     defaultValues: {
       name: tenant.name,
       logoUrl: tenant.logoUrl ?? '',
-      locale: currentLocale as 'en' | 'tr',
     },
   })
 
@@ -100,33 +87,6 @@ export function TenantSettingsForm({ tenant }: TenantSettingsFormProps) {
             <p className="text-xs text-muted-foreground">
               URL to your organization logo. Leave empty for default.
             </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Localization Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Localization</CardTitle>
-          <CardDescription>Language and regional preferences.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            <Label>Default Locale</Label>
-            <Select
-              defaultValue={currentLocale}
-              onValueChange={(value) =>
-                setValue('locale', (value ?? 'en') as 'en' | 'tr', { shouldValidate: true })
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select locale" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="en">English</SelectItem>
-                <SelectItem value="tr">Turkish</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
         </CardContent>
       </Card>
