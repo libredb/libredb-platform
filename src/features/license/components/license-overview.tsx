@@ -17,7 +17,7 @@ import type { HolderAccount, LicensePageData, LicenseSummary } from '../lib/lice
 
 const PAGE_PATH = '/admin/license'
 
-/** Where license keys come from: Sekoya Tech, the licensor. */
+/** Where license keys come from: SEKOYA GRUP BİLİŞİM VE TEKNOLOJİ LİMİTED ŞİRKETİ, the licensor. */
 const LICENSE_CONTACT = 'info@libredb.org'
 
 /** A time in UTC, so the server and the browser render the same text. */
@@ -288,7 +288,7 @@ export function LicenseOverview({ data }: { data: LicensePageData }) {
       <UsersSection userSeats={data.userSeats} />
       <Section id="license-renew-heading" title="Renew">
         <p className="max-w-3xl text-sm text-muted-foreground">
-          License keys come from Sekoya Tech: write to{' '}
+          License keys come from SEKOYA GRUP BİLİŞİM VE TEKNOLOJİ LİMİTED ŞİRKETİ: write to{' '}
           <a href={`mailto:${LICENSE_CONTACT}`} className="font-medium underline underline-offset-2">
             {LICENSE_CONTACT}
           </a>{' '}

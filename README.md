@@ -164,7 +164,7 @@ To propose a change, open an issue, as [CONTRIBUTING.md](CONTRIBUTING.md) explai
 
 ## License
 
-LibreDB Platform, the installer included, is source-available under the [Elastic License 2.0](LICENSE), with Sekoya Tech as the licensor.
+LibreDB Platform, the installer included, is source-available under the [Elastic License 2.0](LICENSE), with SEKOYA GRUP BİLİŞİM VE TEKNOLOJİ LİMİTED ŞİRKETİ as the licensor.
 You may use, copy, modify and self-host it.
 You may not provide it to third parties as a hosted or managed service, move, change, disable or circumvent its license key functionality, remove or obscure any functionality that is protected by the license key, or alter, remove or obscure any licensing, copyright or other notices of the licensor.
 This is a summary: the [LICENSE](LICENSE) file holds the full terms.
@@ -172,7 +172,7 @@ This is a summary: the [LICENSE](LICENSE) file holds the full terms.
 [LibreDB Studio](https://github.com/libredb/libredb-studio), the database web editor that Platform governs, stays open source in its own repository.
 
 A self-hosted install runs on a free tier of 1 admin seat and 3 user seats until it has a valid license key.
-License keys come from Sekoya Tech: write to [info@libredb.org](mailto:info@libredb.org) for a new license or a renewal.
+License keys come from SEKOYA GRUP BİLİŞİM VE TEKNOLOJİ LİMİTED ŞİRKETİ: write to [info@libredb.org](mailto:info@libredb.org) for a new license or a renewal.
 A key names the customer, the admin and user seats, an expiry and, optionally, the hosts it may run on, which must then include the host of `AUTH_URL`.
 To install or renew a key, save the license file you receive at the path that the installer's `platform.licenseFile` names and run `libredb-installer apply -c <libredb.yaml>` as root, which passes it to Platform as `PLATFORM_LICENSE`, as the [Docker install guide](docs/deploy/install-docker.md) shows; without the installer, set `PLATFORM_LICENSE` to the token the file holds and restart `serve`.
 Admins see a warning from 30 days before the key expires, and a grace period of 14 days follows the expiry, in which the key's seats still apply.
