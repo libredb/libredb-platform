@@ -2,8 +2,8 @@
 
 This page explains, with diagrams, how LibreDB Platform governs LibreDB Studio in an on-prem install.
 It is a reading aid.
-The contract itself is [Studio's `docs/GOVERNANCE.md`](https://github.com/libredb/libredb-studio/blob/efc6e1b69/docs/GOVERNANCE.md).
-Every diagram and table follows the code of Platform in this repository and of [Studio PR #1785](https://github.com/libredb/libredb-studio/pull/1785) at `efc6e1b69`.
+The contract itself is [Studio's `docs/GOVERNANCE.md`](https://github.com/libredb/libredb-studio/blob/1.0.0/docs/GOVERNANCE.md).
+Every diagram and table follows the code of Platform in this repository and of [Studio 1.0.0](https://github.com/libredb/libredb-studio/releases/tag/1.0.0).
 Terms such as snapshot, envelope, seal canary, governance mode and `seed:<id>` are defined in the [glossary](#14-glossary) at the end.
 
 Five ideas carry the whole design:
@@ -410,6 +410,7 @@ Sign-in can fail at the callback, and then Studio sets no cookie:
 | `/login?error=oidc_no_claims` | the ID token has no `sub` or no `iss` string |
 | `/login?error=oidc_config` | an empty `sub`, or an `iss` other than `OIDC_ISSUER` |
 | `/login?error=oidc_no_role` | `libredb_roles` holds neither `admin` nor `user` |
+| `/login?error=oidc_session_revoked` | the subject's latest `revoked_before` is at or after the current second, as when Platform's clock runs ahead of Studio's or the row's `revoked_before` cannot be read |
 
 The refusals in parts B and C, every other answer a data request can get, and which of them leave a query event are in the next section.
 
