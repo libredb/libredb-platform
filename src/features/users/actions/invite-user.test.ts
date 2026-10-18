@@ -14,6 +14,9 @@ const caller = vi.hoisted(() => ({
   accessibleTenants: [],
 }))
 
+// The plan of the caller's tenant, which the real checkLimit reads through db.tenant.
+const plan = vi.hoisted(() => ({ maxUsers: 10 }))
+
 // An in-memory stand-in for the Prisma client that honours the where clause
 // for the lookups inviteUser makes; nested relation filters match nothing.
 const { db, tables } = vi.hoisted(() => {
@@ -27,6 +30,12 @@ const { db, tables } = vi.hoisted(() => {
     vi.fn(async ({ where }: { where: Where }) => tables[table].find((row) => matches(row, where)) ?? null)
 
   const db = {
+    tenant: {
+      findUnique: vi.fn(async ({ where }: { where: { id: string } }) => ({
+        id: where.id,
+        planConfig: { maxUsers: plan.maxUsers, maxConnections: 10, queryHistoryDays: 30 },
+      })),
+    },
     role: {
       findUnique: findOne('role'),
       findFirst: findOne('role'),
@@ -54,10 +63,6 @@ vi.mock('@/shared/lib/auth-utils', () => ({
   requirePermission: vi.fn().mockResolvedValue(undefined),
 }))
 
-vi.mock('@/shared/lib/feature-flags', () => ({
-  checkLimit: vi.fn().mockResolvedValue(true),
-}))
-
 vi.mock('@/shared/lib/logger', () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }))
@@ -74,6 +79,7 @@ afterEach(() => {
 
 beforeEach(() => {
   vi.stubEnv('DEPLOYMENT_MODE', 'cloud')
+  plan.maxUsers = 10
   tables.role = [
     { id: 'role-platform-admin', code: 'PLATFORM_ADMIN', name: 'PLATFORM_ADMIN', isSystem: true, tenantId: null },
     { id: 'role-tenant-editor', code: 'TENANT_EDITOR', name: 'TENANT_EDITOR', isSystem: true, tenantId: null },
@@ -107,6 +113,27 @@ describe('inviteUser', () => {
       expect.objectContaining({ tenantId: 'tenant-1', email: 'erin@acme.test', roleId: 'role-tenant-editor' }),
       expect.objectContaining({ tenantId: 'tenant-1', email: 'dave@acme.test', roleId: 'role-analyst-1' }),
     ])
+  })
+
+  it('a refusal names the limit of the plan, also when more members are active than a lowered limit allows', async () => {
+    plan.maxUsers = 2
+    tables.tenantMember.push({ id: 'member-2', tenantId: 'tenant-1', userId: 'user-2', active: true })
+    // An inactive membership takes no place.
+    tables.tenantMember.push({ id: 'member-3', tenantId: 'tenant-1', userId: 'user-3', active: false })
+
+    expect(await inviteUser({ email: 'erin@acme.test', roleId: 'role-tenant-editor' })).toEqual({
+      success: false,
+      error: 'Limit exceeded: users (max: 2)',
+    })
+
+    // The plan allowed three before an admin lowered its limit to two.
+    tables.tenantMember.push({ id: 'member-4', tenantId: 'tenant-1', userId: 'user-4', active: true })
+
+    expect(await inviteUser({ email: 'erin@acme.test', roleId: 'role-tenant-editor' })).toEqual({
+      success: false,
+      error: 'Limit exceeded: users (max: 2)',
+    })
+    expect(tables.invitation).toEqual([])
   })
 })
 

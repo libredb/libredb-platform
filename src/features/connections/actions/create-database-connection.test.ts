@@ -344,6 +344,19 @@ describe('createDatabaseConnection', () => {
     expect(tables.databaseConnection.filter((row) => row.tenantId === 'tenant-1' && row.deletedAt === null)).toHaveLength(2)
   })
 
+  it('a refusal names the limit of the plan, also when more connections exist than a lowered limit allows', async () => {
+    plan.maxConnections = 2
+    tables.databaseConnection = [storedRow({ id: 'first', tenantId: 'tenant-1' }), storedRow({ id: 'second', tenantId: 'tenant-1' })]
+
+    expect(await createDatabaseConnection(input())).toEqual({ success: false, error: 'Limit exceeded: connections (max: 2)' })
+
+    // The plan allowed three before an admin lowered its limit to two.
+    tables.databaseConnection.push(storedRow({ id: 'third', tenantId: 'tenant-1' }))
+
+    expect(await createDatabaseConnection(input())).toEqual({ success: false, error: 'Limit exceeded: connections (max: 2)' })
+    expect(tables.databaseConnection).toHaveLength(3)
+  })
+
   it('cloud mode without BRIDGE_SEAL_PUBLIC_KEY answers ConfigError naming it', async () => {
     vi.stubEnv('DEPLOYMENT_MODE', 'cloud')
     runtime.config = { DEPLOYMENT_MODE: 'cloud' }
