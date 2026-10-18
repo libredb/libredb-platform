@@ -1,5 +1,7 @@
 import { afterEach, describe, it, expect, vi } from 'vitest'
 import { act, render, screen } from '@testing-library/react'
+import { readdirSync } from 'fs'
+import path from 'path'
 
 // The path that usePathname returns, set by each test before it renders.
 const navigation = vi.hoisted(() => ({ pathname: '/admin/license' }))
@@ -28,6 +30,27 @@ function crumbs(container: HTMLElement): string[] {
   return [...container.querySelectorAll('[data-slot="breadcrumb-item"]')].map((item) => item.textContent ?? '')
 }
 
+/** The target of each breadcrumb link, in order. */
+function links(container: HTMLElement): string[] {
+  return [...container.querySelectorAll('[data-slot="breadcrumb-list"] a')].map((link) => link.getAttribute('href') ?? '')
+}
+
+const APP = path.resolve(__dirname, '../../../app')
+// The id that stands for a dynamic segment such as [id], in the shape of a cuid, which the breadcrumb leaves out.
+const SAMPLE_ID = 'cmvd49wv8002trls6b12mxw6e'
+
+/** The URL path of every page under a directory of src/app, with each dynamic segment replaced by SAMPLE_ID. */
+function pagePaths(dir: string, segments: string[] = []): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    if (!entry.isDirectory()) return entry.name === 'page.tsx' ? ['/' + segments.join('/')] : []
+    // A slot such as @modal renders inside the page of its parent and adds no path of its own.
+    if (entry.name.startsWith('@')) return []
+    // A route group such as (dashboard) adds no segment to the path.
+    const segment = /^\(.*\)$/.test(entry.name) ? [] : [/^\[.*\]$/.test(entry.name) ? SAMPLE_ID : entry.name]
+    return pagePaths(path.join(dir, entry.name), [...segments, ...segment])
+  })
+}
+
 describe('AppHeader', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
@@ -47,11 +70,40 @@ describe('AppHeader', () => {
   })
 
   it('labels the License page of the administration in the breadcrumb', () => {
-    renderHeader('/admin/license')
+    const { container } = renderHeader('/admin/license')
 
-    expect(screen.getByRole('link', { name: 'Admin' })).toHaveAttribute('href', '/admin')
+    expect(crumbs(container)).toEqual(['Admin', 'License'])
     expect(screen.getByText('License')).toHaveAttribute('aria-current', 'page')
     expect(screen.queryByText('license')).not.toBeInTheDocument()
+  })
+
+  // /admin only groups the administration pages: a link there would answer 404, and its prefetch would log a 404 on
+  // every page below it.
+  it('shows Admin, which has no page of its own, as text, and links Tenants, which has one', () => {
+    const { container } = renderHeader('/admin/tenants/new')
+
+    expect(crumbs(container)).toEqual(['Admin', 'Tenants', 'New'])
+    expect(screen.queryByRole('link', { name: 'Admin' })).not.toBeInTheDocument()
+    expect(links(container)).toEqual(['/admin/tenants'])
+  })
+
+  // The header renders on every page of the dashboard, and a parent segment of one of them can lack a page of its own.
+  it('links each parent breadcrumb that has a page of its own, and no other, on every page of the dashboard', () => {
+    const pages = new Set(pagePaths(APP))
+    const dashboardPages = pagePaths(path.join(APP, '(dashboard)'))
+    expect(dashboardPages).toContain('/admin/license')
+
+    for (const page of dashboardPages) {
+      const segments = page.split('/').filter(Boolean)
+      const parents = segments
+        .slice(0, -1)
+        .map((_segment, index) => '/' + segments.slice(0, index + 1).join('/'))
+        .filter((parent) => !parent.endsWith(SAMPLE_ID))
+      const { container, unmount } = renderHeader(page)
+
+      expect({ page, links: links(container) }).toEqual({ page, links: parents.filter((parent) => pages.has(parent)) })
+      unmount()
+    }
   })
 
   it.each([

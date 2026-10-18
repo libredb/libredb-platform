@@ -44,6 +44,11 @@ function isId(segment: string): boolean {
   return CUID.test(segment) || UUID.test(segment)
 }
 
+// The parent paths that only group the pages below them and have no page of their own, so the breadcrumb shows them as
+// text: a link would answer 404, and its prefetch would log a 404 on every page below. app-header.test.tsx checks this
+// list against the pages under src/app.
+const PATHS_WITHOUT_PAGE = new Set(['/admin'])
+
 export function AppHeader() {
   const pathname = usePathname()
   const segments = pathname.split('/').filter(Boolean)
@@ -69,6 +74,8 @@ export function AppHeader() {
                 <BreadcrumbItem>
                   {isLast ? (
                     <BreadcrumbPage>{label}</BreadcrumbPage>
+                  ) : PATHS_WITHOUT_PAGE.has(href) ? (
+                    <span>{label}</span>
                   ) : (
                     <Link href={href} className="transition-colors hover:text-foreground">
                       {label}
