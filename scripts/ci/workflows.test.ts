@@ -260,6 +260,58 @@ function runStep(
   }
 }
 
+/**
+ * Expects the one step of `job` that receives the secret LIBREDB_E2E_LICENSE, and returns its index: it runs nothing
+ * but the shell, writes the secret to a 0600 file under RUNNER_TEMP and names that file in LIBREDB_E2E_LICENSE_FILE for
+ * the later steps, and fails the job when the secret is empty.
+ */
+function expectLicenseFileStep(job: Job): number {
+  const steps = stepsOf(job)
+  const writes = steps.flatMap((step, index) => ('LIBREDB_E2E_LICENSE' in envOf(step) ? [index] : []))
+  expect(writes.length, `${job.name}: the one step that receives the secret LIBREDB_E2E_LICENSE`).toBe(1)
+  const [write] = writes
+  // The secret reaches the step through its environment alone, never through the text of its script, and the step
+  // runs no third-party code, such as an action or a package script, that could read it.
+  expect(envOf(steps[write])).toEqual({ LIBREDB_E2E_LICENSE: '${{ secrets.LIBREDB_E2E_LICENSE }}' })
+  expect(valueOf(steps[write], 'uses')).toBeUndefined()
+  const script = blockOf(steps[write], 'run').join('\n')
+  expect(script).not.toContain('${{')
+  expect(script).not.toMatch(/\b(?:npm|npx|node|bun|bunx|sudo)\b/)
+
+  // A stand-in value: the step writes the secret as it is and checks nothing of its form.
+  const license = 'a-stand-in-for-the-ci-license'
+  const licensed = runStep(script, { LIBREDB_E2E_LICENSE: license })
+  expect(licensed.status).toBe(0)
+  expect(licensed.files.map(({ mode, content }) => ({ mode, content }))).toEqual([{ mode: 0o600, content: license }])
+  expect(licensed.githubEnv).toBe(`LIBREDB_E2E_LICENSE_FILE=${path.join(licensed.runnerTemp, licensed.files[0].name)}\n`)
+  expect(licensed.stdout + licensed.stderr).not.toContain(license)
+
+  // A pull request from a fork, or a repository without the secret, gets an empty value, and every install needs a
+  // license, so the job fails there.
+  const unlicensed = runStep(script, { LIBREDB_E2E_LICENSE: '' })
+  expect({ status: unlicensed.status, files: unlicensed.files, githubEnv: unlicensed.githubEnv })
+    .toEqual({ status: 1, files: [], githubEnv: '' })
+  expect(unlicensed.stdout).toMatch(/^::error::.*\bLIBREDB_E2E_LICENSE\b/m)
+  return write
+}
+
+/**
+ * The runs of the installer's tests as root in `job`, each a whole command with its step's index: a command line that
+ * ends with a backslash continues on the next.
+ */
+function rootTestRuns(job: Job): { index: number; command: string }[] {
+  return stepsOf(job).flatMap((step, index) =>
+    commandsOf({ name: job.name, lines: step })
+      .join('\n')
+      .replace(/\s*\\\n\s*/g, ' ')
+      .split('\n')
+      .filter(command => /"\$\(command -v bun\)" test /.test(command))
+      .map(command => ({ index, command })))
+}
+
+// sudo resets the environment, so a run as root passes LIBREDB_E2E_LICENSE_FILE on itself, among the variables of env.
+const PASSES_LICENSE_FILE = /^sudo env (?:"[^"]+" )*"LIBREDB_E2E_LICENSE_FILE=\$LIBREDB_E2E_LICENSE_FILE" (?:"[^"]+" )*"\$\(command -v bun\)" test /
+
 describe('.github/workflows', () => {
   it('every ci.yml job runs on Node 24 with npm ci, and a docker-smoke job runs scripts/ci/docker-smoke.sh', () => {
     const workflow = readWorkflow('ci.yml')
@@ -576,43 +628,72 @@ describe('.github/workflows', () => {
     expect(jobs.filter(({ runsOn }) => runsOn !== 'ubuntu-24.04' && runsOn !== 'ubuntu-24.04-arm')).toEqual([])
   })
 
-  it('installer-e2e.yml hands the Docker end-to-end tests the license of the secret LIBREDB_E2E_LICENSE in a 0600 file, and notes the skipped test without it', () => {
-    const docker = jobsOf(readWorkflow('installer-e2e.yml')).find(job => job.name === 'docker')
+  it('installer-e2e.yml hands every Docker end-to-end test the license of the secret LIBREDB_E2E_LICENSE in a 0600 file, and fails without it', () => {
+    const workflow = readWorkflow('installer-e2e.yml')
+    const docker = jobsOf(workflow).find(job => job.name === 'docker')
     expect(docker, 'a docker job').toBeDefined()
-    const steps = stepsOf(docker!)
-    const write = steps.findIndex(step => 'LIBREDB_E2E_LICENSE' in envOf(step))
-    expect(write, 'a step that receives the secret LIBREDB_E2E_LICENSE').toBeGreaterThan(-1)
-    // The secret reaches the step through its environment alone, never through the text of its script.
-    expect(envOf(steps[write])).toEqual({ LIBREDB_E2E_LICENSE: '${{ secrets.LIBREDB_E2E_LICENSE }}' })
-    const script = blockOf(steps[write], 'run').join('\n')
-    expect(script).not.toContain('${{')
-
-    // A stand-in value: the step writes the secret as it is and checks nothing of its form.
-    const license = 'a-stand-in-for-the-ci-license'
-    const licensed = runStep(script, { LIBREDB_E2E_LICENSE: license })
-    expect(licensed.status).toBe(0)
-    expect(licensed.files.map(({ mode, content }) => ({ mode, content }))).toEqual([{ mode: 0o600, content: license }])
-    expect(licensed.githubEnv).toBe(`LIBREDB_E2E_LICENSE_FILE=${path.join(licensed.runnerTemp, licensed.files[0].name)}\n`)
-    expect(licensed.stdout + licensed.stderr).not.toContain(license)
-
-    // A pull request from a fork, or a repository without the secret, gets an empty value.
-    const unlicensed = runStep(script, { LIBREDB_E2E_LICENSE: '' })
-    expect({ status: unlicensed.status, files: unlicensed.files, githubEnv: unlicensed.githubEnv })
-      .toEqual({ status: 0, files: [], githubEnv: '' })
-    expect(unlicensed.stdout).toMatch(/^::notice::.*docker-platform\.test\.ts.*skipped/m)
-
-    // sudo resets the environment, so every run of test/e2e/docker-platform.test.ts as root passes the file on.
-    const runsPlatformTests = (command: string) =>
-      /"\$\(command -v bun\)" test /.test(command) &&
-      /\stest\/e2e(\/docker-platform\.test\.ts)?$/.test(command) &&
-      !command.includes("--path-ignore-patterns 'test/e2e/docker-platform.test.ts'")
-    const platformRuns = steps.flatMap((step, index) =>
-      commandsOf({ name: docker!.name, lines: step }).filter(runsPlatformTests).map(command => ({ index, command })))
-    expect(platformRuns.length, 'a run of test/e2e/docker-platform.test.ts').toBeGreaterThan(0)
-    for (const { index, command } of platformRuns) {
+    const write = expectLicenseFileStep(docker!)
+    // Every end-to-end test installs, and every install needs the license.
+    const runs = rootTestRuns(docker!)
+    expect(runs.map(({ command }) => command.split(' ').at(-1))).toEqual([
+      'test/e2e',
+      'test/e2e/docker-studio.test.ts',
+      'test/e2e/docker-ports.test.ts',
+    ])
+    for (const { index, command } of runs) {
       expect(index, command).toBeGreaterThan(write)
-      expect(command).toMatch(/^sudo env "LIBREDB_E2E_LICENSE_FILE=\$LIBREDB_E2E_LICENSE_FILE" "\$\(command -v bun\)" test /)
+      expect(command).toMatch(PASSES_LICENSE_FILE)
     }
+    // The secret reaches no other step, and no env of the workflow or of a job.
+    expect(workflow.split('secrets.LIBREDB_E2E_LICENSE').length - 1).toBe(1)
+  })
+
+  it('installer-nightly.yml hands every install of both its jobs the license of the secret LIBREDB_E2E_LICENSE in a 0600 file, and fails each job without it', () => {
+    const workflow = readWorkflow('installer-nightly.yml')
+    const jobs = jobsOf(workflow)
+    expect(jobs.map(job => job.name)).toEqual(['matrix', 'egress-and-independence'])
+    for (const job of jobs) {
+      const write = expectLicenseFileStep(job)
+      // The convergence matrix and the egress test install, so each passes the license on.
+      const runs = rootTestRuns(job)
+      expect(runs.map(({ command }) => command.split(' ').at(-1)), job.name).toEqual([
+        job.name === 'matrix' ? 'test/e2e/matrix.test.ts' : 'test/e2e/egress.test.ts',
+      ])
+      for (const { index, command } of runs) {
+        expect(index, command).toBeGreaterThan(write)
+        expect(command).toMatch(PASSES_LICENSE_FILE)
+      }
+    }
+    expect(workflow.split('secrets.LIBREDB_E2E_LICENSE').length - 1).toBe(jobs.length)
+  })
+
+  it('the e2e-self-hosted job of ci.yml gives the license of the secret LIBREDB_E2E_LICENSE to the Platform it starts and to the Playwright run alone, and fails without it', () => {
+    const workflow = readWorkflow('ci.yml')
+    const job = jobsOf(workflow).find(candidate => candidate.name === 'e2e-self-hosted')
+    expect(job, 'an e2e-self-hosted job').toBeDefined()
+    const steps = stepsOf(job!)
+    const write = expectLicenseFileStep(job!)
+    // The file is written after the dependencies are installed and the build ran, so their scripts cannot read it.
+    const running = (pattern: RegExp) =>
+      steps.findIndex(step => commandsOf({ name: job!.name, lines: step }).some(command => pattern.test(command)))
+    expect(running(/^npm ci$/)).toBeGreaterThan(-1)
+    expect(running(/^npm run build$/)).toBeGreaterThan(-1)
+    expect(write).toBeGreaterThan(running(/^npm ci$/))
+    expect(write).toBeGreaterThan(running(/^npm run build$/))
+
+    // Each of the two commands reads the token from the file for its own environment, and no env holds it.
+    const licensed = 'PLATFORM_LICENSE="$(cat "$LIBREDB_E2E_LICENSE_FILE")" '
+    const readers = steps.flatMap((step, index) =>
+      commandsOf({ name: job!.name, lines: step })
+        .filter(command => command.includes('PLATFORM_LICENSE'))
+        .map(command => ({ index, command })))
+    expect(readers.map(({ command }) => command)).toEqual([
+      `${licensed}npx next start -p 3100 > next-start.log 2>&1 &`,
+      `${licensed}npm run test:e2e:self-hosted`,
+    ])
+    for (const { index } of readers) expect(index).toBeGreaterThan(write)
+    expect(steps.filter(step => 'PLATFORM_LICENSE' in envOf(step))).toEqual([])
+    expect(workflow.split('secrets.LIBREDB_E2E_LICENSE').length - 1).toBe(1)
   })
 })
 

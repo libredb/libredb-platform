@@ -116,16 +116,31 @@ jobs:
       - run: npx prisma migrate deploy
       - run: npx prisma db seed
       - run: npm run build
+      # The server and the Playwright run need PLATFORM_LICENSE: the CI license, which the repository secret
+      # LIBREDB_E2E_LICENSE holds, a license that the production keys verify for localhost, with 1 admin seat and 3 user
+      # seats. It is written after the install and the build, so their scripts never read it, and each of the two
+      # commands below reads it into its own environment alone.
+      - name: Write the CI license to a file
+        env:
+          LIBREDB_E2E_LICENSE: ${{ secrets.LIBREDB_E2E_LICENSE }}
+        run: |
+          if [ -z "$LIBREDB_E2E_LICENSE" ]; then
+            echo "::error::The secret LIBREDB_E2E_LICENSE is not set, and the self-hosted end-to-end tests run Platform with the CI license that it holds"
+            exit 1
+          fi
+          umask 077
+          printf '%s' "$LIBREDB_E2E_LICENSE" > "$RUNNER_TEMP/libredb-e2e.license"
+          echo "LIBREDB_E2E_LICENSE_FILE=$RUNNER_TEMP/libredb-e2e.license" >> "$GITHUB_ENV"
       - name: Start Platform on port 3100
         run: |
-          npx next start -p 3100 > next-start.log 2>&1 &
+          PLATFORM_LICENSE="$(cat "$LIBREDB_E2E_LICENSE_FILE")" npx next start -p 3100 > next-start.log 2>&1 &
           for _ in $(seq 1 60); do
             curl -sf -o /dev/null http://localhost:3100/login && exit 0
             sleep 1
           done
           cat next-start.log
           exit 1
-      - run: npm run test:e2e:self-hosted
+      - run: PLATFORM_LICENSE="$(cat "$LIBREDB_E2E_LICENSE_FILE")" npm run test:e2e:self-hosted
       - if: failure()
         run: |
           cat next-start.log
