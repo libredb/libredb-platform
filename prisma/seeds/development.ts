@@ -20,6 +20,9 @@ import { developmentSealKeyPair } from '../../scripts/dev/gen-seal-keypair.mjs'
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! })
 const db = new PrismaClient({ adapter })
 
+// The tenant of the platform staff, which the production seed creates in cloud mode.
+const PLATFORM_TENANT_SLUG = 'libredb-platform'
+
 export async function seedDevelopment() {
   console.log('Seeding development data...')
 
@@ -470,16 +473,25 @@ async function upsertPasswordUser(
   return user.id
 }
 
+// A platform role is held through a default membership of the "LibreDB Platform" tenant of the production seed, as the
+// bootstrap admin holds PLATFORM_ADMIN, because a password sign-in reads the roles of the user's default membership.
+// A later run finds the membership and the role and adds neither again.
 async function assignPlatformRole(userId: string, roleCode: string) {
-  // Platform users need a "virtual" membership to hold their role.
-  // We find or create a membership for the first tenant, but for platform roles
-  // we just assign the role directly without a tenant membership.
-  const role = await db.role.findFirst({ where: { code: roleCode, isSystem: true } })
-  if (!role) return
+  const role = await db.role.findFirst({ where: { code: roleCode, tenantId: null, isSystem: true } })
+  if (!role) throw new Error(`The ${roleCode} system role is missing: run production seed first`)
+  const platformTenant = await db.tenant.findUnique({ where: { slug: PLATFORM_TENANT_SLUG } })
+  if (!platformTenant) throw new Error(`Tenant ${PLATFORM_TENANT_SLUG} not found: run production seed first`)
 
-  // Platform users don't belong to tenants. Check if they already have the role
-  // via any membership. If no membership exists, we skip (platform roles are
-  // checked differently in the auth layer).
+  const membership = await db.tenantMember.upsert({
+    where: { tenantId_userId: { tenantId: platformTenant.id, userId } },
+    update: { isDefault: true, active: true },
+    create: { tenantId: platformTenant.id, userId, isDefault: true, active: true },
+  })
+  await db.userRole.upsert({
+    where: { membershipId_roleId: { membershipId: membership.id, roleId: role.id } },
+    update: {},
+    create: { membershipId: membership.id, roleId: role.id },
+  })
 }
 
 // ─── Connections and query events ────────────────────────
