@@ -3,22 +3,24 @@
 // It needs a disposable Linux host with Docker, because it removes any earlier install first.
 // LIBREDB_INSTALLER_BIN names another installer binary than dist/libredb-installer-linux-x64, and
 // LIBREDB_E2E_IMAGES_REGISTRY sets images.registry for every run, such as registry.example.com/libredb for images
-// that exist only in a registry mirror. LIBREDB_E2E_LICENSE_FILE names a license file that the keys of the Platform
-// image verify for the host platform.libredb.test, such as one SEKOYA GRUP BİLİŞİM VE TEKNOLOJİ LİMİTED ŞİRKETİ issued for that host; the test of a verified
-// license needs it and is skipped without it, while the other license tests apply tokens that no key signed.
+// that exist only in a registry mirror. Every install names the license file of LIBREDB_E2E_LICENSE_FILE, which
+// ./support/install.ts requires, and the license tests also apply tokens that no key signed.
 import { beforeAll, describe, expect, test } from "bun:test";
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { parse } from "yaml";
+import { parse, stringify } from "yaml";
 import { parseComposePs, type ComposeContainer } from "../../src/adapters/docker";
 import { migrateJobCommand } from "../../src/platform/migrate-outcome";
 import { parseComposeEnvFile } from "../../src/render/compose";
+import { LICENSE, LICENSE_ARGS, LICENSE_FILE } from "./support/install";
 
 const packageRoot = join(import.meta.dir, "..", "..");
 const INSTALLER = process.env.LIBREDB_INSTALLER_BIN ?? join(packageRoot, "dist", "libredb-installer-linux-x64");
 const CONFIG = join(packageRoot, "test", "fixtures", "configs", "docker.yaml");
 const REGISTRY = process.env.LIBREDB_E2E_IMAGES_REGISTRY;
-const CONFIG_ARGS = ["-c", CONFIG, ...(REGISTRY === undefined || REGISTRY === "" ? [] : ["--set", `images.registry=${REGISTRY}`])];
+const REGISTRY_ARGS = REGISTRY === undefined || REGISTRY === "" ? [] : ["--set", `images.registry=${REGISTRY}`];
+const CONFIG_ARGS = ["-c", CONFIG, ...REGISTRY_ARGS, ...LICENSE_ARGS];
 const INSTALL_ROOT = "/opt/libredb";
 const PROJECT = "libredb";
 const LONG = 15 * 60_000;
@@ -35,11 +37,14 @@ const PLATFORM_CHECKS = [
 // A migration the history records as started and never finished, as an interrupted upgrade leaves it.
 const FAILED_MIGRATION = "20261015235959_e2e_interrupted";
 
-const licenseFileVariable = process.env.LIBREDB_E2E_LICENSE_FILE;
-/** A license file that the Platform image verifies, or undefined to skip the test of a verified license. */
-const VERIFIED_LICENSE_FILE = licenseFileVariable === undefined || licenseFileVariable === "" ? undefined : licenseFileVariable;
-/** Where the license tests write the license files they apply; removed at their end. */
+// The token of the license file of every install, read to compare and to search for, never printed: a failed
+// assertion shows only whether each value matched, and `hidden` replaces it in a text that an assertion shows.
+const LICENSE_TOKEN = readFileSync(LICENSE_FILE, "utf8").replace(/\r?\n$/, "");
+const hidden = (text: string) => text.replaceAll(LICENSE_TOKEN, "<the license token>");
+/** Where the license tests write the license files and the configuration they apply; removed at their end. */
 const LICENSE_DIR = "/root/libredb-e2e-license";
+/** The start of the issue that validate and apply print for a configuration without platform.licenseFile. */
+const LICENSE_REQUIRED = "platform.licenseFile: every install needs a license file from LibreDB, the free license included";
 const DAY_MS = 86_400_000;
 
 interface RunResult {
@@ -187,10 +192,10 @@ beforeAll(() => {
 
 describe("Platform in Docker mode", () => {
   test(
-    "apply brings Platform to ready and every Platform verify check passes",
+    "apply brings Platform to ready with the license of LIBREDB_E2E_LICENSE_FILE, which Platform alone receives and verifies, and every Platform verify check passes",
     async () => {
       const first = await installer("apply", ...CONFIG_ARGS, "--yes");
-      expect({ code: first.code, stderr: first.stderr }).toEqual({ code: 0, stderr: "" });
+      expect({ code: first.code, stderr: hidden(first.stderr) }).toEqual({ code: 0, stderr: "" });
       expect(first.stdout).toContain("platform-migrate: run the Platform migrate job");
       const platform = platformContainer();
       expect({ state: platform.state, health: platform.health }).toEqual({ state: "running", health: "healthy" });
@@ -202,14 +207,35 @@ describe("Platform in Docker mode", () => {
       for (const id of PLATFORM_CHECKS) {
         expect(report.checks.find((check) => check.id === id)).toEqual({ id, result: "passed", cause: null });
       }
-      // Without platform.licenseFile, platform-license names the free tier.
-      expect(report.checks.find((check) => check.id === "platform-license")).toEqual({
-        id: "platform-license",
-        result: "passed",
-        cause: null,
-        detail: "none, so Platform runs on the free tier of 1 admin and 3 users",
+      // platform-license names the license whose line Platform logged at its start.
+      expect(report.checks.find((check) => check.id === "platform-license")?.detail ?? "").toStartWith(
+        `${LICENSE.id} for ${LICENSE.customer}, `,
+      );
+      expect({ code: verify.code, stderr: hidden(verify.stderr) }).toEqual({ code: 0, stderr: "" });
+
+      // Platform's runtime env file holds the token, which the migrate job never receives.
+      expect({
+        runtime: envFile("platform.env").get("PLATFORM_LICENSE") === LICENSE_TOKEN,
+        migrate: envFile("platform-migrate.env").has("PLATFORM_LICENSE"),
+      }).toEqual({ runtime: true, migrate: false });
+      // Platform logged one license line at its start, in the state that the license's dates give at that time.
+      const lines = licenseLines(platform.id);
+      const [line] = lines;
+      const startedAt = Date.parse(String(line?.timestamp));
+      expect({
+        lines: lines.length,
+        state: line?.state,
+        code: line?.code,
+        licenseId: line?.licenseId === LICENSE.id,
+        expiresAt: line?.expiresAt === new Date(LICENSE.expiresAt * 1000).toISOString(),
+      }).toEqual({
+        lines: 1,
+        state: verifiedLicenseState(LICENSE.expiresAt, startedAt),
+        code: undefined,
+        licenseId: true,
+        expiresAt: true,
       });
-      expect({ code: verify.code, stderr: verify.stderr }).toEqual({ code: 0, stderr: "" });
+      console.log(`the license of LIBREDB_E2E_LICENSE_FILE started Platform in state ${String(line?.state)}`);
 
       // Platform's runtime container never receives the owner URL; only the names are compared, so a
       // failure prints no secret.
@@ -289,13 +315,13 @@ describe("Platform in Docker mode", () => {
   );
 
   test(
-    "no generated secret or seal private key appears in compose.yaml, the state, the logs or the command output",
+    "no generated secret, seal private key or license token appears in compose.yaml, the state, the logs or the command output",
     () => {
       const store = JSON.parse(readFileSync(join(INSTALL_ROOT, "secrets", "secrets.json"), "utf8")) as {
         values: Record<string, string>;
         sealKeys: { privateKey: string }[];
       };
-      const secrets = [...Object.values(store.values), ...store.sealKeys.map((key) => key.privateKey)];
+      const secrets = [...Object.values(store.values), ...store.sealKeys.map((key) => key.privateKey), LICENSE_TOKEN];
       expect(Object.keys(store.values)).toEqual(
         expect.arrayContaining(["platform-auth-secret", "studio-jwt-secret", "studio-storage-encryption-key"]),
       );
@@ -331,38 +357,38 @@ describe("Platform in Docker mode", () => {
   );
 
   test(
-    "apply gives Platform alone the token of platform.licenseFile and recreates it when the file changes, Platform starts on the free tier with a token no key signed and apply exits 4, a missing file, a link or a directory exits 2, and no output carries the token",
+    "a token no key signed recreates Platform and makes apply exit 4 naming its code, a missing file, a link or a directory exits 2, validate and apply exit 2 without platform.licenseFile before they change anything, the license of LIBREDB_E2E_LICENSE_FILE recreates Platform again, and no output carries a token",
     async () => {
       rmSync(LICENSE_DIR, { recursive: true, force: true });
       mkdirSync(LICENSE_DIR, { recursive: true, mode: 0o700 });
       const licenseFile = join(LICENSE_DIR, "libredb.license");
       const tokens = [unsignedLicense("E2E-UNSIGNED-1"), unsignedLicense("E2E-UNSIGNED-2")];
       const texts: { where: string; text: string }[] = [];
-      const apply = async (file?: string) => {
-        const set = file === undefined ? [] : ["--set", `platform.licenseFile=${file}`];
-        const run = await installer("apply", ...CONFIG_ARGS, ...set, "--yes");
-        texts.push({ where: `apply ${set.join(" ")} stdout`, text: run.stdout });
-        texts.push({ where: `apply ${set.join(" ")} stderr`, text: run.stderr });
-        return run;
+      const run = async (where: string, ...args: string[]) => {
+        const result = await installer(...args);
+        texts.push({ where: `${where} stdout`, text: result.stdout }, { where: `${where} stderr`, text: result.stderr });
+        return result;
       };
+      const apply = (file: string) => run(`apply with ${file}`, "apply", ...CONFIG_ARGS, "--set", `platform.licenseFile=${file}`, "--yes");
       try {
-        // Every earlier test applied without platform.licenseFile, so Platform runs on the free tier.
+        // Every earlier test applied with the license of LIBREDB_E2E_LICENSE_FILE.
         let previous = platformContainer().id;
-        expect(envFile("platform.env").has("PLATFORM_LICENSE")).toBe(false);
-        expect(licenseLines(previous).map(({ state }) => state)).toEqual(["free"]);
+        expect(envFile("platform.env").get("PLATFORM_LICENSE") === LICENSE_TOKEN).toBe(true);
+        expect(licenseLines(previous).map(({ licenseId }) => licenseId === LICENSE.id)).toEqual([true]);
 
         // Each new token is a changed env file, which recreates Platform; the migrate job never receives it.
         // Platform refuses a token no key signed, so the check platform-license alone fails and apply exits 4.
         for (const token of tokens) {
           writeFileSync(licenseFile, `${token}\n`, { mode: 0o600 });
-          const run = await apply(licenseFile);
-          expect({ code: run.code, stderr: run.stderr }).toEqual({ code: 4, stderr: "" });
-          expect(run.stdout).toContain("LibreDB is installed, but 1 of ");
-          expect(run.stdout).toContain(
+          const refused = await apply(licenseFile);
+          expect({ code: refused.code, stderr: hidden(refused.stderr) }).toEqual({ code: 4, stderr: "" });
+          expect(refused.stdout).toContain("LibreDB is installed, but 1 of ");
+          expect(refused.stdout).toContain(
             `  platform-license: the license token in ${licenseFile} fails Platform's verification with LICENSE_UNKNOWN_KID, ` +
-              "because a key that this Platform build does not hold signed it, so Platform runs on the free tier of 1 admin and 3 users\n",
+              "because a key that this Platform build does not hold signed it, so Platform adds no user, connection or admin " +
+              "until a valid license is installed\n",
           );
-          expect(run.stdout).toContain("License: invalid, LICENSE_UNKNOWN_KID, so Platform runs on the free tier of 1 admin and 3 users\n");
+          expect(refused.stdout).toContain("License: invalid, LICENSE_UNKNOWN_KID, no seat can be added\n");
           const platform = platformContainer();
           expect({ recreated: platform.id !== previous, state: platform.state, health: platform.health }).toEqual({
             recreated: true,
@@ -406,73 +432,47 @@ describe("Platform in Docker mode", () => {
         }
         expect(platformContainer().id).toBe(previous);
 
-        // Without platform.licenseFile again, Platform is recreated without the token and runs on the free tier.
-        const freed = await apply();
-        expect({ code: freed.code, stderr: freed.stderr }).toEqual({ code: 0, stderr: "" });
-        expect(freed.stdout).toContain("License: none, so Platform runs on the free tier of 1 admin and 3 users\n");
+        // Without platform.licenseFile, validate and apply exit 2 naming the license that every install needs, before
+        // apply opens its run log or reads the host: the container, its env file and the state stay as they were.
+        const document = parse(readFileSync(CONFIG, "utf8")) as { platform: Record<string, unknown> };
+        delete document.platform.licenseFile;
+        const unlicensed = join(LICENSE_DIR, "unlicensed.yaml");
+        writeFileSync(unlicensed, stringify(document), { mode: 0o600 });
+        // The files by their digests, so a failed assertion prints none of the secrets of the env file.
+        const digest = (path: string) => createHash("sha256").update(readFileSync(path)).digest("hex");
+        const installed = () => ({
+          platform: platformContainer().id,
+          env: digest(join(INSTALL_ROOT, "env", "platform.env")),
+          state: digest(join(INSTALL_ROOT, "state", "state.json")),
+          logs: filesUnder(join(INSTALL_ROOT, "logs")),
+        });
+        const before = installed();
+        for (const command of [["validate"], ["apply", "--yes"]]) {
+          const [name = ""] = command;
+          const refused = await run(`${name} without platform.licenseFile`, name, "-c", unlicensed, ...REGISTRY_ARGS, ...command.slice(1));
+          expect({ name, code: refused.code, stdout: refused.stdout, refused: refused.stderr.includes(LICENSE_REQUIRED) }).toEqual({
+            name,
+            code: 2,
+            stdout: "",
+            refused: true,
+          });
+        }
+        expect(installed()).toEqual(before);
+
+        // The license of LIBREDB_E2E_LICENSE_FILE changes the env file again, so Platform is recreated and starts
+        // with it.
+        const relicensed = await run("apply with the license of LIBREDB_E2E_LICENSE_FILE", "apply", ...CONFIG_ARGS, "--yes");
+        expect({ code: relicensed.code, stderr: hidden(relicensed.stderr) }).toEqual({ code: 0, stderr: "" });
         const platform = platformContainer();
         expect({ recreated: platform.id !== previous, health: platform.health }).toEqual({ recreated: true, health: "healthy" });
-        expect(envFile("platform.env").has("PLATFORM_LICENSE")).toBe(false);
-        expect(licenseLines(platform.id).map(({ state }) => state)).toEqual(["free"]);
+        expect(envFile("platform.env").get("PLATFORM_LICENSE") === LICENSE_TOKEN).toBe(true);
+        expect(licenseLines(platform.id).map(({ licenseId }) => licenseId === LICENSE.id)).toEqual([true]);
+        texts.push({ where: `the log of Platform container ${platform.id}`, text: containerLog(platform.id) });
 
-        expectNowhere(tokens, [...texts, ...installationTexts()]);
+        expectNowhere([...tokens, LICENSE_TOKEN], [...texts, ...installationTexts()]);
       } finally {
         rmSync(LICENSE_DIR, { recursive: true, force: true });
       }
-    },
-    LONG,
-  );
-
-  test.skipIf(VERIFIED_LICENSE_FILE === undefined)(
-    "a license that the Platform image verifies for the host of AUTH_URL starts Platform in the state its dates give, under its id and expiry, and no output carries its token",
-    async () => {
-      const file = VERIFIED_LICENSE_FILE as string;
-      // Read to compare and to search for, never printed: a failed assertion shows only whether each value matched.
-      const token = readFileSync(file, "utf8").replace(/\r?\n$/, "");
-      const payload = JSON.parse(Buffer.from(token.split(".")[2] ?? "", "base64url").toString("utf8")) as {
-        id: string;
-        expiresAt: number;
-      };
-      const hidden = (text: string) => text.replaceAll(token, "<the license token>");
-      const texts: { where: string; text: string }[] = [];
-      const previous = platformContainer().id;
-
-      const licensed = await installer("apply", ...CONFIG_ARGS, "--set", `platform.licenseFile=${file}`, "--yes");
-      texts.push({ where: "the licensed apply's stdout", text: licensed.stdout }, { where: "its stderr", text: licensed.stderr });
-      expect({ code: licensed.code, stderr: hidden(licensed.stderr) }).toEqual({ code: 0, stderr: "" });
-      const platform = platformContainer();
-      expect({ recreated: platform.id !== previous, health: platform.health }).toEqual({ recreated: true, health: "healthy" });
-      expect({
-        runtime: envFile("platform.env").get("PLATFORM_LICENSE") === token,
-        migrate: envFile("platform-migrate.env").has("PLATFORM_LICENSE"),
-      }).toEqual({ runtime: true, migrate: false });
-      const lines = licenseLines(platform.id);
-      const [line] = lines;
-      const startedAt = Date.parse(String(line?.timestamp));
-      expect({
-        lines: lines.length,
-        state: line?.state,
-        code: line?.code,
-        licenseId: line?.licenseId === payload.id,
-        expiresAt: line?.expiresAt === new Date(payload.expiresAt * 1000).toISOString(),
-      }).toEqual({
-        lines: 1,
-        state: verifiedLicenseState(payload.expiresAt, startedAt),
-        code: undefined,
-        licenseId: true,
-        expiresAt: true,
-      });
-      console.log(`a verified license started Platform in state ${String(line?.state)}`);
-      texts.push({ where: `the log of Platform container ${platform.id}`, text: containerLog(platform.id) });
-
-      // Without platform.licenseFile again, Platform runs on the free tier, as the other tests of this file leave it.
-      const freed = await installer("apply", ...CONFIG_ARGS, "--yes");
-      texts.push({ where: "the free apply's stdout", text: freed.stdout }, { where: "its stderr", text: freed.stderr });
-      expect({ code: freed.code, stderr: hidden(freed.stderr) }).toEqual({ code: 0, stderr: "" });
-      expect(envFile("platform.env").has("PLATFORM_LICENSE")).toBe(false);
-      expect(licenseLines(platformContainer().id).map(({ state }) => state)).toEqual(["free"]);
-
-      expectNowhere([token], [...texts, ...installationTexts()]);
     },
     LONG,
   );

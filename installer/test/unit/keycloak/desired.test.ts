@@ -40,7 +40,7 @@ function desiredFor(keycloak: Record<string, unknown>) {
     metadata: { name: "acme" },
     mode: "docker",
     endpoints: { hosts: { platform: "platform.example.com", studio: "studio.example.com", auth: "auth.example.com" } },
-    platform: { organizationName: "Acme" },
+    platform: { organizationName: "Acme", licenseFile: "/etc/libredb/platform.license" },
     keycloak,
   });
   return desiredKeycloak({

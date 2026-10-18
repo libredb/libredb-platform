@@ -102,8 +102,8 @@ describe("verify catalogue", () => {
   });
 
   test("what a check found reaches its result and the JSON output, and the text output prints only the result and cause", async () => {
-    const free = "none, so Platform runs on the free tier of 1 admin and 3 users";
-    const found: Check<null> = { id: "platform-license", run: async () => ({ passed: true, detail: free }) };
+    const active = "LDL-2026-0001 for Acme Corp, active, expires at 2027-10-16T00:00:00.000Z";
+    const found: Check<null> = { id: "platform-license", run: async () => ({ passed: true, detail: active }) };
     const expiring: Check<null> = {
       id: "expiring",
       run: async () => ({ passed: true, warning: "the license expires within 30 days", detail: "expiring" }),
@@ -114,7 +114,7 @@ describe("verify catalogue", () => {
     };
     const results = await runChecks([found, expiring, expired], null);
     expect(results).toEqual([
-      { id: "platform-license", result: "passed", cause: null, detail: free },
+      { id: "platform-license", result: "passed", cause: null, detail: active },
       { id: "expiring", result: "warning", cause: "the license expires within 30 days", detail: "expiring" },
       { id: "expired", result: "failed", cause: "the license expired", detail: "expired" },
     ]);

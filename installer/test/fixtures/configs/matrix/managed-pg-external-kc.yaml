@@ -27,5 +27,6 @@ keycloak:
     caBundleFile: /etc/libredb-e2e/corp-keycloak-ca.crt
 platform:
   organizationName: LibreDB E2E
+  licenseFile: /etc/libredb/platform.license
 docker:
   systemdUnit: false

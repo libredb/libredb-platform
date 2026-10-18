@@ -14,11 +14,22 @@ import {
 } from "../../../src/model/platform-env";
 import { desiredFixture, POSTGRES } from "./fixture";
 
+// A value of the license token's shape that no key signed: the installer checks only the shape.
+const token = ["ldl1", "0123456789abcdef", Buffer.from('{"v":1}').toString("base64url"), Buffer.alloc(64).toString("base64url")].join(".");
+
 const inputs: PlatformEnvInputs = {
   postgres: POSTGRES,
-  secrets: { authSecret: "auth-secret", oidcClientSecret: "platform-client-secret", databasePassword: "platform-pw" },
+  secrets: {
+    authSecret: "auth-secret",
+    license: token,
+    oidcClientSecret: "platform-client-secret",
+    databasePassword: "platform-pw",
+  },
   sealPublicKey: "c2VhbC1wdWJsaWMta2V5",
 };
+
+// The platform section of desiredFixture, with the platform.licenseFile that every configuration names.
+const PLATFORM = { organizationName: "Acme Corp", licenseFile: "/etc/libredb/platform.license" };
 
 const migrateInputs: PlatformMigrateEnvInputs = {
   postgres: POSTGRES,
@@ -69,12 +80,13 @@ describe("renderPlatformEnv", () => {
       no_proxy:
         "platform.example.com,studio.example.com,auth.example.com,postgres,.svc,.cluster.local,localhost,127.0.0.1",
       PORT: "3000",
+      PLATFORM_LICENSE: token,
     });
   });
 
   test("platform.queryLogRetentionDays outside Platform's bounds of 1 to 36500 fails validation", () => {
     for (const days of [0, 36501, 1.5]) {
-      expect(() => desiredFixture({ platform: { organizationName: "Acme Corp", queryLogRetentionDays: days } })).toThrow(
+      expect(() => desiredFixture({ platform: { ...PLATFORM, queryLogRetentionDays: days } })).toThrow(
         "platform.queryLogRetentionDays",
       );
     }
@@ -101,7 +113,7 @@ describe("renderPlatformEnv", () => {
   test("passes QUERY_LOG_RETENTION_DAYS, the proxy and the volume size through", () => {
     const env = renderPlatformEnv(
       desiredFixture({
-        platform: { organizationName: "Acme Corp", queryLogRetentionDays: 36500 },
+        platform: { ...PLATFORM, queryLogRetentionDays: 36500 },
         network: { httpsProxy: "https://proxy.corp:3128" },
       }),
       { ...inputs, platformDbVolumeBytes: 21474836480 },
@@ -123,15 +135,12 @@ describe("renderPlatformEnv", () => {
     const files: Record<string, string> = { "/root/auth-secret-previous": "previous-auth-secret\n" };
     const readFile = (path: string) => files[path];
 
-    const unset = readAuthSecretPrevious({ organizationName: "Acme Corp" }, readFile);
+    const unset = readAuthSecretPrevious(PLATFORM, readFile);
     expect(unset).toBeUndefined();
     const without = renderPlatformEnv(desiredFixture(), inputs);
     expect(Object.keys(without)).not.toContain("AUTH_SECRET_PREVIOUS");
 
-    const previous = readAuthSecretPrevious(
-      { organizationName: "Acme Corp", authSecretPreviousFile: "/root/auth-secret-previous" },
-      readFile,
-    );
+    const previous = readAuthSecretPrevious({ ...PLATFORM, authSecretPreviousFile: "/root/auth-secret-previous" }, readFile);
     expect(previous).toBe("previous-auth-secret");
     const rotating = renderPlatformEnv(desiredFixture(), {
       ...inputs,
@@ -141,9 +150,7 @@ describe("renderPlatformEnv", () => {
     expect(rotating.AUTH_SECRET).toBe("auth-secret");
 
     // A file the configuration names but the host lacks is an error, never a rotation window that silently ends.
-    expect(() =>
-      readAuthSecretPrevious({ organizationName: "Acme Corp", authSecretPreviousFile: "/root/missing" }, readFile),
-    ).toThrow(ConfigError);
+    expect(() => readAuthSecretPrevious({ ...PLATFORM, authSecretPreviousFile: "/root/missing" }, readFile)).toThrow(ConfigError);
     // Platform refuses to start when both values are equal, so the installer refuses to write them.
     expect(() =>
       renderPlatformEnv(desiredFixture(), { ...inputs, secrets: { ...inputs.secrets, authSecretPrevious: "auth-secret" } }),
@@ -152,8 +159,6 @@ describe("renderPlatformEnv", () => {
 });
 
 describe("PLATFORM_LICENSE", () => {
-  // A value of the license token's shape that no key signed: the installer checks only the shape.
-  const token = ["ldl1", "0123456789abcdef", Buffer.from('{"v":1}').toString("base64url"), Buffer.alloc(64).toString("base64url")].join(".");
   const licensed = { organizationName: "Acme Corp", licenseFile: "/root/libredb.license" };
   const holding = (content: string) => (path: string) => (path === licensed.licenseFile ? content : undefined);
 
@@ -167,25 +172,30 @@ describe("PLATFORM_LICENSE", () => {
     throw new Error("expected the license file to be refused");
   }
 
-  test("is written only while platform.licenseFile is set, with the token of that file, and never in the migrate env", () => {
-    expect(readPlatformLicense({ organizationName: "Acme Corp" }, holding(token), new Redactor())).toBeUndefined();
-    expect(Object.keys(renderPlatformEnv(desiredFixture(), inputs))).not.toContain("PLATFORM_LICENSE");
-
+  test("is always written with the token of platform.licenseFile, which Platform requires in a self-hosted install, and never in the migrate env", () => {
     const license = readPlatformLicense(licensed, holding(`${token}\n`), new Redactor());
     expect(license).toBe(token);
     const desired = desiredFixture({ platform: licensed });
     const env = renderPlatformEnv(desired, { ...inputs, secrets: { ...inputs.secrets, license } });
     expect(env.PLATFORM_LICENSE).toBe(token);
     expect(PLATFORM_ENV.PLATFORM_LICENSE).toEqual({
-      required: "optional",
+      required: "self-hosted",
       secret: true,
       producer: "config",
       value: "{{license}}",
-      when: "license",
+      when: "always",
     });
 
     // The migrate job never receives the license.
     expect(Object.keys(PLATFORM_MIGRATE_ENV)).not.toContain("PLATFORM_LICENSE");
+    expect(Object.keys(renderPlatformMigrateEnv(desired, migrateInputs))).not.toContain("PLATFORM_LICENSE");
+  });
+
+  test("a Platform env without the license token is refused naming PLATFORM_LICENSE, never rendered without it", () => {
+    const unlicensed = { ...inputs.secrets, license: undefined } as unknown as PlatformEnvInputs["secrets"];
+    expect(() => renderPlatformEnv(desiredFixture(), { ...inputs, secrets: unlicensed })).toThrow(
+      "PLATFORM_LICENSE: the value template names {{license}}, which this environment has no input for",
+    );
   });
 
   test("a missing or empty license file stops apply with exit 2, naming the file", () => {

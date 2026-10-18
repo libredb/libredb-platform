@@ -1,9 +1,11 @@
-// What the nightly end-to-end tests share: the compiled installer, run with stdin on /dev/null so it never sees a
-// terminal, commands on this host's Docker Engine, and the removal of an earlier install under the fixed
-// /opt/libredb and Compose project libredb. They need root on a disposable Linux host with Docker.
+// What the end-to-end tests share: the compiled installer, run with stdin on /dev/null so it never sees a terminal,
+// the license of every install, commands on this host's Docker Engine, and the removal of an earlier install under the
+// fixed /opt/libredb and Compose project libredb. They need root on a disposable Linux host with Docker.
 // LIBREDB_INSTALLER_BIN names another installer binary than dist/libredb-installer-linux-x64, and
 // LIBREDB_E2E_IMAGES_REGISTRY sets images.registry for every run, such as registry.example.com/libredb.
-import { existsSync, rmSync } from "node:fs";
+// LIBREDB_E2E_LICENSE_FILE is required: every install needs a license, and every test file that installs fails at load
+// without it, or when its file holds no license token.
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 export const PACKAGE_ROOT = join(import.meta.dir, "..", "..", "..");
@@ -15,6 +17,60 @@ const registryVariable = process.env.LIBREDB_E2E_IMAGES_REGISTRY;
 export const REGISTRY = registryVariable === undefined || registryVariable === "" ? undefined : registryVariable;
 export const REGISTRY_ARGS = REGISTRY === undefined ? [] : ["--set", `images.registry=${REGISTRY}`];
 export const VERIFIED = "LibreDB is installed and every verify check passed.";
+
+/** What the license of every install must be, as each message about a missing or broken one says. */
+const CI_LICENSE =
+  "a license that the pinned Platform image verifies for platform.libredb.test and lab.libredb.test, with 1 admin " +
+  "seat and 3 user seats, such as the CI license of the repository secret LIBREDB_E2E_LICENSE";
+
+const licenseFileVariable = process.env.LIBREDB_E2E_LICENSE_FILE;
+if (licenseFileVariable === undefined || licenseFileVariable === "") {
+  throw new Error(
+    "LIBREDB_E2E_LICENSE_FILE must name the file of the license that every install of the end-to-end tests names in " +
+      `platform.licenseFile: ${CI_LICENSE}`,
+  );
+}
+/** The license file of every install, read only to decode its payload and to compare and search for its token. */
+export const LICENSE_FILE: string = licenseFileVariable;
+/** The --set override that gives a configuration the license file of every install. */
+export const LICENSE_ARGS = ["--set", `platform.licenseFile=${LICENSE_FILE}`];
+
+/** What the tests compare of the license of every install: the id, the customer and the expiry of its payload. */
+export interface E2ELicense {
+  readonly id: string;
+  readonly customer: string;
+  /** When the license expires, in epoch seconds. */
+  readonly expiresAt: number;
+}
+
+/**
+ * The payload of the token in LICENSE_FILE, the base64url JSON of its third dot-separated segment. Every message thrown
+ * here is fixed, because the message of a JSON error quotes the text it read, which is part of the token.
+ */
+function readLicense(): E2ELicense {
+  const token = readFileSync(LICENSE_FILE, "utf8").replace(/\r?\n$/, "");
+  let payload: unknown;
+  try {
+    payload = JSON.parse(Buffer.from(token.split(".")[2] ?? "", "base64url").toString("utf8"));
+  } catch {
+    throw new Error(
+      "LIBREDB_E2E_LICENSE_FILE does not hold a license token: its third segment is not the base64url of a JSON " +
+        `object, and it must hold ${CI_LICENSE}`,
+    );
+  }
+  const fields = typeof payload === "object" && payload !== null ? (payload as Record<string, unknown>) : {};
+  const { id, customer, expiresAt } = fields;
+  if (typeof id !== "string" || typeof customer !== "string" || typeof expiresAt !== "number") {
+    throw new Error(
+      "LIBREDB_E2E_LICENSE_FILE does not hold a license token: its payload has no id, customer or expiry, and it must " +
+        `hold ${CI_LICENSE}`,
+    );
+  }
+  return { id, customer, expiresAt };
+}
+
+/** The license of every install, read when this module loads, so every test file fails at load without a token. */
+export const LICENSE = readLicense();
 
 export interface RunResult {
   code: number;

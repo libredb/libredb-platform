@@ -15,6 +15,7 @@ import { CATALOGUE } from "../../src/verify/catalogue";
 import {
   failedChecks,
   installer,
+  LICENSE_ARGS,
   PACKAGE_ROOT,
   PROJECT,
   REGISTRY_ARGS,
@@ -25,7 +26,7 @@ import {
   type VerifyReport,
 } from "./support/install";
 
-const CONFIG_ARGS = ["-c", join(PACKAGE_ROOT, "test", "fixtures", "configs", "docker.yaml"), ...REGISTRY_ARGS];
+const CONFIG_ARGS = ["-c", join(PACKAGE_ROOT, "test", "fixtures", "configs", "docker.yaml"), ...REGISTRY_ARGS, ...LICENSE_ARGS];
 const CHAIN = "LIBREDB-E2E-EGRESS";
 const PRIVATE_RANGES = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "127.0.0.0/8", "169.254.0.0/16"];
 // A public address of the probe, which documentation reserves (RFC 5737), so even a missing rule reaches nobody.

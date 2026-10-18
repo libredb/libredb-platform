@@ -14,6 +14,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync }
 import { join } from "node:path";
 import { parseComposePs } from "../../src/adapters/docker";
 import { NO_RENEWAL_TIMER } from "../../src/steps/base-docker";
+import { LICENSE_ARGS } from "./support/install";
 
 const packageRoot = join(import.meta.dir, "..", "..");
 const INSTALLER = process.env.LIBREDB_INSTALLER_BIN ?? join(packageRoot, "dist", "libredb-installer-linux-x64");
@@ -21,7 +22,7 @@ const configs = join(packageRoot, "test", "fixtures", "configs");
 const PROVIDED = join(configs, "docker-provided.yaml");
 const EXTERNAL = join(configs, "docker-external-tls.yaml");
 const REGISTRY = process.env.LIBREDB_E2E_IMAGES_REGISTRY;
-const SETS = REGISTRY === undefined || REGISTRY === "" ? [] : ["--set", `images.registry=${REGISTRY}`];
+const SETS = [...(REGISTRY === undefined || REGISTRY === "" ? [] : ["--set", `images.registry=${REGISTRY}`]), ...LICENSE_ARGS];
 const INSTALL_ROOT = "/opt/libredb";
 const PROJECT = "libredb";
 const INTERNAL_CA = join(INSTALL_ROOT, "tls", "ca", "ca.crt");

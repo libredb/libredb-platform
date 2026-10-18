@@ -20,6 +20,7 @@ endpoints:
     auth: auth.corp
 platform:
   organizationName: Acme
+  licenseFile: /etc/libredb/platform.license
 `;
 
 let counter = 0;

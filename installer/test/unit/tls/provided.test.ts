@@ -191,7 +191,7 @@ describe("providedEndpoints", () => {
       endpoints: { hosts: { platform: "platform.corp", studio: "studio.corp", auth: "auth.corp" } },
       tls,
       keycloak,
-      platform: { organizationName: "Acme" },
+      platform: { organizationName: "Acme", licenseFile: "/etc/libredb/platform.license" },
     });
   const pair = (name: string) => ({ certificateFile: `/c/${name}.crt`, keyFile: `/c/${name}.key` });
 

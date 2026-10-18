@@ -4,8 +4,8 @@
 // so every effect below crossed the bridge schema of the shared PostgreSQL.
 // The tests run in order and share the installation, the connection and the sessions they build. The suite creates
 // the target database container and the two users, and removes them and the connection at the end. The admin is the
-// installer's first admin, whom platform-login.spec.ts signs in before it: an installation without a license has one
-// admin seat, which the first admin then holds, so the first sign-in of another admin would be refused.
+// installer's first admin, whom platform-login.spec.ts signs in before it: the license that the end-to-end tests
+// install has one admin seat, which the first admin then holds, so the first sign-in of another admin would be refused.
 // The revocation and session revocation latencies are measured from the response of Platform's action, with Studio
 // polled every 100 ms, and printed.
 import { randomBytes, randomUUID } from "node:crypto";

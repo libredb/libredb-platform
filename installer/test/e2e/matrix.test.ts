@@ -29,6 +29,7 @@ import {
 import {
   failedChecks,
   installer,
+  LICENSE_ARGS,
   PACKAGE_ROOT,
   REGISTRY_ARGS,
   removeInstall,
@@ -81,7 +82,12 @@ async function verifies(args: string[], env: Record<string, string | undefined>)
 /** Installs `combination` from nothing, converges it twice and verifies each time, then removes it. */
 async function converge(combination: Combination): Promise<void> {
   removeAll();
-  const args = ["-c", join(PACKAGE_ROOT, "test", "fixtures", "configs", "matrix", `${combination.name}.yaml`), ...REGISTRY_ARGS];
+  const args = [
+    "-c",
+    join(PACKAGE_ROOT, "test", "fixtures", "configs", "matrix", `${combination.name}.yaml`),
+    ...REGISTRY_ARGS,
+    ...LICENSE_ARGS,
+  ];
   const externalKeycloak = combination.keycloak === "external";
   if (externalKeycloak) args.push("--set", `keycloak.external.baseUrl=${KEYCLOAK_BASE_URL}`);
   // The credentials of every run that needs them; a key with an undefined value keeps the variable unset.

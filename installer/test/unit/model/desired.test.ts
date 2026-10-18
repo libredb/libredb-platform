@@ -12,7 +12,7 @@ function config(overrides: Record<string, unknown> = {}) {
     endpoints: {
       hosts: { platform: "platform.example.com", studio: "studio.example.com", auth: "auth.example.com" },
     },
-    platform: { organizationName: "Acme" },
+    platform: { organizationName: "Acme", licenseFile: "/etc/libredb/platform.license" },
     ...overrides,
   });
 }

@@ -39,7 +39,6 @@ const CONDITIONS = [
   "logoutHintVerified",
   "volumeSize",
   "authSecretPrevious",
-  "license",
 ] as const;
 
 const envName = z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/, "expected an environment variable name");

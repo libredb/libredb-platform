@@ -15,7 +15,7 @@ export function desiredFixture(
     endpoints: {
       hosts: { platform: "platform.example.com", studio: "studio.example.com", auth: "auth.example.com" },
     },
-    platform: { organizationName: "Acme Corp" },
+    platform: { organizationName: "Acme Corp", licenseFile: "/etc/libredb/platform.license" },
     ...overrides,
   });
   const manifest = manifestFixture();

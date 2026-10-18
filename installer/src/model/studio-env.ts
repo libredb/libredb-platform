@@ -32,6 +32,6 @@ export function renderStudioEnv(desired: DesiredInstallation, inputs: StudioEnvI
       noProxy: renderNoProxy(desired.hosts, inputs.postgres.host, keycloakAdminHosts(desired)),
       ...proxyInputs(desired),
     },
-    envConditions(desired, { volumeSize: false, authSecretPrevious: false, license: false }),
+    envConditions(desired, { volumeSize: false, authSecretPrevious: false }),
   );
 }

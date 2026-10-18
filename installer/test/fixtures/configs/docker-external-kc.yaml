@@ -26,5 +26,6 @@ keycloak:
     adminClientSecretEnv: LIBREDB_E2E_CORP_ADMIN_SECRET
 platform:
   organizationName: LibreDB E2E
+  licenseFile: /etc/libredb/platform.license
 docker:
   systemdUnit: false

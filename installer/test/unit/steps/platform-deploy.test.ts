@@ -24,6 +24,8 @@ afterAll(() => rmSync(root, { recursive: true, force: true }));
 const missing = join(root, "missing");
 const link = join(root, "link");
 const directory = join(root, "directory");
+// A license file that holds a value of the token's shape that no key signed, as every configuration names one.
+const license = join(root, "libredb.license");
 
 // The store as the secrets step leaves it, so platform-deploy reaches every file it reads.
 const redactor = new Redactor();
@@ -34,14 +36,19 @@ beforeAll(async () => {
   writeFileSync(file, "the-previous-auth-secret\n", { mode: 0o600 });
   symlinkSync(file, link);
   mkdirSync(directory);
+  const token = ["ldl1", "0123456789abcdef", Buffer.from('{"v":1}').toString("base64url"), Buffer.alloc(64).toString("base64url")].join(".");
+  writeFileSync(license, `${token}\n`, { mode: 0o600 });
   const config = loadConfig({ file: CONFIG, sets: [] });
   await secrets.ensure(dockerSecretNames(config));
   await secrets.ensureSealKey();
 });
 
-/** How the run stops when platform-deploy observes the installation of the e2e tests with `set` applied. */
+/**
+ * How the run stops when platform-deploy observes the installation of the e2e tests with its license file and `set`
+ * applied, in that order.
+ */
 async function refusal(set: string): Promise<{ code: number; message: string }> {
-  const config = loadConfig({ file: CONFIG, sets: [set] }) as DockerInstallation;
+  const config = loadConfig({ file: CONFIG, sets: [`platform.licenseFile=${license}`, set] }) as DockerInstallation;
   const manifest = manifestFixture();
   const context = { config, manifest, desired: computeDesired(config, manifest), redactor, secrets } as unknown as DockerContext;
   try {

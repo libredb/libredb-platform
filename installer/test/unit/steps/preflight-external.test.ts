@@ -284,7 +284,7 @@ function config(postgres?: Record<string, unknown>): DockerInstallation {
     mode: "docker",
     endpoints: { hosts: { platform: "platform.corp", studio: "studio.corp", auth: "auth.corp" } },
     ...(postgres === undefined ? {} : { postgres }),
-    platform: { organizationName: "Acme" },
+    platform: { organizationName: "Acme", licenseFile: "/etc/libredb/platform.license" },
   });
   if (parsed.mode !== "docker") throw new Error("unreachable");
   return parsed;

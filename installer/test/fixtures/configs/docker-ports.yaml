@@ -20,5 +20,6 @@ keycloak:
   mode: managed
 platform:
   organizationName: LibreDB E2E
+  licenseFile: /etc/libredb/platform.license
 docker:
   systemdUnit: false

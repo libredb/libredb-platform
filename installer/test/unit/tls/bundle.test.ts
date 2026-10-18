@@ -47,7 +47,7 @@ function config(tls: Record<string, unknown>, keycloak?: Record<string, unknown>
     tls,
     ...(keycloak === undefined ? {} : { keycloak }),
     ...(postgres === undefined ? {} : { postgres }),
-    platform: { organizationName: "Acme" },
+    platform: { organizationName: "Acme", licenseFile: "/etc/libredb/platform.license" },
   });
 }
 
