@@ -8,7 +8,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['**/*.integration.test.ts'],
-    exclude: ['node_modules/**', '.next/**', 'installer/**'],
+    // .claude/** holds the worktrees of coding agents, other checkouts of this repository with tests of their own.
+    exclude: ['node_modules/**', '.next/**', 'installer/**', '.claude/**'],
     // One file at a time: directory-sync.integration.test.ts removes bob's role in the shared realm for a moment,
     // and other files read bob's roles.
     fileParallelism: false,

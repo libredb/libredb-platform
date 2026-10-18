@@ -162,8 +162,8 @@ export function StudioUsersTable({ page, search }: StudioUsersTableProps) {
           <DialogHeader>
             <DialogTitle>Revoke the Studio sessions of {target?.username}?</DialogTitle>
             <DialogDescription>
-              Studio ends every session and MCP token of {target?.username} issued until now. {target?.username} can
-              sign in again while still holding a LibreDB role in Keycloak.
+              Studio ends every session of {target?.username} issued until now. {target?.username} can sign in again
+              while still holding a LibreDB role in Keycloak.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

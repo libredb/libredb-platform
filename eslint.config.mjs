@@ -20,6 +20,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // The installer is a standalone Bun package with its own checks.
     "installer/**",
+    // The worktrees of coding agents, other checkouts of this repository.
+    ".claude/**",
   ]),
 ]);
 

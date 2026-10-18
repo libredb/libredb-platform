@@ -183,7 +183,7 @@ function differs(before: DirectoryMemberState, after: DirectoryMemberState): boo
  * Directory sync: every DIRECTORY_SYNC_INTERVAL_SEC, lists the members of PLATFORM_ADMIN_ROLE and
  * STUDIO_USER_ROLE, directly and through groups and subgroups, compares them with the snapshot of the last run, and
  * writes a session revocation for every member who lost a role, was disabled or was deleted, which ends that user's
- * Studio sessions and MCP tokens.
+ * Studio sessions.
  * The revocations and the new snapshot commit in one transaction. The first run only seeds the snapshot, because a
  * revocation needs a member of the snapshot, and a failed Admin API call fails the run before anything is written,
  * so the next run finds the same transitions. A snapshot row that it cannot read counts as a member that held both

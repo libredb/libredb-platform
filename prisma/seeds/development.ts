@@ -20,6 +20,9 @@ import { developmentSealKeyPair } from '../../scripts/dev/gen-seal-keypair.mjs'
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! })
 const db = new PrismaClient({ adapter })
 
+// The tenant of the platform staff, which the production seed creates in cloud mode.
+const PLATFORM_TENANT_SLUG = 'libredb-platform'
+
 export async function seedDevelopment() {
   console.log('Seeding development data...')
 
@@ -235,10 +238,10 @@ export async function seedDevelopment() {
 
   // ─── User Streaks ─────────────────────────────────────
   const streakData = [
-    { email: 'sarah.chen@acme.com', current: 7, longest: 12, totalDays: 28 },
-    { email: 'james.wilson@acme.com', current: 5, longest: 9, totalDays: 22 },
-    { email: 'maria.garcia@acme.com', current: 3, longest: 5, totalDays: 14 },
-    { email: 'tom.reed@startuplabs.io', current: 2, longest: 6, totalDays: 15 },
+    { email: 'sarah.chen@acme.test', current: 7, longest: 12, totalDays: 28 },
+    { email: 'james.wilson@acme.test', current: 5, longest: 9, totalDays: 22 },
+    { email: 'maria.garcia@acme.test', current: 3, longest: 5, totalDays: 14 },
+    { email: 'tom.reed@startuplabs.test', current: 2, longest: 6, totalDays: 15 },
     { email: 'dev@example.com', current: 1, longest: 3, totalDays: 8 },
   ]
   for (const s of streakData) {
@@ -264,7 +267,7 @@ export async function seedDevelopment() {
   console.log('  - User streaks')
 
   // ─── Notifications (sample) ───────────────────────────
-  const notificationUsers = ['sarah.chen@acme.com', 'james.wilson@acme.com', 'tom.reed@startuplabs.io']
+  const notificationUsers = ['sarah.chen@acme.test', 'james.wilson@acme.test', 'tom.reed@startuplabs.test']
   for (const email of notificationUsers) {
     const userId = userMap.get(email)!
     const membership = [...membershipMap.entries()].find(([key]) => key.startsWith(`${email}:`))
@@ -307,8 +310,8 @@ export async function seedDevelopment() {
 // The fixtures are tickets of two customers, each in their own tenant, answered by a platform staff member. They are
 // named here, because the first tenant by creation date is the "LibreDB Platform" tenant of the production seed.
 const SUPPORT_FIXTURE_PEOPLE = {
-  customer1: { tenantSlug: 'acme-corp', email: 'sarah.chen@acme.com' },
-  customer2: { tenantSlug: 'startup-labs', email: 'tom.reed@startuplabs.io' },
+  customer1: { tenantSlug: 'acme-corp', email: 'sarah.chen@acme.test' },
+  customer2: { tenantSlug: 'startup-labs', email: 'tom.reed@startuplabs.test' },
   agentEmail: 'admin@libredb.example',
 } as const
 
@@ -470,16 +473,25 @@ async function upsertPasswordUser(
   return user.id
 }
 
+// A platform role is held through a default membership of the "LibreDB Platform" tenant of the production seed, as the
+// bootstrap admin holds PLATFORM_ADMIN, because a password sign-in reads the roles of the user's default membership.
+// A later run finds the membership and the role and adds neither again.
 async function assignPlatformRole(userId: string, roleCode: string) {
-  // Platform users need a "virtual" membership to hold their role.
-  // We find or create a membership for the first tenant, but for platform roles
-  // we just assign the role directly without a tenant membership.
-  const role = await db.role.findFirst({ where: { code: roleCode, isSystem: true } })
-  if (!role) return
+  const role = await db.role.findFirst({ where: { code: roleCode, tenantId: null, isSystem: true } })
+  if (!role) throw new Error(`The ${roleCode} system role is missing: run production seed first`)
+  const platformTenant = await db.tenant.findUnique({ where: { slug: PLATFORM_TENANT_SLUG } })
+  if (!platformTenant) throw new Error(`Tenant ${PLATFORM_TENANT_SLUG} not found: run production seed first`)
 
-  // Platform users don't belong to tenants. Check if they already have the role
-  // via any membership. If no membership exists, we skip (platform roles are
-  // checked differently in the auth layer).
+  const membership = await db.tenantMember.upsert({
+    where: { tenantId_userId: { tenantId: platformTenant.id, userId } },
+    update: { isDefault: true, active: true },
+    create: { tenantId: platformTenant.id, userId, isDefault: true, active: true },
+  })
+  await db.userRole.upsert({
+    where: { membershipId_roleId: { membershipId: membership.id, roleId: role.id } },
+    update: {},
+    create: { membershipId: membership.id, roleId: role.id },
+  })
 }
 
 // ─── Connections and query events ────────────────────────

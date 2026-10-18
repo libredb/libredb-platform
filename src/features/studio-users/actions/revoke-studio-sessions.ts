@@ -18,7 +18,7 @@ const revokeStudioSessionsSchema = z.object({
 })
 
 /**
- * Ends every Studio session and MCP token of a Keycloak user: inserts a revocation with reason admin
+ * Ends every Studio session of a Keycloak user: inserts a revocation with reason admin
  * and its admin action in one transaction, and returns only the revocation id.
  * It reads nothing from the Keycloak directory, so it also works while the directory is degraded.
  */

@@ -57,7 +57,7 @@ function viewProps(overrides: Partial<ComponentProps<typeof ConversationView>> =
     priorityMap: {},
     platformStaffIds: [],
     customerName: 'Sarah Chen',
-    customerEmail: 'sarah.chen@acme.com',
+    customerEmail: 'sarah.chen@acme.test',
     tenantName: 'Acme',
     tenantSlug: 'acme',
     tenantPlan: null,
