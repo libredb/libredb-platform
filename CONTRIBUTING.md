@@ -2,7 +2,7 @@
 
 LibreDB Platform is source-available under the [Elastic License 2.0](LICENSE), and SEKOYA GRUP BİLİŞİM VE TEKNOLOJİ LİMİTED ŞİRKETİ develops it.
 We do not accept pull requests from outside the team at this time, so that SEKOYA GRUP BİLİŞİM VE TEKNOLOJİ LİMİTED ŞİRKETİ keeps the right to license all of the code.
-A pull request from outside the team is closed without being merged; open an issue instead, and we will consider the change.
+Only collaborators of the repository can open a pull request, so an outside contributor opens an issue instead, and we will consider the change.
 
 Issues are welcome: report a bug or ask a question in [GitHub Issues](https://github.com/libredb/libredb-platform/issues).
 Report a vulnerability as [SECURITY.md](SECURITY.md) describes, never in a public issue.
