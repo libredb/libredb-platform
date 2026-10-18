@@ -2,7 +2,7 @@
 // contracts/env-inventory.yaml in its own 0600 env file. It runs after platform-migrate, so a migrate that failed never
 // reaches it and the running Platform stays as it was. A changed service definition, env file or CA bundle recreates
 // the container, because Platform reads them at start.
-import { readOptionalFile } from "../adapters/host-fs";
+import { readReferencedFile } from "../adapters/host-fs";
 import { CA_BUNDLE_FILE } from "../docker/layout";
 import { serviceDefinition } from "../docker/project";
 import { APP_SECRET_NAMES, platformSealKey } from "../docker/secrets";
@@ -64,14 +64,14 @@ const RUNTIME_SECRETS = [ROLE_SPECS.platform.secret, CLIENT_SECRET_NAMES.platfor
 async function runtimeEnvFile(context: DockerContext) {
   // Read before anything can leave the file pending, so a missing or malformed license file stops even a first apply
   // while it plans, before it applies any step.
-  const license = readPlatformLicense(context.config.platform, readOptionalFile, context.redactor);
+  const license = readPlatformLicense(context.config.platform, readReferencedFile, context.redactor);
   const secrets = await storedSecrets(context, RUNTIME_SECRETS);
   if ("pending" in secrets) return { path: PLATFORM_ENV_FILE, pending: secrets.pending };
   const sealKeys = await context.secrets.sealKeys();
   if (!sealKeys.some((key) => key.state === "live")) {
     return { path: PLATFORM_ENV_FILE, pending: "no live seal key is issued yet, so apply the secrets step first" };
   }
-  const authSecretPrevious = readAuthSecretPrevious(context.config.platform, readOptionalFile);
+  const authSecretPrevious = readAuthSecretPrevious(context.config.platform, readReferencedFile);
   if (authSecretPrevious !== undefined) context.redactor.register(authSecretPrevious);
   const env = renderPlatformEnv(context.desired, {
     postgres: postgresServer(context),

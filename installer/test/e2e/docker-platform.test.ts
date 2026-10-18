@@ -331,7 +331,7 @@ describe("Platform in Docker mode", () => {
   );
 
   test(
-    "apply gives Platform alone the token of platform.licenseFile and recreates it when the file changes, Platform starts on the free tier with a token no key signed and apply exits 4, a missing file exits 2, a link or a directory exits 1, and no output carries the token",
+    "apply gives Platform alone the token of platform.licenseFile and recreates it when the file changes, Platform starts on the free tier with a token no key signed and apply exits 4, a missing file, a link or a directory exits 2, and no output carries the token",
     async () => {
       rmSync(LICENSE_DIR, { recursive: true, force: true });
       mkdirSync(LICENSE_DIR, { recursive: true, mode: 0o700 });
@@ -385,7 +385,7 @@ describe("Platform in Docker mode", () => {
         };
         expect(applied.platform?.licenseFile).toBe(licenseFile);
 
-        // A missing file, a symbolic link and a directory each stop apply while it plans, naming the path.
+        // A missing file, a symbolic link and a directory each stop apply with exit 2 while it plans, naming the path.
         const missing = join(LICENSE_DIR, "missing.license");
         const absent = await apply(missing);
         expect({
@@ -400,7 +400,7 @@ describe("Platform in Docker mode", () => {
           const refused = await apply(path);
           expect({ path, code: refused.code, named: refused.stderr.includes(`${path} exists but is not a regular file`) }).toEqual({
             path,
-            code: 1,
+            code: 2,
             named: true,
           });
         }

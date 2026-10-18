@@ -486,12 +486,12 @@ bridge:
 `apply` refuses with exit 6 to issue a key when the live keyring already holds 16 kids, to retire the active kid or a kid the store never issued, to make a retired or unknown kid active, and to retire a kid that an envelope in `bridge.connections_v1` still uses, naming those connections.
 Retiring a kid also deletes its row from `platform.seal_canary` as `libredb_platform` in the same `apply`, because Platform only inserts canaries.
 
-`platform.authSecretPreviousFile` names a file that holds the previous `AUTH_SECRET`, which `apply` writes as `AUTH_SECRET_PREVIOUS` in `platform.env` for the rotation window of the [secret rotation](docs/runbooks/secret-rotation.md) runbook; a missing or empty file exits 2.
+`platform.authSecretPreviousFile` names a file that holds the previous `AUTH_SECRET`, which `apply` writes as `AUTH_SECRET_PREVIOUS` in `platform.env` for the rotation window of the [secret rotation](docs/runbooks/secret-rotation.md) runbook; a missing or empty file exits 2, and so does a symbolic link or a directory at the path.
 
 `platform.licenseFile` names a file that holds the license token, which `apply` writes as `PLATFORM_LICENSE` in `platform.env` and never in `platform-migrate.env`; without it Platform runs on its free tier.
 The file holds the token alone on one line, `ldl1.<kid>.<payload>.<signature>`, and may end with one line break.
 A missing or empty file, or one that holds anything else, makes `plan` and `apply` exit 2 while they plan, so `apply` stops before it applies any step, and the message names the file and never its content.
-The path must name a regular file: a symbolic link or a directory there makes `plan` and `apply` exit 1 while they plan, with a message that names the path.
+The path must name a regular file: a symbolic link or a directory there makes `plan` and `apply` exit 2 while they plan, with a message that names the path.
 The installer checks only the token's shape, and Platform verifies the token when it starts, as its [runtime documentation](../docs/deploy/platform-runtime.md) describes.
 The check `platform-license` of `verify` then reads the license line that Platform logged at that start, so a token Platform refuses fails `apply` with exit 4 naming its code, and the report of `apply` prints the license it found.
 The installer registers the token with the redactor as it reads it, so the output and the run log of `plan` and `apply` never carry it.

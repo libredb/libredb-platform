@@ -91,7 +91,7 @@ install -m 0600 -o root -g root acme.license /etc/libredb/platform.license
 ```
 
 `acme.license` stands for the file you received.
-The path must name a regular file: a symbolic link or a directory there makes `plan` and `apply` stop with exit 1.
+The path must name a regular file: a symbolic link or a directory there makes `plan` and `apply` stop with exit 2.
 Keep the file at this path, because the installer records it and the yearly certificate renewal runs `apply` with it, which stops with exit 2 and renews no certificate when the file is gone.
 Keep a copy with your backups, because the [backup runbook](../../installer/docs/runbooks/restore.md) does not save it.
 
