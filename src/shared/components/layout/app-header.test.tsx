@@ -1,23 +1,25 @@
-import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { afterEach, describe, it, expect, vi } from 'vitest'
+import { act, render, screen } from '@testing-library/react'
 
 // The path that usePathname returns, set by each test before it renders.
 const navigation = vi.hoisted(() => ({ pathname: '/admin/license' }))
 
 vi.mock('next/navigation', () => ({ usePathname: () => navigation.pathname }))
-// The bell and the streak load Server Actions and their queries; the breadcrumb is what this test covers.
+// The bell loads Server Actions and their queries; the breadcrumb is what most of these tests cover.
 vi.mock('@/features/notifications/components/notification-bell', () => ({ NotificationBell: () => null }))
-vi.mock('@/features/gamification/components/streak-display', () => ({ StreakDisplay: () => null }))
 
 import { SidebarProvider } from '@/shared/components/ui/sidebar'
+import { QueryProvider } from '@/shared/providers/query-provider'
 import { AppHeader } from './app-header'
 
 function renderHeader(pathname: string) {
   navigation.pathname = pathname
   return render(
-    <SidebarProvider>
-      <AppHeader />
-    </SidebarProvider>,
+    <QueryProvider>
+      <SidebarProvider>
+        <AppHeader />
+      </SidebarProvider>
+    </QueryProvider>,
   )
 }
 
@@ -27,6 +29,23 @@ function crumbs(container: HTMLElement): string[] {
 }
 
 describe('AppHeader', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  // No route serves /api/gamification/stats, and nothing records a streak or an achievement yet.
+  it('polls no gamification stats, which no route serves', async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL) => new Response('Not Found', { status: 404 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderHeader('/connections')
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    })
+
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).not.toContain('/api/gamification/stats')
+  })
+
   it('labels the License page of the administration in the breadcrumb', () => {
     renderHeader('/admin/license')
 

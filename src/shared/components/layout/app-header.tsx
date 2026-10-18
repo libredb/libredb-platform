@@ -13,7 +13,6 @@ import {
   BreadcrumbSeparator,
 } from '@/shared/components/ui/breadcrumb'
 import { NotificationBell } from '@/features/notifications/components/notification-bell'
-import { StreakDisplay } from '@/features/gamification/components/streak-display'
 
 const ROUTE_LABELS: Record<string, string> = {
   connections: 'Connections',
@@ -83,8 +82,6 @@ export function AppHeader() {
       </Breadcrumb>
       <div className="flex-1" />
       <div className="flex items-center gap-2 rounded-md bg-muted/50 px-2 py-1 dark:bg-white/5">
-        <StreakDisplay />
-        <Separator orientation="vertical" className="h-5" />
         <NotificationBell />
       </div>
     </header>
