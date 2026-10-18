@@ -11,12 +11,15 @@ export default async function SupportLayout({
 }: { children: React.ReactNode; modal: React.ReactNode }) {
   const user = await requireAuth()
   await requirePermission(user, PERMISSIONS.TICKET_VIEW)
-  const availableTags = await SupportRepository.listAccessibleTags(user.currentTenantId ?? null)
+  const [availableTags, priorityValues] = await Promise.all([
+    SupportRepository.listAccessibleTags(user.currentTenantId ?? null),
+    SupportRepository.getReferenceValues('TICKET_PRIORITY'),
+  ])
   return (
     <>
       <InboxLayout
         sidebar={<InboxSidebar availableTags={availableTags.map(t => ({ id: t.id, name: t.name, colorCode: t.colorCode }))} />}
-        list={<InboxList />}
+        list={<InboxList priorityValues={priorityValues.map(p => ({ code: p.code, name: p.name }))} />}
         detail={children}
       />
       {modal}

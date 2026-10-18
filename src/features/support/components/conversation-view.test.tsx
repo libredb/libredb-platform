@@ -59,7 +59,7 @@ function viewProps(overrides: Partial<ComponentProps<typeof ConversationView>> =
     customerName: 'Sarah Chen',
     customerEmail: 'sarah.chen@acme.test',
     tenantName: 'Acme',
-    tenantSlug: 'acme',
+    tenantHref: null,
     tenantPlan: null,
     ...overrides,
   }

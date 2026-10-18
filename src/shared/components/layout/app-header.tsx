@@ -13,7 +13,6 @@ import {
   BreadcrumbSeparator,
 } from '@/shared/components/ui/breadcrumb'
 import { NotificationBell } from '@/features/notifications/components/notification-bell'
-import { StreakDisplay } from '@/features/gamification/components/streak-display'
 
 const ROUTE_LABELS: Record<string, string> = {
   connections: 'Connections',
@@ -32,7 +31,23 @@ const ROUTE_LABELS: Record<string, string> = {
   license: 'License',
   new: 'New',
   invitations: 'Invitations',
+  'studio-users': 'Studio Users',
+  'studio-settings': 'Studio Settings',
 }
+
+// The ids a path carries: a cuid, which Prisma's @default(cuid()) gives most rows, such as a ticket or a tenant, and a
+// UUID, such as a connection's id, which Platform generates with crypto.randomUUID().
+const CUID = /^c[a-z0-9]{24}$/
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function isId(segment: string): boolean {
+  return CUID.test(segment) || UUID.test(segment)
+}
+
+// The parent paths that only group the pages below them and have no page of their own, so the breadcrumb shows them as
+// text: a link would answer 404, and its prefetch would log a 404 on every page below. app-header.test.tsx checks this
+// list against the pages under src/app.
+const PATHS_WITHOUT_PAGE = new Set(['/admin'])
 
 export function AppHeader() {
   const pathname = usePathname()
@@ -49,9 +64,8 @@ export function AppHeader() {
             const href = '/' + segments.slice(0, index + 1).join('/')
             const label = ROUTE_LABELS[segment] || segment
 
-            // Skip UUID-looking segments in breadcrumb display
-            const isUuid = /^[0-9a-f-]{36}$/i.test(segment)
-            if (isUuid) return null
+            // An id names a record, not a page, so the breadcrumb leaves it out
+            if (isId(segment)) return null
 
             // The separator is an <li> of its own beside the item: inside the item, the browser would end the item at it.
             return (
@@ -60,6 +74,8 @@ export function AppHeader() {
                 <BreadcrumbItem>
                   {isLast ? (
                     <BreadcrumbPage>{label}</BreadcrumbPage>
+                  ) : PATHS_WITHOUT_PAGE.has(href) ? (
+                    <span>{label}</span>
                   ) : (
                     <Link href={href} className="transition-colors hover:text-foreground">
                       {label}
@@ -73,8 +89,6 @@ export function AppHeader() {
       </Breadcrumb>
       <div className="flex-1" />
       <div className="flex items-center gap-2 rounded-md bg-muted/50 px-2 py-1 dark:bg-white/5">
-        <StreakDisplay />
-        <Separator orientation="vertical" className="h-5" />
         <NotificationBell />
       </div>
     </header>

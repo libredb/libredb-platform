@@ -34,7 +34,7 @@ interface ConversationViewProps {
   customerName: string
   customerEmail: string | null
   tenantName: string | null
-  tenantSlug: string | null
+  tenantHref: string | null
   tenantPlan: string | null
 }
 
@@ -169,7 +169,7 @@ export function ConversationView(props: ConversationViewProps) {
         customerName={props.customerName}
         customerEmail={props.customerEmail}
         tenantName={props.tenantName}
-        tenantSlug={props.tenantSlug}
+        tenantHref={props.tenantHref}
         tenantPlan={props.tenantPlan}
         onStatusChange={(v) => handleUpdate({ status: v })}
         onPriorityChange={(v) => handleUpdate({ priority: v })}

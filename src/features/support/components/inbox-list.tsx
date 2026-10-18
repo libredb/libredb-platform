@@ -9,8 +9,12 @@ import { useInbox } from '../hooks/use-inbox'
 import { isFromInteractiveControl } from '../lib/hotkeys'
 import { InboxListRow } from './inbox-list-row'
 
-export function InboxList() {
+interface ReferenceValue { code: string; name: string }
+
+/** `priorityValues` are the priorities of the reference data, whose names label the rows as on the ticket page. */
+export function InboxList({ priorityValues }: { priorityValues: ReferenceValue[] }) {
   const { data, isLoading, error } = useInbox()
+  const priorityNames = new Map(priorityValues.map(p => [p.code, p.name]))
   const { id } = useParams() as { id?: string }
   const sp = useSearchParams()
   const router = useRouter()
@@ -48,7 +52,13 @@ export function InboxList() {
       {isLoading && <div className="p-6 text-center text-sm text-muted-foreground">Loading...</div>}
       {error && <div className="p-6 text-center text-sm text-destructive">Could not load the list</div>}
       {data?.tickets?.map((t: any, i: number) => (
-        <InboxListRow key={t.id} ticket={t} active={i === selectedIdx || t.id === id} href={`/support/${t.id}`} />
+        <InboxListRow
+          key={t.id}
+          ticket={t}
+          priorityLabel={priorityNames.get(t.priority) ?? t.priority}
+          active={i === selectedIdx || t.id === id}
+          href={`/support/${t.id}`}
+        />
       ))}
       {data && data.tickets.length === 0 && (
         <div className="p-6 text-center text-sm text-muted-foreground">

@@ -14,7 +14,6 @@ LibreDB Platform replaces distributing connection strings with a managed web int
 - **Support Tickets**: Built-in ticket system with message threads; in a self-hosted install the tickets stay inside the install and never reach LibreDB
 - **Notifications**: In-app bell icon with real-time polling
 - **Plans (cloud mode)**: Runtime-configurable plan tiers for cloud tenants; a self-hosted install is sized by its license key instead
-- **Gamification**: Achievements, streaks, XP for user engagement
 - **LOV System**: Runtime-manageable dropdown values with i18n translations
 - **Menu Authorization**: DB-backed, role-filtered sidebar navigation
 

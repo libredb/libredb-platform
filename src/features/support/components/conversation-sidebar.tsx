@@ -31,7 +31,8 @@ interface ConversationSidebarProps {
   customerName: string
   customerEmail: string | null
   tenantName: string | null
-  tenantSlug: string | null
+  /** The page of the tenant that the viewer can open, or null when there is none. */
+  tenantHref: string | null
   tenantPlan: string | null
 }
 
@@ -73,9 +74,11 @@ export function ConversationSidebar(props: ConversationSidebarProps) {
 
       <section>
         <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Tenant</div>
-        {props.tenantSlug
-          ? <Link href={`/tenants/${props.tenantSlug}`} className="font-medium underline underline-offset-2">{props.tenantName}</Link>
-          : <span className="italic text-muted-foreground">Internal (libredb staff)</span>}
+        {!props.tenantName
+          ? <span className="italic text-muted-foreground">Internal (libredb staff)</span>
+          : props.tenantHref
+            ? <Link href={props.tenantHref} className="font-medium underline underline-offset-2">{props.tenantName}</Link>
+            : <div className="font-medium">{props.tenantName}</div>}
         {props.tenantPlan && <div className="text-muted-foreground">{props.tenantPlan}</div>}
       </section>
 

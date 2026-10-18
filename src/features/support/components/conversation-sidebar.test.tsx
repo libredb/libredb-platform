@@ -19,7 +19,7 @@ const MEMBERS = [
   { userId: 'user-other', userName: 'Tom Reed' },
 ]
 
-function renderSidebar(ticket: Record<string, unknown>, userMap: Record<string, string> = {}) {
+function renderSidebar(ticket: Record<string, unknown>, userMap: Record<string, string> = {}, tenantHref: string | null = null) {
   return render(
     <ConversationSidebar
       ticket={{
@@ -50,7 +50,7 @@ function renderSidebar(ticket: Record<string, unknown>, userMap: Record<string, 
       customerName="Sarah Chen"
       customerEmail="sarah.chen@acme.test"
       tenantName="Acme"
-      tenantSlug="acme"
+      tenantHref={tenantHref}
       tenantPlan={null}
     />,
   )
@@ -90,6 +90,19 @@ describe('ConversationSidebar', () => {
     renderSidebar({ status: 'ON_HOLD' })
 
     expect(selectValues()[1]).toBe('ON_HOLD')
+  })
+
+  it('links the tenant to the page of it that the viewer can open', () => {
+    renderSidebar({}, {}, '/admin/tenants/tenant-acme')
+
+    expect(screen.getByRole('link', { name: 'Acme' })).toHaveAttribute('href', '/admin/tenants/tenant-acme')
+  })
+
+  it('shows the tenant by name without a link to a viewer who has no page of it', () => {
+    renderSidebar({})
+
+    expect(screen.getByText('Acme')).toBeInTheDocument()
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
   })
 
   it('names each select after the label above it', () => {

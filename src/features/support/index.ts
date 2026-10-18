@@ -1,6 +1,5 @@
 export { TicketList } from './components/ticket-list'
 export { TicketForm } from './components/ticket-form'
-export { TicketDetail } from './components/ticket-detail'
 export { MessageThread } from './components/message-thread'
 export { createTicket } from './actions/create-ticket'
 export { updateTicket } from './actions/update-ticket'

@@ -5,8 +5,9 @@ import {
   canSeeInternalNotes,
   canEditMessage,
   canReopenTicket,
+  tenantPageHref,
 } from './support-permissions'
-import { PERMISSIONS } from '@/shared/lib/permissions'
+import { PERMISSIONS, ROLE_PERMISSIONS } from '@/shared/lib/permissions'
 import type { CurrentUser } from '@/shared/types'
 
 function makeUser(opts: Partial<CurrentUser> & { permissions: string[] }): CurrentUser {
@@ -100,5 +101,23 @@ describe('canReopenTicket', () => {
 
     const stranger = makeUser({ permissions: [PERMISSIONS.TICKET_VIEW] })
     expect(canReopenTicket(stranger, ticketOther)).toBe(false)
+  })
+})
+
+describe('tenantPageHref', () => {
+  /** A user who holds one system role and its permissions. */
+  const withRole = (role: string) => makeUser({ roles: [role], permissions: ROLE_PERMISSIONS[role] })
+
+  it("gives a platform admin in cloud mode the admin page of the ticket's tenant", () => {
+    expect(tenantPageHref(withRole('PLATFORM_ADMIN'), 'tenant-acme', 'cloud')).toBe('/admin/tenants/tenant-acme')
+  })
+
+  // The admin tenant page requires PLATFORM_ADMIN, so an agent who sees every ticket still has no page of its tenant.
+  it.each(['PLATFORM_SUPPORT', 'PLATFORM_TECH', 'TENANT_ADMIN', 'TENANT_VIEWER'])('gives %s no page of the tenant', (role) => {
+    expect(tenantPageHref(withRole(role), 'tenant-acme', 'cloud')).toBeNull()
+  })
+
+  it('gives no page of the tenant in self-hosted mode, which answers 404 for the admin tenant page', () => {
+    expect(tenantPageHref(withRole('PLATFORM_ADMIN'), 'tenant-install', 'self-hosted')).toBeNull()
   })
 })

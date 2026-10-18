@@ -299,13 +299,13 @@ export async function seedDevelopment() {
   }
   console.log('  - Sample notifications')
 
-  // ─── Support Phase 1 Fixtures ──────────────────────────
-  await seedSupportPhase1(tenantMap, userMap)
+  // ─── Support Fixtures ─────────────────────────────────
+  await seedSupportFixtures(tenantMap, userMap)
 
   console.log('Development seed complete')
 }
 
-// ─── Support Phase 1 ─────────────────────────────────────
+// ─── Support Fixtures ────────────────────────────────────
 
 // The fixtures are tickets of two customers, each in their own tenant, answered by a platform staff member. They are
 // named here, because the first tenant by creation date is the "LibreDB Platform" tenant of the production seed.
@@ -315,10 +315,10 @@ const SUPPORT_FIXTURE_PEOPLE = {
   agentEmail: 'admin@libredb.example',
 } as const
 
-async function seedSupportPhase1(tenantMap: Map<string, string>, userMap: Map<string, string>) {
+async function seedSupportFixtures(tenantMap: Map<string, string>, userMap: Map<string, string>) {
   const seeded = (map: Map<string, string>, key: string): string => {
     const id = map.get(key)
-    if (!id) throw new Error(`Support Phase 1 fixtures: ${key} is not seeded`)
+    if (!id) throw new Error(`Support fixtures: ${key} is not seeded`)
     return id
   }
   const { customer1, customer2, agentEmail } = SUPPORT_FIXTURE_PEOPLE
@@ -333,7 +333,7 @@ async function seedSupportPhase1(tenantMap: Map<string, string>, userMap: Map<st
     where: { tenantId_ticketNumber: { tenantId: tenant1Id, ticketNumber: 'TKT-SEED-001' } },
   })
   if (existing) {
-    console.log('  - Support Phase 1 fixtures already present')
+    console.log('  - Support fixtures already present')
     return
   }
 
@@ -436,7 +436,7 @@ async function seedSupportPhase1(tenantMap: Map<string, string>, userMap: Map<st
     },
   })
 
-  console.log('  - Support Phase 1 fixtures (3 tickets)')
+  console.log('  - Support fixtures (3 tickets)')
 }
 
 // ─── Helpers ──────────────────────────────────────────────

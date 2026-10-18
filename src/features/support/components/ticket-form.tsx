@@ -13,12 +13,22 @@ import { createTicket } from '../actions/create-ticket'
 import { createTicketSchema, type CreateTicketData } from '../lib/support.schema'
 import { ReplyComposer } from './reply-composer'
 
+interface ReferenceValue { code: string; name: string }
+
 interface TicketFormProps {
+  /** The priorities and categories of the reference data, which the selects offer and show by name. */
+  priorityValues: ReferenceValue[]
+  categoryValues: ReferenceValue[]
   /** Called with the new ticket's id after a successful create. */
   onDone?: (ticketId: string) => void
   /** Called when the user dismisses the form without submitting. Separate
    *  from `onDone` so callers can distinguish success from cancellation. */
   onCancel?: () => void
+}
+
+/** A select's items, which give its trigger the name of the selected code instead of the code itself. */
+function referenceItems(values: ReferenceValue[]) {
+  return values.map(v => ({ value: v.code, label: v.name }))
 }
 
 /**
@@ -31,8 +41,10 @@ interface TicketFormProps {
  * Previously the pair could fire independently, causing empty-description
  * submits and double-execute races.
  */
-export function TicketForm({ onDone, onCancel }: TicketFormProps) {
+export function TicketForm({ priorityValues, categoryValues, onDone, onCancel }: TicketFormProps) {
   const router = useRouter()
+  const priorityItems = referenceItems(priorityValues)
+  const categoryItems = referenceItems(categoryValues)
 
   const form = useForm<CreateTicketData>({
     resolver: zodResolver(createTicketSchema) as never,
@@ -72,19 +84,19 @@ export function TicketForm({ onDone, onCancel }: TicketFormProps) {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <Label>Priority</Label>
-          <Select defaultValue="MEDIUM" onValueChange={v => { if (v) form.setValue('priority', v) }}>
+          <Select items={priorityItems} defaultValue="MEDIUM" onValueChange={v => { if (v) form.setValue('priority', v) }}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              {['LOW', 'MEDIUM', 'HIGH', 'URGENT'].map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+              {priorityItems.map(i => <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
         <div>
           <Label>Category</Label>
-          <Select defaultValue="GENERAL" onValueChange={v => { if (v) form.setValue('category', v) }}>
+          <Select items={categoryItems} defaultValue="GENERAL" onValueChange={v => { if (v) form.setValue('category', v) }}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              {['GENERAL', 'BILLING', 'TECHNICAL'].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              {categoryItems.map(i => <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>

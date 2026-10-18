@@ -8,6 +8,7 @@ import { Button } from '@/shared/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -96,6 +97,15 @@ export function UserList({ members, roles, canEdit }: UserListProps) {
     })
   }
 
+  // The role select's items give its trigger the role's name instead of its id. A member can hold a role that the
+  // tenant cannot assign, such as the platform admin role, which the trigger then shows by name without offering it.
+  const roleItems = roles.map((role) => ({ value: role.id, label: role.name }))
+  const currentRole = editingMember?.roles[0]?.role
+  const roleLabels =
+    currentRole && !roles.some((role) => role.id === currentRole.id)
+      ? [...roleItems, { value: currentRole.id, label: currentRole.name }]
+      : roleItems
+
   const columns: ColumnDef<MemberItem>[] = [
     {
       id: 'name',
@@ -179,22 +189,24 @@ export function UserList({ members, roles, canEdit }: UserListProps) {
                   <span className="sr-only">Actions</span>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={() => handleEditRole(row.original)}
-                  >
-                    <ShieldIcon className="size-4" />
-                    Change Role
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    variant="destructive"
-                    onClick={() => handleToggleActive(row.original)}
-                    disabled={isToggling}
-                  >
-                    <UserXIcon className="size-4" />
-                    Deactivate
-                  </DropdownMenuItem>
+                  <DropdownMenuGroup>
+                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => handleEditRole(row.original)}
+                    >
+                      <ShieldIcon className="size-4" />
+                      Change Role
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      variant="destructive"
+                      onClick={() => handleToggleActive(row.original)}
+                      disabled={isToggling}
+                    >
+                      <UserXIcon className="size-4" />
+                      Deactivate
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
                 </DropdownMenuContent>
               </DropdownMenu>
             ),
@@ -232,6 +244,7 @@ export function UserList({ members, roles, canEdit }: UserListProps) {
           </DialogHeader>
           <div className="py-4">
             <Select
+              items={roleLabels}
               value={selectedRoleId}
               onValueChange={(v) => setSelectedRoleId(v ?? '')}
             >
@@ -239,9 +252,9 @@ export function UserList({ members, roles, canEdit }: UserListProps) {
                 <SelectValue placeholder="Select a role" />
               </SelectTrigger>
               <SelectContent>
-                {roles.map((role) => (
-                  <SelectItem key={role.id} value={role.id}>
-                    {role.name}
+                {roleItems.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
                   </SelectItem>
                 ))}
               </SelectContent>

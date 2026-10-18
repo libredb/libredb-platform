@@ -1,13 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { Button, buttonVariants } from '@/shared/components/ui/button'
+import { Button } from '@/shared/components/ui/button'
 import { Badge } from '@/shared/components/ui/badge'
 import { Input } from '@/shared/components/ui/input'
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
-} from '@/shared/components/ui/dropdown-menu'
-import { CheckIcon, MoreHorizontalIcon, RotateCcwIcon } from 'lucide-react'
+import { CheckIcon, RotateCcwIcon } from 'lucide-react'
 
 interface ReferenceValue { code: string; name: string; colorCode: string | null }
 
@@ -96,14 +93,6 @@ export function ConversationHeader({
               <CheckIcon className="size-4" /> Resolve
             </Button>
           )}
-          <DropdownMenu>
-            <DropdownMenuTrigger className={buttonVariants({ variant: 'outline', size: 'icon' })}>
-              <MoreHorizontalIcon className="size-4" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem disabled>Merge (Phase 2)</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
       )}
     </header>

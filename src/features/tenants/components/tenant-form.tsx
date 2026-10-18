@@ -88,6 +88,9 @@ export function TenantForm({ plans, tenant }: TenantFormProps) {
 
   const isPending = isCreating || isUpdating
 
+  // The plan select's items give its trigger the plan's name instead of its id.
+  const planItems = plans.map((plan) => ({ value: plan.id, label: plan.name }))
+
   const nameValue = watch('name')
 
   // Auto-generate slug from name (only in create mode and if slug hasn't been manually edited)
@@ -152,6 +155,7 @@ export function TenantForm({ plans, tenant }: TenantFormProps) {
       <div className="space-y-2">
         <Label htmlFor="planConfigId">Plan</Label>
         <Select
+          items={planItems}
           defaultValue={isEdit ? tenant.planConfigId : undefined}
           onValueChange={(value) =>
             setValue('planConfigId', value ?? '', { shouldValidate: true })
@@ -161,9 +165,9 @@ export function TenantForm({ plans, tenant }: TenantFormProps) {
             <SelectValue placeholder="Select a plan" />
           </SelectTrigger>
           <SelectContent>
-            {plans.map((plan) => (
-              <SelectItem key={plan.id} value={plan.id}>
-                {plan.name}
+            {planItems.map((item) => (
+              <SelectItem key={item.value} value={item.value}>
+                {item.label}
               </SelectItem>
             ))}
           </SelectContent>

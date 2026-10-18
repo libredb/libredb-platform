@@ -3,7 +3,7 @@ import { Geist, Geist_Mono, Inter } from 'next/font/google'
 import { SessionProvider } from 'next-auth/react'
 import { QueryProvider } from '@/shared/providers/query-provider'
 import { ThemeProvider } from '@/shared/providers/theme-provider'
-import { Toaster } from 'sonner'
+import { Toaster } from '@/shared/components/ui/sonner'
 import './globals.css'
 
 const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] })

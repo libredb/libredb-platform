@@ -39,9 +39,29 @@ function renderTable(events: AuditEventRow[]) {
   )
 }
 
+/** The value that the filter select at `index` shows, in the order User, Connection, Source, Type, Status. */
+function filterValue(index: number): string {
+  return screen.getAllByRole('combobox')[index].querySelector('[data-slot="select-value"]')?.textContent ?? ''
+}
+
+async function chooseFilter(index: number, option: string) {
+  await userEvent.click(screen.getAllByRole('combobox')[index])
+  await userEvent.click(await screen.findByRole('option', { name: option }))
+}
+
 describe('AuditLogTable', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
+  })
+
+  it('shows the chosen user and connection filters by the names their options show, never by the subject or the id', async () => {
+    renderTable([event()])
+    expect([filterValue(0), filterValue(1)]).toEqual(['All Users', 'All Connections'])
+
+    await chooseFilter(0, 'alice')
+    await chooseFilter(1, 'Orders')
+
+    expect([filterValue(0), filterValue(1)]).toEqual(['alice', 'Orders'])
   })
 
   it('shows not captured when the statement is null', () => {
