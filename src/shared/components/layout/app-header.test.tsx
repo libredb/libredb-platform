@@ -1,7 +1,10 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
-vi.mock('next/navigation', () => ({ usePathname: () => '/admin/license' }))
+// The path that usePathname returns, set by each test before it renders.
+const navigation = vi.hoisted(() => ({ pathname: '/admin/license' }))
+
+vi.mock('next/navigation', () => ({ usePathname: () => navigation.pathname }))
 // The bell and the streak load Server Actions and their queries; the breadcrumb is what this test covers.
 vi.mock('@/features/notifications/components/notification-bell', () => ({ NotificationBell: () => null }))
 vi.mock('@/features/gamification/components/streak-display', () => ({ StreakDisplay: () => null }))
@@ -9,27 +12,60 @@ vi.mock('@/features/gamification/components/streak-display', () => ({ StreakDisp
 import { SidebarProvider } from '@/shared/components/ui/sidebar'
 import { AppHeader } from './app-header'
 
+function renderHeader(pathname: string) {
+  navigation.pathname = pathname
+  return render(
+    <SidebarProvider>
+      <AppHeader />
+    </SidebarProvider>,
+  )
+}
+
+/** The text of each breadcrumb, in order. */
+function crumbs(container: HTMLElement): string[] {
+  return [...container.querySelectorAll('[data-slot="breadcrumb-item"]')].map((item) => item.textContent ?? '')
+}
+
 describe('AppHeader', () => {
   it('labels the License page of the administration in the breadcrumb', () => {
-    render(
-      <SidebarProvider>
-        <AppHeader />
-      </SidebarProvider>,
-    )
+    renderHeader('/admin/license')
 
     expect(screen.getByRole('link', { name: 'Admin' })).toHaveAttribute('href', '/admin')
     expect(screen.getByText('License')).toHaveAttribute('aria-current', 'page')
     expect(screen.queryByText('license')).not.toBeInTheDocument()
   })
 
+  it.each([
+    ['/studio-users', 'Studio Users'],
+    ['/studio-settings', 'Studio Settings'],
+  ])('labels %s in the breadcrumb as %s, never by its path segment', (pathname, label) => {
+    const { container } = renderHeader(pathname)
+
+    expect(crumbs(container)).toEqual([label])
+    expect(screen.getByText(label)).toHaveAttribute('aria-current', 'page')
+  })
+
+  // Prisma's @default(cuid()) gives most rows their id, such as a ticket's or a tenant's, and a connection's id is a UUID.
+  it.each([
+    ['a ticket', '/support/cmvd49x0l0060rls6y8k3055p', ['Support']],
+    ['a tenant', '/admin/tenants/cmvd49wv8002trls6b12mxw6e', ['Admin', 'Tenants']],
+    ['a connection', '/connections/3a9e5b7c-6d1f-4e28-b0c4-8f2a1d6e9b02', ['Connections']],
+  ])('leaves the id of %s out of the breadcrumb', (_page, pathname, expected) => {
+    const { container } = renderHeader(pathname)
+
+    expect(crumbs(container)).toEqual(expected)
+  })
+
+  it('keeps a segment that is a word, such as the new page of the support inbox', () => {
+    const { container } = renderHeader('/support/new')
+
+    expect(crumbs(container)).toEqual(['Support', 'New'])
+  })
+
   // The browser's HTML parser closes an open <li> at the next <li>, so a separator inside an item makes the server's
   // HTML differ from React's tree, and hydration fails on every page with more than one breadcrumb.
   it('puts each breadcrumb separator between the items, never inside an item', () => {
-    const { container } = render(
-      <SidebarProvider>
-        <AppHeader />
-      </SidebarProvider>,
-    )
+    const { container } = renderHeader('/admin/license')
 
     const list = container.querySelector('[data-slot="breadcrumb-list"]')!
     expect([...list.children].map((child) => child.getAttribute('data-slot'))).toEqual([

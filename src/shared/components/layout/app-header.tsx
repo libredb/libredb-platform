@@ -32,6 +32,17 @@ const ROUTE_LABELS: Record<string, string> = {
   license: 'License',
   new: 'New',
   invitations: 'Invitations',
+  'studio-users': 'Studio Users',
+  'studio-settings': 'Studio Settings',
+}
+
+// The ids a path carries: a cuid, which Prisma's @default(cuid()) gives most rows, such as a ticket or a tenant, and a
+// UUID, such as a connection's id, which Platform generates with crypto.randomUUID().
+const CUID = /^c[a-z0-9]{24}$/
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function isId(segment: string): boolean {
+  return CUID.test(segment) || UUID.test(segment)
 }
 
 export function AppHeader() {
@@ -49,9 +60,8 @@ export function AppHeader() {
             const href = '/' + segments.slice(0, index + 1).join('/')
             const label = ROUTE_LABELS[segment] || segment
 
-            // Skip UUID-looking segments in breadcrumb display
-            const isUuid = /^[0-9a-f-]{36}$/i.test(segment)
-            if (isUuid) return null
+            // An id names a record, not a page, so the breadcrumb leaves it out
+            if (isId(segment)) return null
 
             // The separator is an <li> of its own beside the item: inside the item, the browser would end the item at it.
             return (
