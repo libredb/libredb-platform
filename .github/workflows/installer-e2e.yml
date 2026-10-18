@@ -92,7 +92,6 @@ jobs:
       - name: Run the Docker end-to-end tests as root
         continue-on-error: true
         run: |
-          sudo env "LIBREDB_E2E_LICENSE_FILE=$LIBREDB_E2E_LICENSE_FILE" "$(command -v bun)" test --path-ignore-patterns 'test/e2e/docker-studio.test.ts' --path-ignore-patterns 'test/e2e/docker-ports.test.ts' --path-ignore-patterns 'test/e2e/matrix.test.ts' --path-ignore-patterns 'test/e2e/egress.test.ts' test/e2e
           sudo "$(command -v bun)" test test/e2e/docker-studio.test.ts
       # The browser specs run against the installation the end-to-end tests leave, whose first admin never signed in,
       # and the interop suite (e2e/interop.spec.ts) is one of them.
