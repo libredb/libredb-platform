@@ -335,7 +335,7 @@ model StudioSetting {
   @@schema("platform")
 }
 
-// A deny-only revocation of every Studio session and MCP token of a Keycloak user, which Studio reads through
+// A deny-only revocation of every Studio session of a Keycloak user, which Studio reads through
 // bridge.session_revocations_v1 as the latest revokedBefore per subject: it refuses a session issued at or before that
 // time. subject is the Keycloak user id, the OIDC sub of the issuer.
 // reason is admin for "Revoke Studio sessions" and the break-glass statement of docs/deploy/platform-runtime.md, and

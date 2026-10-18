@@ -316,7 +316,7 @@ Remove every connection grant of a user:
 DELETE FROM platform.connection_grants WHERE subject = '<id>';
 ```
 
-End every Studio session and MCP token of a user:
+End every Studio session of a user:
 
 ```sql
 INSERT INTO platform.session_revocations (subject, reason) VALUES ('<id>', 'admin');
