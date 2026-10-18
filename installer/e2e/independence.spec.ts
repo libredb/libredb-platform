@@ -1,12 +1,12 @@
 // Independence of R1 in Docker mode: Platform and Studio meet only in the shared PostgreSQL, so each keeps
 // serving, and starts again, while the other is stopped. Against an installation that `apply` made from
-// test/fixtures/configs/docker.yaml, an admin holding libredb:admin connects a customer PostgreSQL in Platform and grants
-// it to a user holding libredb:user, who works in Studio. The spec creates the target database container, both
-// Keycloak users and the connection, leaves the installer's first admin to the other specs, and removes all of them at
-// the end. An installation without a license has one admin seat, so the spec runs before platform-login.spec.ts gives
-// that seat to the first admin, and its own admin frees the seat when the spec deletes that user. Each test starts the
-// container it stopped again, even when it fails. The docker command is LIBREDB_E2E_DOCKER's.
-import { randomBytes } from "node:crypto";
+// test/fixtures/configs/docker.yaml, the installer's first admin connects a customer PostgreSQL in Platform and grants
+// it to a user holding libredb:user, who works in Studio. The spec creates the target database container, that Keycloak
+// user and the connection, and removes them at the end. It signs in to Platform as the first admin, whom
+// platform-login.spec.ts signs in before it: an installation without a license has one admin seat, which the first
+// admin then holds, so the first sign-in of another admin would be refused. Each test starts the container it stopped
+// again, even when it fails. The docker command is LIBREDB_E2E_DOCKER's.
+import { randomBytes, randomUUID } from "node:crypto";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { createKeycloakUsers, deleteKeycloakUsers, type KeycloakUser } from "./fixtures/keycloak-users";
 import { removeTargetDatabase, startTargetDatabase, targetRowCount, type TargetDatabase } from "./fixtures/target-db";
@@ -14,9 +14,11 @@ import {
   changeGrantLevel,
   createConnection,
   deleteConnection,
+  FIRST_ADMIN,
+  firstAdminTemporaryPassword,
   grantAccess,
   openConnection,
-  signInToPlatformAs,
+  signInFirstAdminToPlatform,
 } from "./helpers/platform";
 import {
   docker,
@@ -38,7 +40,6 @@ const STUDIO_READY = "/api/ready";
 const START_TIMEOUT_MS = 120_000;
 
 let target: TargetDatabase;
-let admin: KeycloakUser;
 let user: KeycloakUser;
 let adminContext: BrowserContext;
 let userContext: BrowserContext;
@@ -113,14 +114,22 @@ function bridgeLevel(): string {
 
 test.beforeAll(async ({ browser }) => {
   target = await startTargetDatabase();
-  [admin] = createKeycloakUsers(["independence-admin"], "admin") as [KeycloakUser];
   [user] = createKeycloakUsers(["independence-user"], "user") as [KeycloakUser];
   const options = { baseURL: PLATFORM_URL, ignoreHTTPSErrors: true };
   adminContext = await browser.newContext(options);
   userContext = await browser.newContext(options);
 
   platform = await adminContext.newPage();
-  await signInToPlatformAs(platform, admin);
+  // The first login, with the profile platform-login.spec.ts gives the first admin, happens only when no earlier spec
+  // of the run signed it in.
+  await signInFirstAdminToPlatform(platform, {
+    username: FIRST_ADMIN,
+    temporaryPassword: firstAdminTemporaryPassword(),
+    newPassword: `E2e-${randomUUID()}`,
+    email: "libredb-admin@libredb.test",
+    firstName: "LibreDB",
+    lastName: "Admin",
+  });
   const name = `Independence ${randomBytes(4).toString("hex")}`;
   await createConnection(platform, {
     name,
@@ -149,7 +158,7 @@ test.afterAll(async () => {
   } finally {
     for (const context of [adminContext, userContext]) await context?.close();
     removeTargetDatabase();
-    deleteKeycloakUsers([admin, user].filter((created) => created !== undefined).map((created) => created.id));
+    if (user !== undefined) deleteKeycloakUsers([user.id]);
   }
 });
 
