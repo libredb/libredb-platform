@@ -210,18 +210,6 @@ export interface PasswordUser {
   password: string;
 }
 
-/** Signs `user` in to Platform on Keycloak's form and waits until the browser is back on Platform. */
-export async function signInToPlatformAs(page: Page, user: PasswordUser): Promise<void> {
-  await page.goto("/login");
-  const platformOrigin = new URL(page.url()).origin;
-  await page.getByRole("button", { name: "Continue with SSO" }).click();
-  await page.waitForURL((url) => url.pathname.endsWith("/protocol/openid-connect/auth"));
-  await page.locator("#username").fill(user.username);
-  await page.locator("#password").fill(user.password);
-  await page.locator("#kc-login").click();
-  await page.waitForURL((url) => url.origin === platformOrigin);
-}
-
 /**
  * The response of the next server action the page posts whose JSON arguments contain `marker`. Next.js posts a
  * server action to the page's own URL with a Next-Action header and answers once the action has run, so the response

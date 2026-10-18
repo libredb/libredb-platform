@@ -61,6 +61,14 @@ describe("Docker adapter", () => {
     await expect(docker.composeConfig({ project: "libredb-invalid", file })).rejects.toBeInstanceOf(ExecError);
   });
 
+  test("ps reads the rendered skeleton while no env file exists yet, as on the first apply", async () => {
+    const root = join(scratch, "first-apply");
+    mkdirSync(root, { recursive: true });
+    const file = join(root, "compose.yaml");
+    writeFileSync(file, renderCompose(desiredFixture(), TRUST_FIXTURE).replaceAll(`${INSTALL_ROOT}/`, `${root}/`));
+    expect(await docker.ps({ project: "libredb-it-first-apply", file })).toEqual([]);
+  });
+
   test("ps lists no container for a project that does not run", async () => {
     const file = join(scratch, "empty.yaml");
     writeFileSync(file, "services:\n  idle:\n    image: docker.io/library/busybox\n");

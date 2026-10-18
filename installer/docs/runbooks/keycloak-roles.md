@@ -12,14 +12,17 @@ Give a user `libredb:admin` or `libredb:user` in one of two ways:
 - directly, in the user's role mapping, with the client `libredb` selected;
 - through a group that holds the client role, at any depth of subgroups.
 
-Both reach the claim, and Platform's directory sync and the user picker of the grant dialog list the user.
+Both reach the claim, and Platform's directory sync and the Studio users page list the user.
+The user picker of the grant dialog lists every user of the realm, whatever roles they hold, with the badge of their effective roles: `Admin`, `User` or `No role`.
+An admin can pick a user marked `No role` as well, and the grant is saved, but Studio gives that user no session until they hold `libredb:admin` or `libredb:user`.
 
 ## Composite-only assignments are unsupported
 
 A user who reaches `libredb:admin` or `libredb:user` only through a composite role, such as a realm role that includes the client role, is not supported.
 Keycloak's token mapper expands composite roles, so such a user signs in and gets the role in `libredb_roles`.
-Platform, however, reads the role's members through the Admin API: the users that hold the role directly and the members of the groups that hold it.
-That listing never expands composite roles, so the user is missing from directory sync, from the Studio users page and from the user picker of the grant dialog: no admin can grant them a connection, and a removal of the composite role is not seen until the user's own Platform session is rechecked.
+Platform's directory sync and its Studio users page, however, read the role's members through the Admin API: the users that hold the role directly and the members of the groups that hold it.
+That listing never expands composite roles, so the user is missing from directory sync and from the Studio users page, and a removal of the composite role is not seen until the user's own Platform session is rechecked.
+The user picker of the grant dialog still lists the user with the badge of their role, because it reads each user's effective roles, which include composite roles, so an admin can grant them a connection.
 Keycloak offers no Admin API query that lists the effective members of a client role across composites without reading every user, which a large federated realm cannot afford on every sync.
 Assign the role directly or through a group instead.
 

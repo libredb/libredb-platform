@@ -17,7 +17,7 @@ The `maintain` command runs the same check before it opens any connection.
 | `DATABASE_URL` | always | `libredb_platform` URL with `schema=platform` (pg syntax) | installer |
 | `MIGRATE_DATABASE_URL` | migrate container only | `libredb_owner` URL with `schema=platform` (Prisma syntax) | installer |
 | `AUTH_SECRET` | always | generated, at least 32 characters, never shared with Studio | installer |
-| `AUTH_SECRET_PREVIOUS` | during a rotation | the previous `AUTH_SECRET` | operator |
+| `AUTH_SECRET_PREVIOUS` | during a rotation | the previous `AUTH_SECRET` | installer config |
 | `AUTH_URL` | always (the image sets `NODE_ENV=production`) | `https://<platform>` | installer |
 | `AUTH_KEYCLOAK_ISSUER` | self-hosted | `https://<auth>/realms/<realm>` | installer |
 | `AUTH_KEYCLOAK_ID` | self-hosted | `libredb-platform` | installer |

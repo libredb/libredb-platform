@@ -54,7 +54,8 @@ services:
       - -c
       - password_encryption=scram-sha-256
     env_file:
-      - /opt/libredb/env/postgres.env
+      - path: /opt/libredb/env/postgres.env
+        required: false
     environment:
       POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256 --auth-local=scram-sha-256
     volumes:
@@ -88,7 +89,8 @@ services:
     command:
       - start
     env_file:
-      - /opt/libredb/env/keycloak.env
+      - path: /opt/libredb/env/keycloak.env
+        required: false
     environment:
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak?sslmode=verify-full&sslrootcert=/etc/libredb/ca/ca.crt
@@ -140,7 +142,8 @@ services:
     command:
       - migrate
     env_file:
-      - /opt/libredb/env/platform-migrate.env
+      - path: /opt/libredb/env/platform-migrate.env
+        required: false
     read_only: true
     tmpfs:
       - /tmp
@@ -164,7 +167,8 @@ services:
     command:
       - serve
     env_file:
-      - /opt/libredb/env/platform.env
+      - path: /opt/libredb/env/platform.env
+        required: false
     read_only: true
     tmpfs:
       - /tmp
@@ -202,7 +206,8 @@ services:
     security_opt:
       - no-new-privileges:true
     env_file:
-      - /opt/libredb/env/studio.env
+      - path: /opt/libredb/env/studio.env
+        required: false
     read_only: true
     tmpfs:
       - /tmp

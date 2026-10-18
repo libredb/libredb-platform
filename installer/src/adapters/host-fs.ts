@@ -19,6 +19,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { basename, dirname, join } from "node:path";
+import { ConfigError } from "../config/schema";
 import { UnexpectedPathError, type FileSpec, type ObservedPath } from "../docker/converge";
 import type { DirectorySpec } from "../docker/layout";
 
@@ -46,6 +47,18 @@ export function readOptionalFile(path: string): string | undefined {
   const observed = observePath(path);
   if (observed === undefined) return undefined;
   if (observed.kind !== "file") throw new Error(`${path} exists but is not a regular file`);
+  return observed.content;
+}
+
+/**
+ * The content of the regular file that a `<key>File` reference of the configuration names, or undefined when nothing
+ * is there. Anything else there, such as a symbolic link or a directory, is an invalid configuration, exit 2, that
+ * names the path, while readOptionalFile refuses it in a file the installer owns as a runtime failure.
+ */
+export function readReferencedFile(path: string): string | undefined {
+  const observed = observePath(path);
+  if (observed === undefined) return undefined;
+  if (observed.kind !== "file") throw new ConfigError([`${path} exists but is not a regular file`]);
   return observed.content;
 }
 

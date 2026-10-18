@@ -48,7 +48,7 @@ describe("renderCompose keycloak", () => {
       KC_TRUSTSTORE_PATHS: "/etc/libredb/ca/ca.crt",
       LIQUIBASE_ANALYTICS_ENABLED: "false",
     });
-    expect(keycloak.env_file).toEqual([KEYCLOAK_ENV_FILE]);
+    expect(keycloak.env_file).toEqual([{ path: KEYCLOAK_ENV_FILE, required: false }]);
     expect(KEYCLOAK_ENV_FILE).toBe("/opt/libredb/env/keycloak.env");
     expect(keycloak.volumes).toEqual(["/opt/libredb/ca:/etc/libredb/ca:ro"]);
     expect(keycloak.networks).toEqual({ edge: {}, data: {} });

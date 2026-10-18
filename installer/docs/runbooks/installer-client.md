@@ -11,7 +11,8 @@ The commands reach Keycloak on its loopback admin port: set `LIBREDB_REALM` and 
 ## 1. Regenerate the secret
 
 The client authenticates with its current secret, asks Keycloak for a new one through `POST /admin/realms/<realm>/clients/<id>/client-secret`, and writes the new secret to `installer.env` in one atomic rename.
-Secrets and tokens reach `curl` on standard input, so no process listing shows them, and the subshell stops at the first failure without closing your shell:
+Secrets and tokens reach `curl` on standard input, so no process listing shows them, and the subshell stops at the first failure without closing your shell.
+The new file is created with mode 0600 before the secret is written to it, because a default ACL on a parent directory overrides the umask:
 
 ```sh
 (
@@ -22,7 +23,7 @@ keycloak="http://127.0.0.1:${LIBREDB_KEYCLOAK_ADMIN_PORT:-18080}"
 token=$(printf '%s' "$KEYCLOAK_INSTALLER_CLIENT_SECRET" | curl -fsS --data-urlencode grant_type=client_credentials --data-urlencode "client_id=$KEYCLOAK_INSTALLER_CLIENT_ID" --data-urlencode client_secret@- "$keycloak/realms/$realm/protocol/openid-connect/token" | python3 -c 'import json, sys; print(json.load(sys.stdin)["access_token"])')
 id=$(printf 'Authorization: Bearer %s\n' "$token" | curl -fsS -H @- "$keycloak/admin/realms/$realm/clients?clientId=$KEYCLOAK_INSTALLER_CLIENT_ID" | python3 -c 'import json, sys; print(json.load(sys.stdin)[0]["id"])')
 secret=$(printf 'Authorization: Bearer %s\n' "$token" | curl -fsS -X POST -H @- "$keycloak/admin/realms/$realm/clients/$id/client-secret" | python3 -c 'import json, sys; print(json.load(sys.stdin)["value"])')
-umask 077
+install -m 0600 -o root -g root /dev/null /opt/libredb/secrets/installer.env.new
 printf 'KEYCLOAK_INSTALLER_CLIENT_ID=%s\nKEYCLOAK_INSTALLER_CLIENT_SECRET=%s\n' "$KEYCLOAK_INSTALLER_CLIENT_ID" "$secret" > /opt/libredb/secrets/installer.env.new
 mv /opt/libredb/secrets/installer.env.new /opt/libredb/secrets/installer.env
 )

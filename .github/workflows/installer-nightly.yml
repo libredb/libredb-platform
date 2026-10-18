@@ -104,15 +104,20 @@ jobs:
         run: bunx playwright install --with-deps chromium
       # The images are pulled before the iptables rules count and drop every packet from the libredb networks to a
       # non-private address; apply, verify and the interop suite then run, and the counter must stay at 0. The interop
-      # suite runs as root inside the test, with the runner's Chromium and its results outside the checkout.
+      # suite runs as root inside the test, after the first admin's first login that --project=hostnames runs before it,
+      # with the runner's Chromium and its results outside the checkout.
       - name: Check the network egress as root
         run: |
           sudo env "PATH=$PATH" "PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/ms-playwright" \
             "LIBREDB_E2E_INTEROP_COMMAND=bunx playwright test --config e2e/playwright.config.ts --project=hostnames --output $RUNNER_TEMP/interop-results interop.spec.ts" \
             "$(command -v bun)" test test/e2e/egress.test.ts
-      # The installation the egress test leaves: each app stops while the other keeps serving and starts again.
+      # The installation the egress test leaves: each app stops while the other keeps serving and starts again. The spec
+      # signs in as the first admin with the account that the first login of the egress step saved as root, so it runs as
+      # root as well, and --no-deps skips that first login, which the installation no longer offers.
       - name: Check that Platform and Studio work without each other
-        run: bunx playwright test --config e2e/playwright.config.ts --project=hostnames --output "$RUNNER_TEMP/independence-results" independence.spec.ts
+        run: |
+          sudo env "PATH=$PATH" "PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/ms-playwright" \
+            bunx playwright test --config e2e/playwright.config.ts --project=hostnames --no-deps --output "$RUNNER_TEMP/independence-results" independence.spec.ts
       - name: Show the installer state and logs
         if: failure()
         run: |

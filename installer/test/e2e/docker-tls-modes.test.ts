@@ -412,11 +412,18 @@ describe("TLS modes in Docker mode", () => {
         expect((await installer("tls", "export-ca", "-o", exported)).code).toBe(0);
         expect(fingerprintOf(exported)).toBe(fingerprintOf(INTERNAL_CA));
 
-        // Without the proxy the public hosts do not resolve from inside the edge network.
+        // Without the proxy no public host reaches a TLS server from inside the edge network. A host either does not
+        // resolve there, or it resolves to 127.0.0.1 where nothing listens: Docker's resolver forwards from the host,
+        // and a host whose /etc/hosts names the test hosts, as a GitHub runner's does here, answers them.
         sh(["docker", "stop", PROXY]);
         const preflight = await installer("preflight", "-c", EXTERNAL, ...SETS);
         expect(preflight.code).toBe(3);
-        expect(preflight.stderr).toContain("platform.libredb.test does not resolve from inside the edge network");
+        for (const host of HOSTS) {
+          const name = host.replaceAll(".", "\\.");
+          expect(preflight.stderr).toMatch(
+            new RegExp(`${name} (does not resolve|\\(127\\.0\\.0\\.1\\) cannot be reached over TLS on port 443) from inside the edge network`),
+          );
+        }
       } finally {
         sh(["docker", "rm", "--force", PROXY], false);
       }

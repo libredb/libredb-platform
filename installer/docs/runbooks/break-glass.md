@@ -33,7 +33,7 @@ DELETE FROM platform.connection_grants WHERE subject = '<id>';
 
 Studio stops serving the user's connections within about a second: the next request for one answers 404.
 
-End every Studio session and MCP token of the user, with the statement of Platform's runtime page:
+End every Studio session of the user, with the statement of Platform's runtime page:
 
 ```sql
 INSERT INTO platform.session_revocations (subject, reason) VALUES ('<id>', 'admin');

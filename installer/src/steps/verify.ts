@@ -3,7 +3,7 @@
 import { readFileSync } from "node:fs";
 import { parse } from "yaml";
 import { exec } from "../adapters/exec";
-import { readOptionalFile } from "../adapters/host-fs";
+import { readReferencedFile } from "../adapters/host-fs";
 import { DockerProbeRunner } from "../adapters/in-network-probe";
 import { KeycloakAdmin, requestToken, type ClientCredentials } from "../adapters/keycloak-admin";
 import { presentedChain } from "../adapters/tls-probe";
@@ -116,7 +116,7 @@ async function keycloakTime(context: DockerContext): Promise<number> {
  */
 async function platformStartLog(context: DockerContext): Promise<PlatformStartLog> {
   // Platform never logs the token; registering it with the redactor keeps it out of the run log all the same.
-  readPlatformLicense(context.config.platform, readOptionalFile, context.redactor);
+  readPlatformLicense(context.config.platform, readReferencedFile, context.redactor);
   const container = (await context.docker.ps(COMPOSE_TARGET)).find((candidate) => candidate.service === PLATFORM_SERVICE);
   if (container === undefined) throw new Error(`the project has no ${PLATFORM_SERVICE} container`);
   const options = { redactor: context.redactor, log: context.log, timeoutMs: QUICK_MS, check: true };

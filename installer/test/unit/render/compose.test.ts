@@ -36,6 +36,17 @@ describe("renderCompose", () => {
     }
   });
 
+  test("every env file is optional to Compose, because each deploy step writes its own just before it starts its service", () => {
+    // Compose before 5.0 reads the env file of every service in compose.yaml for any command, ps and logs included, so
+    // an env file that a later step writes would otherwise stop the commands of the steps before it.
+    const compose = parse(renderCompose(desiredFixture(), TRUST_FIXTURE)) as ComposeDocument;
+    const entries = Object.values(compose.services).flatMap((service) => (service.env_file as unknown[] | undefined) ?? []);
+    expect(entries).toHaveLength(5);
+    for (const entry of entries) {
+      expect(entry).toEqual({ path: expect.stringMatching(/^\/opt\/libredb\/env\/[a-z-]+\.env$/), required: false });
+    }
+  });
+
   test("postgres runs with ssl on and the rendered pg_hba.conf, and keeps its data in a named volume", () => {
     const postgres = (parse(renderCompose(desiredFixture(), TRUST_FIXTURE)) as ComposeDocument).services.postgres;
     expect(postgres?.command).toContain("ssl=on");

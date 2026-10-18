@@ -3,13 +3,12 @@
 // it, and two Keycloak users holding libredb:user, A and B, work in Studio. Platform and Studio never call each other,
 // so every effect below crossed the bridge schema of the shared PostgreSQL.
 // The tests run in order and share the installation, the connection and the sessions they build. The suite creates
-// the target database container and its three users, the admin holding libredb:admin among them, so it leaves the
-// installer's first admin to the other specs; it removes all of them and the connection at the end. An installation
-// without a license has one admin seat, so the suite runs before platform-login.spec.ts gives that seat to the first
-// admin, and its own admin frees the seat when the suite deletes that user.
+// the target database container and the two users, and removes them and the connection at the end. The admin is the
+// installer's first admin, whom platform-login.spec.ts signs in before it: an installation without a license has one
+// admin seat, which the first admin then holds, so the first sign-in of another admin would be refused.
 // The revocation and session revocation latencies are measured from the response of Platform's action, with Studio
 // polled every 100 ms, and printed.
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import {
   createKeycloakUsers,
@@ -22,13 +21,15 @@ import {
   changeGrantLevel,
   createConnection,
   deleteConnection,
+  FIRST_ADMIN,
+  firstAdminTemporaryPassword,
   grantAccess,
   grantRemoved,
   openConnection,
   revokeGrant,
   revokeStudioSessions,
   setStudioSetting,
-  signInToPlatformAs,
+  signInFirstAdminToPlatform,
   studioSettingValue,
 } from "./helpers/platform";
 import {
@@ -68,8 +69,6 @@ interface ErrorBody {
 }
 
 let target: TargetDatabase;
-/** The admin who works in Platform and opens Studio from it. */
-let admin: KeycloakUser;
 let userA: KeycloakUser;
 let userB: KeycloakUser;
 let adminContext: BrowserContext;
@@ -208,7 +207,6 @@ async function signedInStudio(context: BrowserContext, user: KeycloakUser): Prom
 
 test.beforeAll(async ({ browser }) => {
   target = await startTargetDatabase();
-  [admin] = createKeycloakUsers(["interop-admin"], "admin") as [KeycloakUser];
   [userA, userB] = createKeycloakUsers(["interop-a", "interop-b"], "user") as [KeycloakUser, KeycloakUser];
   const options = { baseURL: PLATFORM_URL, ignoreHTTPSErrors: true };
   adminContext = await browser.newContext(options);
@@ -225,12 +223,21 @@ test.afterAll(async () => {
   } finally {
     for (const context of [adminContext, contextA, contextB]) await context?.close();
     removeTargetDatabase();
-    deleteKeycloakUsers([admin, userA, userB].filter((user) => user !== undefined).map((user) => user.id));
+    deleteKeycloakUsers([userA, userB].filter((user) => user !== undefined).map((user) => user.id));
   }
 });
 
 test("SSO from Platform to Studio", async () => {
-  await signInToPlatformAs(platform, admin);
+  // The first login, with the profile platform-login.spec.ts gives the first admin, happens only when no earlier spec
+  // of the run signed it in.
+  await signInFirstAdminToPlatform(platform, {
+    username: FIRST_ADMIN,
+    temporaryPassword: firstAdminTemporaryPassword(),
+    newPassword: `E2e-${randomUUID()}`,
+    email: "libredb-admin@libredb.test",
+    firstName: "LibreDB",
+    lastName: "Admin",
+  });
   await expect(platform).toHaveURL((url) => url.pathname === "/connections");
 
   // The STUDIO entry opens Studio in a new tab of the same browser, where Keycloak's session signs the admin in
