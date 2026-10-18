@@ -47,6 +47,11 @@ const COMPOSER_CONTENT: Array<[string, JSONContent, string]> = [
     paragraph({ type: 'mention', attrs: { id: 'u1', label: 'Ayşe' } }),
     'span.mention-chip[data-type="mention"][data-mention-id="u1"][data-mention-label="Ayşe"]',
   ],
+  [
+    'a mention of a name that holds a colon',
+    paragraph({ type: 'mention', attrs: { id: 'u2', label: 'QA: Ayşe' } }),
+    'span.mention-chip[data-label="QA: Ayşe"][data-mention-label="QA: Ayşe"]',
+  ],
   ['a bullet list', { type: 'bulletList', content: [listItem('one')] }, 'ul:not([data-type]) > li > p'],
   ['an ordered list', { type: 'orderedList', content: [listItem('one')] }, 'ol:not([start]) > li > p'],
   [
