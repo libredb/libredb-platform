@@ -4,7 +4,7 @@
     "platform": {
       "repository": "ghcr.io/libredb/libredb-platform",
       "version": "1.0.0",
-      "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      "digest": "sha256:cd102e47baf6df4098c68d5600a206eac824de7e0b045c734355d3ab0013b6f2"
     },
     "studio": {
       "repository": "ghcr.io/libredb/libredb-studio",
