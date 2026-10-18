@@ -1,4 +1,5 @@
 import { requireAuth, requireRole } from '@/shared/lib/auth-utils'
+import { notFoundInSelfHosted } from '@/shared/lib/deployment'
 import { UserRepository } from '@/features/users/lib/user.repository'
 import { Badge } from '@/shared/components/ui/badge'
 import {
@@ -10,7 +11,10 @@ import {
   TableRow,
 } from '@/shared/components/ui/table'
 
+// The page lists tenant memberships, which a self-hosted sign-in never writes, so self-hosted mode answers 404 and
+// lists its users on the Studio users page.
 export default async function AdminUsersPage() {
+  await notFoundInSelfHosted()
   const user = await requireAuth()
   await requireRole(user, 'PLATFORM_ADMIN')
 

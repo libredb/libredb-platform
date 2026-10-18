@@ -91,4 +91,13 @@ describe('ConversationSidebar', () => {
 
     expect(selectValues()[1]).toBe('ON_HOLD')
   })
+
+  it('names each select after the label above it', () => {
+    renderSidebar({})
+
+    expect(screen.getByRole('combobox', { name: 'Assigned To' })).toHaveTextContent('Ayse Yilmaz')
+    expect(screen.getByRole('combobox', { name: 'Status' })).toHaveTextContent('Open')
+    expect(screen.getByRole('combobox', { name: 'Priority' })).toHaveTextContent('Urgent')
+    expect(screen.getByRole('combobox', { name: 'Category' })).toHaveTextContent('Technical')
+  })
 })

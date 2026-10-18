@@ -1,4 +1,5 @@
 import { db } from '@/shared/lib/db'
+import { NotFoundError } from '@/shared/lib/errors'
 
 export class NotificationRepository {
   static async findByUser(userId: string, limit = 10) {
@@ -13,8 +14,10 @@ export class NotificationRepository {
     return db.notification.count({ where: { userId, read: false } })
   }
 
-  static async markAsRead(id: string) {
-    return db.notification.update({ where: { id }, data: { read: true } })
+  /** Marks a notification of the user as read; a notification of another user is not found and stays as it is. */
+  static async markAsRead(id: string, userId: string) {
+    const { count } = await db.notification.updateMany({ where: { id, userId }, data: { read: true } })
+    if (count === 0) throw new NotFoundError('Notification')
   }
 
   static async markAllAsRead(userId: string) {

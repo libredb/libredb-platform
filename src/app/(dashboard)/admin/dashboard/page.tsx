@@ -1,11 +1,14 @@
-import { requireAuth, requireRole } from '@/shared/lib/auth-utils'
+import { requireAuth, requirePermission } from '@/shared/lib/auth-utils'
+import { PERMISSIONS } from '@/shared/lib/permissions'
 import { AdminStatsRepository } from '@/features/tenants/lib/admin-stats.repository'
 import { AdminDashboard } from '@/features/tenants/components/admin-dashboard'
 import { PageHeader } from '@/shared/components/composed/page-header'
 
+// The seed shows this page's menu to PLATFORM_ADMIN and PLATFORM_TECH, which hold platform.dashboard; a custom role
+// never contributes it to a session (membershipAccess).
 export default async function AdminDashboardPage() {
   const user = await requireAuth()
-  await requireRole(user, 'PLATFORM_ADMIN')
+  await requirePermission(user, PERMISSIONS.PLATFORM_DASHBOARD)
 
   const [stats, recentTenants] = await Promise.all([
     AdminStatsRepository.getStats(),

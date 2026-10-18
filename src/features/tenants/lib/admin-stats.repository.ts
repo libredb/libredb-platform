@@ -5,7 +5,8 @@ export class AdminStatsRepository {
   static async getStats() {
     const [tenants, users, connections, queriesToday] = await Promise.all([
       db.tenant.count(),
-      db.user.count(),
+      // Only active users, as the Active Users tile of the dashboard says.
+      db.user.count({ where: { active: true } }),
       // Every tenant's connections that are not deleted, as the plan limit counts them.
       db.databaseConnection.count({ where: { deletedAt: null } }),
       queryEvents.countSince(new Date(new Date().setHours(0, 0, 0, 0))),
