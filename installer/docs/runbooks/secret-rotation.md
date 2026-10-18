@@ -52,7 +52,8 @@ Platform decodes its session cookies with the current and, during a rotation, th
 1. Copy the current value to a root-only file outside the secret store:
 
    ```sh
-   (umask 077 && python3 -c 'import json; print(json.load(open("/opt/libredb/secrets/secrets.json"))["values"]["platform-auth-secret"])' > /root/libredb-auth-secret-previous)
+   install -m 0600 -o root -g root /dev/null /root/libredb-auth-secret-previous
+   python3 -c 'import json; print(json.load(open("/opt/libredb/secrets/secrets.json"))["values"]["platform-auth-secret"])' > /root/libredb-auth-secret-previous
    ```
 
 2. Delete `platform-auth-secret` from the store as above, set `platform.authSecretPreviousFile` in the configuration to that file, and apply:
