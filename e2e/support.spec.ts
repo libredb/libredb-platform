@@ -71,7 +71,7 @@ async function resolveAsAgent(browser: Browser, ticketUrl: string) {
 // Tests 2 and 5 open a ticket of their own and follow it by its URL, because the CSAT prompt shows only to the
 // ticket's creator, only the creator's reply reopens a ticket, and the inbox lists only open tickets by default.
 
-test.describe('Support Phase 1', () => {
+test.describe('Support', () => {
   // Multi-login tests need more than the default 30s
   test.setTimeout(60_000)
 
