@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/components/ui/dialog'
 import { useHotkeys } from 'react-hotkeys-hook'
+import { isFromInteractiveControl } from '../lib/hotkeys'
 
 const ROWS: Array<[string, string]> = [
   ['⌘K / /',   'Focus search'],
@@ -18,7 +19,7 @@ const ROWS: Array<[string, string]> = [
 
 export function ShortcutsHelp() {
   const [open, setOpen] = useState(false)
-  useHotkeys('shift+slash', () => setOpen(true), { preventDefault: true })
+  useHotkeys('shift+slash', () => setOpen(true), { preventDefault: true, ignoreEventWhen: isFromInteractiveControl })
 
   return (
     <Dialog open={open} onOpenChange={(o) => setOpen(o)}>
