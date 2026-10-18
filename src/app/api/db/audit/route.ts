@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { apiError, apiSuccess, getApiUser } from '@/shared/lib/api-utils'
 import { queryEventFiltersSchema } from '@/shared/lib/bridge/query-events'
+import { hasFeature } from '@/shared/lib/feature-flags'
 import { AuditRepository } from '@/features/audit/lib/audit.repository'
 
 // The filters a caller may pass. The tenant is never one of them: it comes from the session only.
@@ -10,6 +11,11 @@ export async function GET(request: Request) {
   const user = await getApiUser()
   if (!user) return apiError('Unauthorized', 401)
   if (!user.currentTenantId) return apiError('No tenant selected', 400)
+
+  // The plan of the tenant gates the audit log before the permission, PLATFORM_ADMIN included, as the audit page does.
+  if (!(await hasFeature(user.currentTenantId, 'auditLog'))) {
+    return apiError('This feature requires a plan upgrade', 403)
+  }
 
   // Require audit.view permission
   const isPlatformAdmin = user.roles.includes('PLATFORM_ADMIN')
