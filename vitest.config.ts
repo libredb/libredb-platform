@@ -8,7 +8,8 @@ export default defineConfig({
     environment: 'happy-dom',
     globals: true,
     setupFiles: ['./src/shared/test-setup.ts'],
-    exclude: ['e2e/**', 'node_modules/**', '.next/**', 'installer/**', '**/*.db.test.ts', '**/*.integration.test.ts'],
+    // .claude/** holds the worktrees of coding agents, other checkouts of this repository with tests of their own.
+    exclude: ['e2e/**', 'node_modules/**', '.next/**', 'installer/**', '.claude/**', '**/*.db.test.ts', '**/*.integration.test.ts'],
   },
   resolve: {
     alias: {

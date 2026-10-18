@@ -7,7 +7,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['**/*.db.test.ts'],
-    exclude: ['node_modules/**', '.next/**'],
+    // .claude/** holds the worktrees of coding agents, other checkouts of this repository with tests of their own.
+    exclude: ['node_modules/**', '.next/**', '.claude/**'],
     fileParallelism: false,
     globalSetup: ['./tests/db/global-setup.ts'],
     testTimeout: 30_000,
