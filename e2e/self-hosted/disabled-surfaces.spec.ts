@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { FIXTURE_USERS, signInThroughKeycloak } from './helpers/keycloak-login'
 
-// Self-hosted mode turns off registration, password reset, billing, team and invitations, and tenant and
+// Self-hosted mode turns off registration, password reset, billing, team and invitations, and tenant, user and
 // plan administration, so their pages answer 404 even for the admin.
 
 const CLOUD_ONLY_PATHS = [
@@ -13,11 +13,12 @@ const CLOUD_ONLY_PATHS = [
   '/admin/tenants',
   '/admin/tenants/new',
   '/admin/tenants/00000000-0000-4000-8000-000000000000',
+  '/admin/users',
   '/admin/plans',
 ]
 
 test.describe('Cloud-only pages in self-hosted mode', () => {
-  test('/register, /forgot-password, /billing, /team, /team/invitations, /admin/tenants and /admin/plans answer 404 for alice', async ({ page }) => {
+  test('/register, /forgot-password, /billing, /team, /team/invitations, /admin/tenants, /admin/users and /admin/plans answer 404 for alice', async ({ page }) => {
     await signInThroughKeycloak(page, FIXTURE_USERS.alice)
     await expect(page).toHaveURL(url => url.pathname === '/connections')
 
