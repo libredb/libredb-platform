@@ -8,6 +8,7 @@ import { Button } from '@/shared/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -188,22 +189,24 @@ export function UserList({ members, roles, canEdit }: UserListProps) {
                   <span className="sr-only">Actions</span>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={() => handleEditRole(row.original)}
-                  >
-                    <ShieldIcon className="size-4" />
-                    Change Role
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    variant="destructive"
-                    onClick={() => handleToggleActive(row.original)}
-                    disabled={isToggling}
-                  >
-                    <UserXIcon className="size-4" />
-                    Deactivate
-                  </DropdownMenuItem>
+                  <DropdownMenuGroup>
+                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => handleEditRole(row.original)}
+                    >
+                      <ShieldIcon className="size-4" />
+                      Change Role
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      variant="destructive"
+                      onClick={() => handleToggleActive(row.original)}
+                      disabled={isToggling}
+                    >
+                      <UserXIcon className="size-4" />
+                      Deactivate
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
                 </DropdownMenuContent>
               </DropdownMenu>
             ),

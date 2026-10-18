@@ -17,6 +17,7 @@ import { Button, buttonVariants } from '@/shared/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -167,31 +168,33 @@ export function TenantList({ tenants }: TenantListProps) {
             align="end"
             onClick={(e) => e.stopPropagation()}
           >
-            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() => router.push(`/admin/tenants/${row.original.id}`)}
-            >
-              <ExternalLinkIcon className="size-4" />
-              Open
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => handleToggleActive(row.original)}
-              disabled={isPending}
-              variant={row.original.active ? 'destructive' : undefined}
-            >
-              {row.original.active ? (
-                <>
-                  <PowerOffIcon className="size-4" />
-                  Deactivate
-                </>
-              ) : (
-                <>
-                  <PowerIcon className="size-4" />
-                  Activate
-                </>
-              )}
-            </DropdownMenuItem>
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => router.push(`/admin/tenants/${row.original.id}`)}
+              >
+                <ExternalLinkIcon className="size-4" />
+                Open
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => handleToggleActive(row.original)}
+                disabled={isPending}
+                variant={row.original.active ? 'destructive' : undefined}
+              >
+                {row.original.active ? (
+                  <>
+                    <PowerOffIcon className="size-4" />
+                    Deactivate
+                  </>
+                ) : (
+                  <>
+                    <PowerIcon className="size-4" />
+                    Activate
+                  </>
+                )}
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
       ),

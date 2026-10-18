@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('../actions/update-tenant', () => ({ updateTenant: vi.fn() }))
@@ -26,5 +27,15 @@ describe('TenantList', () => {
     const row = screen.getByText('Acme').closest('tr')
     expect(row).not.toBeNull()
     expect(within(row!).getAllByRole('cell')[plan]).toHaveTextContent(/^-$/)
+  })
+
+  // Base UI throws when a group label renders outside its group, and the page then shows only its error screen.
+  it("opens a tenant's actions menu, whose Actions label names the group of its items", async () => {
+    render(<TenantList tenants={[WITHOUT_PLAN]} />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Acme' }))
+
+    const actions = within(await screen.findByRole('menu')).getByRole('group', { name: 'Actions' })
+    expect(within(actions).getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Open', 'Deactivate'])
   })
 })
