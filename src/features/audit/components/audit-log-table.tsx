@@ -161,6 +161,16 @@ export function AuditLogTable({
   const totalPages = Math.ceil(total / PAGE_SIZE)
   const currentPage = Math.floor(offset / PAGE_SIZE) + 1
 
+  // A select's items give its trigger the name of the chosen value instead of the subject or the id.
+  const subjectItems = [
+    { value: '', label: 'All Users' },
+    ...subjects.map((s) => ({ value: s.subject, label: s.username ?? s.subject })),
+  ]
+  const connectionItems = [
+    { value: '', label: 'All Connections' },
+    ...connections.map((c) => ({ value: c.id, label: c.name })),
+  ]
+
   return (
     <div className="space-y-6">
       {/* Stats */}
@@ -195,29 +205,27 @@ export function AuditLogTable({
           />
         </div>
 
-        <Select value={filterSubject} onValueChange={(val) => setFilterSubject(val ?? '')}>
+        <Select items={subjectItems} value={filterSubject} onValueChange={(val) => setFilterSubject(val ?? '')}>
           <SelectTrigger>
             <SelectValue placeholder="All Users" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Users</SelectItem>
-            {subjects.map((s) => (
-              <SelectItem key={s.subject} value={s.subject}>
-                {s.username ?? s.subject}
+            {subjectItems.map((item) => (
+              <SelectItem key={item.value} value={item.value}>
+                {item.label}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
 
-        <Select value={filterConnection} onValueChange={(val) => setFilterConnection(val ?? '')}>
+        <Select items={connectionItems} value={filterConnection} onValueChange={(val) => setFilterConnection(val ?? '')}>
           <SelectTrigger>
             <SelectValue placeholder="All Connections" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Connections</SelectItem>
-            {connections.map((c) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.name}
+            {connectionItems.map((item) => (
+              <SelectItem key={item.value} value={item.value}>
+                {item.label}
               </SelectItem>
             ))}
           </SelectContent>

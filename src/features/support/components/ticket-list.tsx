@@ -84,6 +84,16 @@ export function TicketList({
   const priorityMap = Object.fromEntries(priorityValues.map((v) => [v.code, v]))
   const categoryMap = Object.fromEntries(categoryValues.map((v) => [v.code, v]))
 
+  // A filter's items give its trigger the name of the chosen value instead of ALL or the code.
+  const statusItems = [
+    { value: 'ALL', label: 'All Statuses' },
+    ...statusValues.map((s) => ({ value: s.code, label: s.name })),
+  ]
+  const priorityItems = [
+    { value: 'ALL', label: 'All Priorities' },
+    ...priorityValues.map((p) => ({ value: p.code, label: p.name })),
+  ]
+
   const filtered = tickets.filter((t) => {
     if (statusFilter !== 'ALL' && t.status !== statusFilter) return false
     if (priorityFilter !== 'ALL' && t.priority !== priorityFilter) return false
@@ -173,28 +183,26 @@ export function TicketList({
 
   const toolbar = (
     <>
-      <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value ?? 'ALL')}>
+      <Select items={statusItems} value={statusFilter} onValueChange={(value) => setStatusFilter(value ?? 'ALL')}>
         <SelectTrigger className="w-[140px]">
           <SelectValue placeholder="Status" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="ALL">All Statuses</SelectItem>
-          {statusValues.map((s) => (
-            <SelectItem key={s.code} value={s.code}>
-              {s.name}
+          {statusItems.map((item) => (
+            <SelectItem key={item.value} value={item.value}>
+              {item.label}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
-      <Select value={priorityFilter} onValueChange={(value) => setPriorityFilter(value ?? 'ALL')}>
+      <Select items={priorityItems} value={priorityFilter} onValueChange={(value) => setPriorityFilter(value ?? 'ALL')}>
         <SelectTrigger className="w-[140px]">
           <SelectValue placeholder="Priority" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="ALL">All Priorities</SelectItem>
-          {priorityValues.map((p) => (
-            <SelectItem key={p.code} value={p.code}>
-              {p.name}
+          {priorityItems.map((item) => (
+            <SelectItem key={item.value} value={item.value}>
+              {item.label}
             </SelectItem>
           ))}
         </SelectContent>

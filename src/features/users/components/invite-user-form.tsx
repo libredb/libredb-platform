@@ -54,6 +54,9 @@ export function InviteUserForm({ roles }: InviteUserFormProps) {
     execute({ email, roleId })
   }
 
+  // The role select's items give its trigger the role's name instead of its id.
+  const roleItems = roles.map((role) => ({ value: role.id, label: role.name }))
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={<Button />}>
@@ -82,14 +85,14 @@ export function InviteUserForm({ roles }: InviteUserFormProps) {
             </div>
             <div className="space-y-2">
               <Label htmlFor="invite-role">Role</Label>
-              <Select value={roleId} onValueChange={(v) => setRoleId(v ?? '')}>
+              <Select items={roleItems} value={roleId} onValueChange={(v) => setRoleId(v ?? '')}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
                 <SelectContent>
-                  {roles.map((role) => (
-                    <SelectItem key={role.id} value={role.id}>
-                      {role.name}
+                  {roleItems.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
