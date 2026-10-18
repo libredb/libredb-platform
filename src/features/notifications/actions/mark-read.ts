@@ -17,7 +17,7 @@ export const markNotificationRead = safeAction(
     if (data.all) {
       await NotificationRepository.markAllAsRead(user.id)
     } else if (data.id) {
-      await NotificationRepository.markAsRead(data.id)
+      await NotificationRepository.markAsRead(data.id, user.id)
     }
 
     revalidatePath('/')

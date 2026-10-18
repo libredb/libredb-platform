@@ -188,6 +188,28 @@ describe('seedProduction', () => {
     }
     expect(await identityCounts()).toEqual(before)
   })
+
+  it('cloud: every role that sees the Dashboard menu holds platform.dashboard, which the dashboard page requires', async () => {
+    vi.stubEnv('DEPLOYMENT_MODE', 'cloud')
+    bootstrapAdmin(undefined, undefined)
+
+    await seedProduction()
+
+    const roles = await superuser.query<{ code: string; holds: boolean }>(
+      `SELECT r.code, EXISTS (
+                SELECT 1 FROM platform.role_permissions rp JOIN platform.permissions p ON p.id = rp."permissionId"
+                 WHERE rp."roleId" = r.id AND p.code = 'platform.dashboard') AS holds
+         FROM platform.menu_roles mr
+         JOIN platform.menus m ON m.id = mr."menuId"
+         JOIN platform.roles r ON r.id = mr."roleId"
+        WHERE m.code = 'ADMIN_DASHBOARD'
+        ORDER BY r.code`,
+    )
+    expect(roles.rows).toEqual([
+      { code: 'PLATFORM_ADMIN', holds: true },
+      { code: 'PLATFORM_TECH', holds: true },
+    ])
+  })
 })
 
 // A self-hosted install starts from an empty database, so these tests use one of their own that no other test writes to.

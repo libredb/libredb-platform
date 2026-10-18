@@ -3,7 +3,7 @@
 import { safeAction } from '@/shared/lib/safe-action'
 import { assertCloudOnly } from '@/shared/lib/deployment'
 import { requirePermission } from '@/shared/lib/auth-utils'
-import { checkLimit } from '@/shared/lib/feature-flags'
+import { checkLimit, getLimit } from '@/shared/lib/feature-flags'
 import { LimitExceededError } from '@/shared/lib/errors'
 import { inviteUserSchema } from '../lib/user.schema'
 import { UserRepository } from '../lib/user.repository'
@@ -25,7 +25,7 @@ export const inviteUser = safeAction(
     const currentCount = await UserRepository.countActiveMembers(tenantId)
     const withinLimit = await checkLimit(tenantId, 'maxUsers', currentCount)
     if (!withinLimit) {
-      throw new LimitExceededError('users', currentCount)
+      throw new LimitExceededError('users', await getLimit(tenantId, 'maxUsers'))
     }
 
     const invitation = await UserRepository.createInvitation(
