@@ -1,5 +1,6 @@
 'use client'
 
+import { useId } from 'react'
 import Link from 'next/link'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select'
 import { SlaBadge } from './sla-badge'
@@ -55,6 +56,12 @@ export function ConversationSidebar(props: ConversationSidebarProps) {
   const statusItems = referenceItems(statusValues)
   const priorityItems = referenceItems(priorityValues)
   const categoryItems = referenceItems(categoryValues)
+  // Each select takes its accessible name from the label above it.
+  const labelId = useId()
+  const assigneeLabelId = `${labelId}-assignee`
+  const statusLabelId = `${labelId}-status`
+  const priorityLabelId = `${labelId}-priority`
+  const categoryLabelId = `${labelId}-category`
 
   return (
     <aside className="w-[220px] shrink-0 space-y-4 border-l bg-card p-4 text-xs">
@@ -73,10 +80,10 @@ export function ConversationSidebar(props: ConversationSidebarProps) {
       </section>
 
       <section>
-        <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Assigned To</div>
+        <div id={assigneeLabelId} className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Assigned To</div>
         {canManage ? (
           <Select items={assigneeItems} value={assigneeId ?? UNASSIGNED} onValueChange={v => props.onAssigneeChange(v === UNASSIGNED ? null : v)}>
-            <SelectTrigger className="h-8 w-full"><SelectValue /></SelectTrigger>
+            <SelectTrigger aria-labelledby={assigneeLabelId} className="h-8 w-full"><SelectValue /></SelectTrigger>
             <SelectContent>
               {assigneeItems.map(a => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}
             </SelectContent>
@@ -87,30 +94,30 @@ export function ConversationSidebar(props: ConversationSidebarProps) {
       </section>
 
       <section>
-        <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Status</div>
+        <div id={statusLabelId} className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Status</div>
         {canManage ? (
           <Select items={statusItems} value={ticket.status} onValueChange={props.onStatusChange}>
-            <SelectTrigger className="h-8 w-full"><SelectValue /></SelectTrigger>
+            <SelectTrigger aria-labelledby={statusLabelId} className="h-8 w-full"><SelectValue /></SelectTrigger>
             <SelectContent>{statusItems.map(i => <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>)}</SelectContent>
           </Select>
         ) : <span>{statusValues.find(s => s.code === ticket.status)?.name}</span>}
       </section>
 
       <section>
-        <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Priority</div>
+        <div id={priorityLabelId} className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Priority</div>
         {canManage ? (
           <Select items={priorityItems} value={ticket.priority} onValueChange={props.onPriorityChange}>
-            <SelectTrigger className="h-8 w-full"><SelectValue /></SelectTrigger>
+            <SelectTrigger aria-labelledby={priorityLabelId} className="h-8 w-full"><SelectValue /></SelectTrigger>
             <SelectContent>{priorityItems.map(i => <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>)}</SelectContent>
           </Select>
         ) : <span>{priorityValues.find(p => p.code === ticket.priority)?.name}</span>}
       </section>
 
       <section>
-        <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Category</div>
+        <div id={categoryLabelId} className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Category</div>
         {canManage ? (
           <Select items={categoryItems} value={ticket.category} onValueChange={props.onCategoryChange}>
-            <SelectTrigger className="h-8 w-full"><SelectValue /></SelectTrigger>
+            <SelectTrigger aria-labelledby={categoryLabelId} className="h-8 w-full"><SelectValue /></SelectTrigger>
             <SelectContent>{categoryItems.map(i => <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>)}</SelectContent>
           </Select>
         ) : <span>{categoryValues.find(c => c.code === ticket.category)?.name}</span>}
