@@ -3,7 +3,7 @@
 This page describes what the Platform image needs at runtime in a self-hosted install: its environment, the PostgreSQL and Keycloak it relies on, its commands and probes, its scheduler, its license, and the runbooks for rotation and break-glass access.
 The installer writes every value marked "installer" below; an operator who runs the image without the installer sets the same values by hand.
 Platform and Studio never share an environment file.
-`src/shared/lib/runtime-config.docs.test.ts` fails when a variable the runtime schema reads is missing from the inventory below, when the migrate container's environment changes, when the break-glass statements drift from the ones the database tests run, or when the License section misses a state, a verification failure or the exact text of a refusal.
+`src/shared/lib/runtime-config.docs.test.ts` fails when a variable the runtime schema reads is missing from the inventory below, when the migrate container's environment changes, when the break-glass statements drift from the ones the database tests run, or when the License section does not list exactly the license states, or misses a verification failure or the exact text of a refusal.
 
 ## Environment inventory
 
@@ -32,18 +32,19 @@ The `maintain` command runs the same check before it opens any connection.
 | `QUERY_LOG_RETENTION_DAYS` | optional | `90` (the database keeps every event younger than 7 days) | installer |
 | `STUDIO_PUBLIC_URL` | self-hosted | `https://<studio>` | installer |
 | `BRIDGE_SEAL_PUBLIC_KEY` | self-hosted | unpadded base64url of Studio's raw 32-byte X25519 public key | installer |
-| `PLATFORM_LICENSE` | optional | the license token, unset on the free tier | installer config |
+| `PLATFORM_LICENSE` | self-hosted | the license token from LibreDB | installer config |
 | `PLATFORM_ORGANIZATION_NAME` | migrate container, self-hosted | the customer's name | installer config |
 | `NODE_EXTRA_CA_CERTS` | internal CA | `/etc/libredb/ca/ca.crt` | installer |
 | `STORAGE_PROVIDER` | optional | `LOCAL` | installer |
 | `STORAGE_LOCAL_PATH` | optional | a mounted volume | installer |
 | `PLATFORM_DB_VOLUME_BYTES` | optional | size of the managed PostgreSQL volume, unset for an external PostgreSQL | installer |
 
-`PLATFORM_LICENSE` holds the license token of a self-hosted install, one line of the form `ldl1.<kid>.<payload>.<signature>`, which the installer reads from the file that `platform.licenseFile` names.
-The server verifies it as it starts, against the public keys built into the image and, when the license lists hosts, against the host of `AUTH_URL`.
+`PLATFORM_LICENSE` holds the license token that every self-hosted install needs, one line of the form `ldl1.<kid>.<payload>.<signature>`, which the installer reads from the file that `platform.licenseFile` names.
+A missing or empty `PLATFORM_LICENSE` stops `serve` and `maintain` with the `ConfigError` that names it.
+The server verifies the token as it starts, against the public keys built into the image and, when the license lists hosts, against the host of `AUTH_URL`.
 It then logs one line with the license state, which carries the failure code of a token that fails verification or the id, customer and expiry of a valid license, and never the token.
-No value stops the server: without a token, or with a token that fails verification, the install runs on the free tier of 1 admin seat and 3 user seats.
-A new value takes effect when `serve` restarts, cloud mode ignores the variable, and the migrate container never receives it.
+A token that fails verification never stops the server: the install starts in state `invalid`, keeps its existing access, and adds no user, connection or admin until a valid license is installed.
+A new value takes effect when `serve` restarts, cloud mode ignores the variable, and the migrate container never receives it, so `migrate`, `migrate-status` and `migrate-resolve` run without it.
 The [License](#license) section describes the license states, how seats are counted and which writes a license refuses.
 `PLATFORM_ORGANIZATION_NAME` is read by the seed only: the first seed names the install's one tenant (slug `default`), and a later run never renames it.
 `STORAGE_PROVIDER` and `STORAGE_LOCAL_PATH` are read by the file storage of support attachments, not by the runtime schema.
@@ -146,6 +147,7 @@ The image's entry point is `docker/entrypoint.sh`, and each container runs one c
 
 Any other argument prints the usage and exits 64.
 The docker-smoke job of CI (`scripts/ci/docker-smoke.sh`) builds the image and runs `migrate` twice, `serve` until both probes answer 200, `maintain`, `migrate-status`, and an unknown argument that must exit 64.
+It gives `serve` and `maintain` a well-formed token that no key signed, with which Platform starts in state `invalid`, and checks that `serve` without `PLATFORM_LICENSE` stops with the `ConfigError` that names it.
 It also marks the newest migration failed, checks that `migrate` then stops with P3009, and repairs the history with `migrate-resolve --rolled-back` and `migrate-resolve --applied`, after which `migrate-status` exits 0.
 
 ## P3009 recovery
@@ -195,7 +197,7 @@ This release runs one replica of each component.
 
 ## License
 
-A self-hosted install runs on the free tier of 1 admin seat and 3 user seats until `PLATFORM_LICENSE` installs a license with the seats it names.
+Every self-hosted install needs a license from LibreDB, which `PLATFORM_LICENSE` installs with the seats it names, and `serve` does not start in self-hosted mode without it.
 Licensing applies only in self-hosted mode.
 No license state ends existing access: none deactivates a connection, revokes a grant, ends a session, hides the audit log or stops Platform from starting.
 
@@ -203,8 +205,7 @@ The state follows from the token and the clock on every request:
 
 | State | When | Seats |
 | --- | --- | --- |
-| `free` | `PLATFORM_LICENSE` is unset | 1 admin, 3 users |
-| `invalid` | the token fails verification | 1 admin, 3 users |
+| `invalid` | the token fails verification | none, so no seat can be added |
 | `active` | until 30 days before the license expires | the license's seats |
 | `expiring` | from 30 days before the expiry until the expiry | the license's seats |
 | `grace` | from the expiry, for 14 days | the license's seats |
@@ -213,8 +214,9 @@ The state follows from the token and the clock on every request:
 The boundaries are exact to the second: a license that expires at `T` is `expiring` from `T` minus 30 days, in `grace` from `T` and `expired` from `T` plus 14 days.
 A token fails verification when it is malformed (`LICENSE_MALFORMED`), when a key that this build does not hold signed it (`LICENSE_UNKNOWN_KID`), when its signature does not verify (`LICENSE_BAD_SIGNATURE`), when it carries no valid license (`LICENSE_PAYLOAD_INVALID`), and when the license lists hosts without the host of `AUTH_URL` (`LICENSE_HOST_MISMATCH`).
 
-Admins see a banner from 30 days before the expiry, in the grace period, after the expiry, for a token that fails verification, and whenever more seats are in use than the license allows, which can follow a change of license.
+Admins see a banner from 30 days before the expiry, in the grace period, after the expiry, for a token that fails verification, and whenever more seats are in use than a valid license allows, which can follow a change of license.
 Admin, License (`/admin/license`) shows the state and its dates, the seats in use against the seats allowed, the admins and the users who hold a seat with how Keycloak reports them, and how to renew.
+For a token that fails verification it shows the failure code and the seats in use without a limit, because such a token grants no seat, and where a valid license comes from.
 
 A user seat is a Keycloak user with an unexpired grant on a connection that is active and not deleted, which is a user that `bridge.grants_v1` publishes; an admin with such a grant takes a user seat as well.
 A user whom Keycloak disables or whose role it removes keeps the seat while the grant stays in effect, because enabling the account again restores the access without a Platform write.
@@ -228,10 +230,10 @@ A license refuses only the writes that would add a user, a connection or an admi
 
 | Write | Refused when |
 | --- | --- |
-| A grant on an active connection to a user who holds no user seat, which would give that user access now | the license has expired, or every user seat is in use |
-| A new connection | the license has expired, or more user seats are in use than the license allows |
-| Turning a connection active again | the license has expired, or the users who hold a seat together with the users of the connection's unexpired grants are more than the license allows |
-| The first sign-in of an admin who has no Platform user yet | the license has expired, or every admin seat is in use |
+| A grant on an active connection to a user who holds no user seat, which would give that user access now | the license is invalid or has expired, or every user seat is in use |
+| A new connection | the license is invalid or has expired, or more user seats are in use than the license allows |
+| Turning a connection active again | the license is invalid or has expired, or the users who hold a seat together with the users of the connection's unexpired grants are more than the license allows |
+| The first sign-in of an admin who has no Platform user yet | the license is invalid or has expired, or every admin seat is in use |
 
 Allowed in every state: changing the level or the expiry of a grant in effect, granting a user who holds a seat another connection, a grant on a paused connection, adding a write credential, rebinding a connection, revoking a grant, deactivating or deleting a connection, the sign-in of an admin who has signed in before, and every read.
 A grant on a paused connection takes no seat until the connection is turned active again, when the license counts it with the connection's other unexpired grants.
@@ -240,6 +242,7 @@ Each of these gated writes locks the row of the install tenant before it counts,
 A refused write shows the text of its code, and a refused first sign-in ends on the sign-in page with its code instead of `AccessDenied`:
 
 - `LICENSE_EXPIRED`: The license has expired. Existing access keeps working, and adding users, connections or admins needs a renewed license.
+- `LICENSE_INVALID`: The license could not be verified. Existing access keeps working, and adding users, connections or admins needs a valid license.
 - `LICENSE_USER_SEATS`: Not enough user seats. Free a seat by revoking all grants of a user, or install a license with more user seats.
 - `LICENSE_ADMIN_SEATS`: Not enough admin seats. Free a seat by removing the admin role from an account in Keycloak, or install a license with more admin seats.
 
@@ -249,9 +252,10 @@ A refused or failed first sign-in of an admin lands on the sign-in page:
 | --- | --- | --- |
 | `/login?error=LICENSE_ADMIN_SEATS` | Your first sign-in needs a free admin seat | The text of `LICENSE_ADMIN_SEATS` above |
 | `/login?error=LICENSE_EXPIRED` | Your first sign-in needs a renewed license | The text of `LICENSE_EXPIRED` above |
+| `/login?error=LICENSE_INVALID` | Your first sign-in needs a valid license | The text of `LICENSE_INVALID` above |
 | `/login?error=AdminSeatCheckFailed` | Sign-in failed | Try again. If it keeps failing, ask your administrator to check the Platform logs. |
 
-Once an admin exists, the first sign-in of another admin asks Keycloak whether each admin still holds a seat, which needs the Admin API rights of the service account, `view-users` and `view-clients`, listed in the [Keycloak contract](#keycloak-contract).
+Once an admin exists, the first sign-in of another admin under a valid license that has not expired asks Keycloak whether each admin still holds a seat, which needs the Admin API rights of the service account, `view-users` and `view-clients`, listed in the [Keycloak contract](#keycloak-contract).
 When Keycloak cannot be read, that sign-in fails on `/login?error=AdminSeatCheckFailed` and Platform logs the cause; the sign-in of an admin who has signed in before never asks Keycloak about seats.
 
 License keys come from SEKOYA GRUP BİLİŞİM VE TEKNOLOJİ LİMİTED ŞİRKETİ: write to [info@libredb.org](mailto:info@libredb.org) for a new license or a renewal, with what the [Docker install guide](install-docker.md#request-a-license) lists.

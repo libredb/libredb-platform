@@ -49,8 +49,7 @@ function valid(state: keyof typeof AT, userSeats: number): LicenseStatus {
   return status
 }
 
-// Without a token, and with a token that fails verification: 3 user seats either way.
-const FREE = licenseStatus(null, AT.active)
+// A token that fails verification, which grants no seat.
 const INVALID = licenseStatus({ ok: false, code: 'LICENSE_HOST_MISMATCH' }, AT.active)
 
 // A published test key of Studio's lsb1 vectors, which protects nothing.
@@ -225,7 +224,7 @@ describe('the license gates of grants and connections on PostgreSQL', () => {
     vi.unstubAllEnvs()
   })
 
-  it('refuses a grant to a subject without a user seat at the limit and after expiry, and gives a seat holder another level, expiry or connection in every state', async () => {
+  it('refuses a grant to a subject without a user seat under an invalid license, at the limit and after expiry, and gives a seat holder another level, expiry or connection in every state', async () => {
     const orders = await newConnection()
     await grantTo(orders, 'alice')
     await grantTo(orders, 'bob', null, { expiresAt: new Date(Date.now() + DAY_MS) })
@@ -233,8 +232,7 @@ describe('the license gates of grants and connections on PostgreSQL', () => {
     const recorded = await adminActions()
 
     const statuses: Array<[string, LicenseStatus, string]> = [
-      ['free', FREE, 'LICENSE_USER_SEATS'],
-      ['invalid', INVALID, 'LICENSE_USER_SEATS'],
+      ['invalid', INVALID, 'LICENSE_INVALID'],
       ['active', valid('active', 3), 'LICENSE_USER_SEATS'],
       ['expiring', valid('expiring', 3), 'LICENSE_USER_SEATS'],
       ['grace', valid('grace', 3), 'LICENSE_USER_SEATS'],
@@ -261,14 +259,14 @@ describe('the license gates of grants and connections on PostgreSQL', () => {
     expect(await published()).toEqual(['alice', 'bob', 'carol', 'zoe'])
   })
 
-  it('allows a grant on a paused connection to a subject without a user seat, and a change of it, at the limit and after expiry, refuses the same grant on an active connection, and counts it when the connection turns active again', async () => {
+  it('allows a grant on a paused connection to a subject without a user seat, and a change of it, at the limit, under an invalid license and after expiry, refuses the same grant on an active connection, and counts it when the connection turns active again', async () => {
     const orders = await newConnection()
     for (const subject of ['alice', 'bob', 'carol']) await grantTo(orders, subject)
     const paused = await newConnection({ active: false })
     const recorded = await adminActions()
 
     const statuses: Array<[string, LicenseStatus, string]> = [
-      ['free', FREE, 'LICENSE_USER_SEATS'],
+      ['invalid', INVALID, 'LICENSE_INVALID'],
       ['active at the limit', valid('active', 3), 'LICENSE_USER_SEATS'],
       ['expired', valid('expired', 100), 'LICENSE_EXPIRED'],
     ]
@@ -287,7 +285,7 @@ describe('the license gates of grants and connections on PostgreSQL', () => {
 
     // Active again, the connection would publish zoe as a fourth user seat.
     const refused: Array<[string, LicenseStatus, string]> = [
-      ['free', FREE, 'LICENSE_USER_SEATS'],
+      ['invalid', INVALID, 'LICENSE_INVALID'],
       ['active at the limit', valid('active', 3), 'LICENSE_USER_SEATS'],
       ['expired', valid('expired', 100), 'LICENSE_EXPIRED'],
     ]
@@ -334,24 +332,24 @@ describe('the license gates of grants and connections on PostgreSQL', () => {
       expect(await outcome(grantTo(reports, 'alice', license)), name).toBe('allowed')
     }
 
-    // Their grants count toward no limit: with 2 user seats in use, a license of 2 allows a new connection, and the
-    // free tier's 3 a grant to zoe, after which the next new subject is refused.
+    // Their grants count toward no limit: with 2 user seats in use, a license of 2 allows a new connection, and one of
+    // 3 a grant to zoe, after which the next new subject is refused.
     expect(await outcome(connections.create(TENANT, ACTOR, connectionInput(randomUUID()), valid('active', 2)))).toBe(
       'allowed',
     )
-    expect(await outcome(grantTo(orders, 'zoe', FREE))).toBe('allowed')
-    expect(await outcome(grantTo(orders, 'yann', FREE))).toBe('LICENSE_USER_SEATS')
+    expect(await outcome(grantTo(orders, 'zoe', valid('active', 3)))).toBe('allowed')
+    expect(await outcome(grantTo(orders, 'yann', valid('active', 3)))).toBe('LICENSE_USER_SEATS')
     expect(await published()).toEqual(['alice', 'bob', 'zoe'])
   })
 
-  it('refuses a new connection after expiry and when more user seats are in use than allowed, and allows one at the limit', async () => {
+  it('refuses a new connection under an invalid license, after expiry and when more user seats are in use than allowed, and allows one at the limit', async () => {
     const orders = await newConnection()
     for (const subject of ['alice', 'bob', 'carol']) await grantTo(orders, subject)
     const recorded = await adminActions()
 
     const statuses: Array<[string, LicenseStatus, string]> = [
-      ['free at the limit', FREE, 'allowed'],
-      ['invalid at the limit', INVALID, 'allowed'],
+      ['invalid', INVALID, 'LICENSE_INVALID'],
+      ['active at the limit', valid('active', 3), 'allowed'],
       ['grace at the limit', valid('grace', 3), 'allowed'],
       ['active above the limit', valid('active', 2), 'LICENSE_USER_SEATS'],
       ['expiring above the limit', valid('expiring', 2), 'LICENSE_USER_SEATS'],
@@ -369,7 +367,7 @@ describe('the license gates of grants and connections on PostgreSQL', () => {
     expect(await adminActions()).toBe(recorded + created.length)
   })
 
-  it('refuses turning a connection active again when the subjects of its unexpired grants bring the user seats above the limit, and after expiry', async () => {
+  it('refuses turning a connection active again when the subjects of its unexpired grants bring the user seats above the limit, under an invalid license and after expiry', async () => {
     const orders = await newConnection()
     await grantTo(orders, 'alice')
     await grantTo(orders, 'bob')
@@ -388,7 +386,7 @@ describe('the license gates of grants and connections on PostgreSQL', () => {
     // Active again, the connection would publish carol and dave as well: 4 user seats.
     const refused: Array<[string, LicenseStatus, string]> = [
       ['active with 3 seats', valid('active', 3), 'LICENSE_USER_SEATS'],
-      ['free', FREE, 'LICENSE_USER_SEATS'],
+      ['invalid', INVALID, 'LICENSE_INVALID'],
       ['expired', valid('expired', 100), 'LICENSE_EXPIRED'],
     ]
     for (const [name, license, code] of refused) {
@@ -515,10 +513,10 @@ describe('the license gates of grants and connections on PostgreSQL', () => {
     let refusal: Promise<string> | undefined
     try {
       await lock.query('UPDATE platform.database_connections SET active = true WHERE id = $1', [paused])
-      // zoe holds no seat and the free tier's 3 user seats are in use, so her grant would take a fourth one once the
+      // zoe holds no seat and the license's 3 user seats are in use, so her grant would take a fourth one once the
       // connection is active; it waits for the row before it reads the connection.
       let settled = false
-      refusal = outcome(grantTo(paused, 'zoe', FREE)).finally(() => {
+      refusal = outcome(grantTo(paused, 'zoe', valid('active', 3))).finally(() => {
         settled = true
       })
       await lock.waiters(1)
@@ -536,7 +534,7 @@ describe('the license gates of grants and connections on PostgreSQL', () => {
     expect(await published()).toEqual(['alice', 'bob', 'carol'])
   })
 
-  it('keeps every existing grant in bridge.grants_v1 after expiry, and deactivates no connection and revokes no grant', async () => {
+  it('keeps every existing grant in bridge.grants_v1 under an invalid license and after expiry, and deactivates no connection and revokes no grant', async () => {
     const orders = await newConnection()
     const reports = await newConnection()
     const paused = await newConnection()
@@ -554,14 +552,19 @@ describe('the license gates of grants and connections on PostgreSQL', () => {
     expect(before.published.map((row) => row.subject)).toEqual(['alice', 'bob', 'carol'])
 
     const expired = valid('expired', 100)
-    expect(await outcome(grantTo(orders, 'zoe', expired))).toBe('LICENSE_EXPIRED')
-    expect(await outcome(connections.create(TENANT, ACTOR, connectionInput(randomUUID()), expired))).toBe('LICENSE_EXPIRED')
-    expect(await outcome(reactivate(paused, expired))).toBe('LICENSE_EXPIRED')
+    for (const [license, code] of [
+      [INVALID, 'LICENSE_INVALID'],
+      [expired, 'LICENSE_EXPIRED'],
+    ] as const) {
+      expect(await outcome(grantTo(orders, 'zoe', license)), code).toBe(code)
+      expect(await outcome(connections.create(TENANT, ACTOR, connectionInput(randomUUID()), license)), code).toBe(code)
+      expect(await outcome(reactivate(paused, license)), code).toBe(code)
+    }
 
     expect(await snapshot()).toEqual(before)
 
     // The writes that add no seat still change what they change, and leave every other grant published.
-    expect(await outcome(grantTo(orders, 'bob', expired, { level: 'write' }))).toBe('allowed')
+    expect(await outcome(grantTo(orders, 'bob', INVALID, { level: 'write' }))).toBe('allowed')
     expect(await outcome(grantTo(reports, 'alice', expired))).toBe('allowed')
     const after = await snapshot()
     const pair = (row: { subject: string; connection_id: string }) => `${row.subject} on ${row.connection_id}`

@@ -65,7 +65,7 @@ const userSeatHolders = vi.hoisted(() =>
 )
 vi.mock('../lib/grant.repository', () => ({ ConnectionGrantRepository: { userSeatHolders } }))
 
-import { licenseStatus } from '@/shared/lib/license'
+import { SMALL_LICENSE_ACTIVE } from '../../../../tests/license/statuses'
 import { searchDirectoryUsers } from './search-directory-users'
 
 // Keycloak user ids of the fixture realm, tests/fixtures/keycloak/libredb-test-realm.json.
@@ -213,7 +213,7 @@ describe('searchDirectoryUsers', () => {
   })
 
   it('marks each user who holds no user seat, whom a grant would give a new one', async () => {
-    license.status = licenseStatus(null, new Date())
+    license.status = SMALL_LICENSE_ACTIVE
     // alice holds a seat through a grant as an admin, and bob as a user.
     license.seatHolders = new Set([ALICE, BOB])
 

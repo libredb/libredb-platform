@@ -7,7 +7,6 @@
 export { LICENSE_ERROR_CODES, type LicenseErrorCode } from './errors'
 export { LICENSE_KEYS } from './keys'
 export {
-  FREE_TIER_LIMITS,
   licenseStatus,
   type LicenseBoundaries,
   type LicenseState,

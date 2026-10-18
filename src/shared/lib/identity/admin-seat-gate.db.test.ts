@@ -32,8 +32,9 @@ function valid(state: 'active' | 'expired', adminSeats: number): LicenseStatus {
   return status
 }
 
-// Without a token: 1 admin seat.
-const FREE = licenseStatus(null, new Date('2027-01-01T00:00:00Z'))
+// A license of 1 admin seat, and a token that fails verification, which grants no seat.
+const ONE_ADMIN_SEAT = valid('active', 1)
+const INVALID = licenseStatus({ ok: false, code: 'LICENSE_HOST_MISMATCH' }, new Date('2027-01-01T00:00:00Z'))
 
 const ADMIN: KeycloakAccount = { enabled: true, roles: ['admin'] }
 
@@ -160,16 +161,21 @@ describe('the admin-seat gate of a first Keycloak sign-in on PostgreSQL', () => 
     vi.unstubAllEnvs()
   })
 
-  it('admits the first admin on the free tier and refuses the next new one, while an admin with a user signs in in every state', async () => {
+  it('admits the first admin under a license of 1 admin seat and refuses the next new one, admits no new admin under an invalid license, and lets an admin with a user sign in in every state', async () => {
     realm = { 'kc-alice': ADMIN, 'kc-zoe': ADMIN }
-    expect(await outcome(admit('alice', FREE))).toBe('admitted')
+    // A token that fails verification grants no seat, so not even the first admin of the install takes one.
+    expect(await outcome(admit('alice', INVALID))).toBe('LICENSE_INVALID')
+    expect(await users()).toEqual([])
+
+    expect(await outcome(admit('alice', ONE_ADMIN_SEAT))).toBe('admitted')
     expect(await users()).toEqual(['kc-alice'])
 
-    expect(await outcome(admit('zoe', FREE))).toBe('LICENSE_ADMIN_SEATS')
+    expect(await outcome(admit('zoe', ONE_ADMIN_SEAT))).toBe('LICENSE_ADMIN_SEATS')
+    expect(await outcome(admit('zoe', INVALID))).toBe('LICENSE_INVALID')
     expect(await outcome(admit('zoe', valid('expired', 100)))).toBe('LICENSE_EXPIRED')
     expect(await users()).toEqual(['kc-alice'])
 
-    for (const license of [FREE, valid('expired', 100), valid('active', 0)]) {
+    for (const license of [ONE_ADMIN_SEAT, INVALID, valid('expired', 100), valid('active', 0)]) {
       expect(await outcome(admit('alice', license))).toBe('admitted')
     }
     expect(await users()).toEqual(['kc-alice'])
@@ -180,19 +186,19 @@ describe('the admin-seat gate of a first Keycloak sign-in on PostgreSQL', () => 
 
   it('frees the seat of an admin whose account Keycloak disabled or deleted, or whose admin role it removed', async () => {
     realm = { 'kc-alice': ADMIN, 'kc-bea': ADMIN, 'kc-cem': ADMIN, 'kc-dan': ADMIN }
-    expect(await outcome(admit('alice', FREE))).toBe('admitted')
+    expect(await outcome(admit('alice', ONE_ADMIN_SEAT))).toBe('admitted')
 
-    // The free tier's one admin seat is held by the admin admitted last, until Keycloak frees it for the next one.
+    // The license's one admin seat is held by the admin admitted last, until Keycloak frees it for the next one.
     const steps: Array<[string, string, KeycloakAccount | null]> = [
       ['bea', 'kc-alice', { enabled: false, roles: ['admin'] }],
       ['cem', 'kc-bea', { enabled: true, roles: ['user'] }],
       ['dan', 'kc-cem', null],
     ]
     for (const [next, holder, change] of steps) {
-      expect(await outcome(admit(next, FREE)), next).toBe('LICENSE_ADMIN_SEATS')
+      expect(await outcome(admit(next, ONE_ADMIN_SEAT)), next).toBe('LICENSE_ADMIN_SEATS')
       if (change === null) delete realm[holder]
       else realm[holder] = change
-      expect(await outcome(admit(next, FREE)), next).toBe('admitted')
+      expect(await outcome(admit(next, ONE_ADMIN_SEAT)), next).toBe('admitted')
     }
     expect(await users()).toEqual(['kc-alice', 'kc-bea', 'kc-cem', 'kc-dan'])
   })
@@ -202,7 +208,7 @@ describe('the admin-seat gate of a first Keycloak sign-in on PostgreSQL', () => 
     const lock = await holdTenantRow()
     try {
       let settled = false
-      const first = admit('alice', FREE).finally(() => {
+      const first = admit('alice', ONE_ADMIN_SEAT).finally(() => {
         settled = true
       })
       await lock.waiters(1)
@@ -216,7 +222,7 @@ describe('the admin-seat gate of a first Keycloak sign-in on PostgreSQL', () => 
     // alice has a user now, so her next sign-in ends while the row is held.
     const again = await holdTenantRow()
     try {
-      expect(await outcome(admit('alice', FREE))).toBe('admitted')
+      expect(await outcome(admit('alice', ONE_ADMIN_SEAT))).toBe('admitted')
     } finally {
       await again.release()
     }
@@ -224,7 +230,7 @@ describe('the admin-seat gate of a first Keycloak sign-in on PostgreSQL', () => 
 
   it('admits exactly one of two new admins who ask for the last admin seat at the same time', async () => {
     realm = { 'kc-alice': ADMIN, 'kc-bea': ADMIN, 'kc-cem': ADMIN }
-    expect(await outcome(admit('alice', FREE))).toBe('admitted')
+    expect(await outcome(admit('alice', ONE_ADMIN_SEAT))).toBe('admitted')
     const oneSeatLeft = valid('active', 2)
 
     // Both sign-ins wait for the held row, so neither counts the seats before the other one could have committed.
@@ -250,7 +256,7 @@ describe('the admin-seat gate of a first Keycloak sign-in on PostgreSQL', () => 
     realm = { 'kc-alice': ADMIN }
 
     const lock = await holdTenantRow()
-    const race = Promise.allSettled([admit('alice', FREE), admit('alice', FREE)])
+    const race = Promise.allSettled([admit('alice', ONE_ADMIN_SEAT), admit('alice', ONE_ADMIN_SEAT)])
     try {
       await lock.waiters(2)
     } finally {
@@ -266,14 +272,14 @@ describe('the admin-seat gate of a first Keycloak sign-in on PostgreSQL', () => 
     // The Platform client in Keycloak has "Use refresh tokens" off, so the account of zoe's sign-in carries none.
     const account = { provider: 'keycloak', type: 'oidc', providerAccountId: 'kc-zoe', id_token: 'zoe-id-token' }
     const profile = { sub: 'kc-zoe', email: 'zoe@libredb.test', name: 'zoe', libredb_roles: ['admin'] }
-    const { signIn, jwt } = callbacksOf(FREE)
+    const { signIn, jwt } = callbacksOf(ONE_ADMIN_SEAT)
 
     await expect(signIn({ user: {}, account, profile })).resolves.toBe(true)
     await expect(jwt({ token: {}, account, profile, trigger: 'signIn' })).rejects.toThrow(ConfigError)
     expect(await users()).toEqual([])
 
-    // The free tier's one admin seat is still free.
-    expect(await outcome(admit('alice', FREE))).toBe('admitted')
+    // The license's one admin seat is still free.
+    expect(await outcome(admit('alice', ONE_ADMIN_SEAT))).toBe('admitted')
     expect(await users()).toEqual(['kc-alice'])
   })
 })

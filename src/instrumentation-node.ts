@@ -28,8 +28,8 @@ export function registerNodeRuntime(): void {
     setImmediate(() => process.exit(1))
     throw error
   }
-  // Outside the checks above, because no license problem stops the start: an install whose token fails verification
-  // runs on the free tier, and logLicenseStatus never throws.
+  // Outside the checks above, which require a token in self-hosted mode, because no token stops the start: an install
+  // whose token fails verification adds no seat and keeps its existing access, and logLicenseStatus never throws.
   logLicenseStatus()
   let scheduler: Scheduler | undefined
   if (config.DEPLOYMENT_MODE === 'self-hosted') {

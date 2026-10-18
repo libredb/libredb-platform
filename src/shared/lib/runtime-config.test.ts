@@ -20,12 +20,16 @@ const KEYCLOAK = {
 // Studio's seal public key: the recipient key of Studio's lsb1 test vectors, a published test key.
 const BRIDGE_SEAL_PUBLIC_KEY = 'b6-f045B6re3Ue7V8Cr5jO9ApZzyOxGk659gM3tn5wE'
 
+// A value in the form of a license token that no key signed; the schema passes it on, and the license module verifies it.
+const PLATFORM_LICENSE = 'ldl1.0123456789abcdef.e30.AA'
+
 const SELF_HOSTED: RuntimeEnv = {
   ...CLOUD,
   DEPLOYMENT_MODE: 'self-hosted',
   STUDIO_PUBLIC_URL: 'https://studio.example.test',
   ...KEYCLOAK,
   BRIDGE_SEAL_PUBLIC_KEY,
+  PLATFORM_LICENSE,
 }
 
 // The flat ID-token claim and the Keycloak roles that every install uses unless it overrides them.
@@ -70,6 +74,7 @@ describe('readRuntimeConfig', () => {
       STUDIO_PUBLIC_URL: 'https://studio.example.test',
       ...KEYCLOAK,
       BRIDGE_SEAL_PUBLIC_KEY,
+      PLATFORM_LICENSE,
       ...ROLE_DEFAULTS,
       ...RECHECK_DEFAULTS,
       QUERY_LOG_RETENTION_DAYS: 90,
@@ -99,6 +104,7 @@ describe('readRuntimeConfig', () => {
       'AUTH_KEYCLOAK_ID',
       'AUTH_KEYCLOAK_SECRET',
       'BRIDGE_SEAL_PUBLIC_KEY',
+      'PLATFORM_LICENSE',
     ]) {
       expect(error.message).toContain(name)
     }
@@ -331,13 +337,19 @@ describe('readRuntimeConfig', () => {
     }
   })
 
-  it('PLATFORM_LICENSE is optional in both modes and no value of it is ever refused', () => {
+  it('requires PLATFORM_LICENSE in self-hosted mode only, and refuses no value of it', () => {
+    for (const value of [undefined, '']) {
+      expect(configError({ ...SELF_HOSTED, PLATFORM_LICENSE: value }).message).toBe(
+        'Invalid runtime configuration: PLATFORM_LICENSE is required in self-hosted mode',
+      )
+    }
+    expect(readRuntimeConfig(CLOUD).PLATFORM_LICENSE).toBeUndefined()
+    expect(readRuntimeConfig({ ...CLOUD, PLATFORM_LICENSE: '' }).PLATFORM_LICENSE).toBeUndefined()
+
+    // The license module verifies the token, and a token that fails verification never stops the start, so the
+    // configuration passes every value on unchanged, even one that is no token at all.
     for (const env of [CLOUD, SELF_HOSTED]) {
-      expect(readRuntimeConfig(env).PLATFORM_LICENSE).toBeUndefined()
-      expect(readRuntimeConfig({ ...env, PLATFORM_LICENSE: '' }).PLATFORM_LICENSE).toBeUndefined()
-      // The license module verifies the token, and a token that fails verification runs the install on the free tier,
-      // so the configuration passes every value on unchanged, even one that is no token at all.
-      for (const value of ['ldl1.0123456789abcdef.e30.AA', 'ldl2.another-format', 'not a license', ' ldl1 ', 'x'.repeat(100_000)]) {
+      for (const value of [PLATFORM_LICENSE, 'ldl2.another-format', 'not a license', ' ldl1 ', 'x'.repeat(100_000)]) {
         expect(readRuntimeConfig({ ...env, PLATFORM_LICENSE: value }).PLATFORM_LICENSE).toBe(value)
       }
     }

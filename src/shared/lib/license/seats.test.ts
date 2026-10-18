@@ -36,8 +36,7 @@ function valid(state: keyof typeof AT, userSeats: number): LicenseStatus {
   return status
 }
 
-// Without a token, and with a token that fails verification: 3 user seats either way.
-const FREE = licenseStatus(null, AT.active)
+// A token that fails verification, which grants no seat.
 const INVALID = licenseStatus({ ok: false, code: 'LICENSE_BAD_SIGNATURE' }, AT.active)
 
 function connection(id: string, overrides: Row = {}): Row {
@@ -108,7 +107,7 @@ const GATES: Array<[string, (tx: SeatClient, license: LicenseStatus | null) => P
 
 describe('the seat gates', () => {
   it('make no statement and refuse nothing without a license status, which is cloud mode', async () => {
-    // Far more subjects than any tier allows.
+    // Far more subjects than any license of the tests allows.
     const crowded = tables()
     const many = Array.from({ length: 50 }, (_, index) => grant('conn-orders', `user-${index}`))
     const rows = { ...crowded, connectionGrant: [...crowded.connectionGrant, ...many] }
@@ -141,9 +140,8 @@ describe('the seat gates', () => {
     }
   })
 
-  it('refuse a grant on an active connection to a subject without a user seat after expiry and when the seats in use reach the limit, and allow one to a subject who holds a seat in every state', async () => {
+  it('refuse a grant on an active connection to a subject without a user seat under an invalid license, after expiry and when the seats in use reach the limit, and allow one to a subject who holds a seat in every state', async () => {
     const statuses: Array<[string, LicenseStatus]> = [
-      ['free', FREE],
       ['invalid', INVALID],
       ['active below the limit', valid('active', 4)],
       ['active at the limit', valid('active', 3)],
@@ -165,8 +163,7 @@ describe('the seat gates', () => {
 
     const newSubjects = (code: string) => ({ zoe: code, dave: code, erin: code, frank: code, bob: 'allowed', carol: 'allowed' })
     expect(outcomes).toEqual({
-      free: newSubjects('LICENSE_USER_SEATS'),
-      invalid: newSubjects('LICENSE_USER_SEATS'),
+      invalid: newSubjects('LICENSE_INVALID'),
       'active below the limit': newSubjects('allowed'),
       'active at the limit': newSubjects('LICENSE_USER_SEATS'),
       'active above the limit': newSubjects('LICENSE_USER_SEATS'),
@@ -177,10 +174,9 @@ describe('the seat gates', () => {
     })
   })
 
-  it('allow a grant on a paused connection to a subject without a user seat, and a change of it, at the limit and after expiry, and refuse the same grant on an active connection', async () => {
+  it('allow a grant on a paused connection to a subject without a user seat, and a change of it, under an invalid license, at the limit and after expiry, and refuse the same grant on an active connection', async () => {
     const statuses: Array<[string, LicenseStatus, string]> = [
-      ['free at the limit', FREE, 'LICENSE_USER_SEATS'],
-      ['invalid at the limit', INVALID, 'LICENSE_USER_SEATS'],
+      ['invalid', INVALID, 'LICENSE_INVALID'],
       ['active above the limit', valid('active', 2), 'LICENSE_USER_SEATS'],
       ['grace at the limit', valid('grace', 3), 'LICENSE_USER_SEATS'],
       ['expired below the limit', valid('expired', 100), 'LICENSE_EXPIRED'],
@@ -203,10 +199,9 @@ describe('the seat gates', () => {
     }
   })
 
-  it('refuse a new connection after expiry and when the seats in use are above the limit, and allow it at the limit', async () => {
+  it('refuse a new connection under an invalid license, after expiry and when the seats in use are above the limit, and allow it at the limit', async () => {
     const statuses: Array<[string, LicenseStatus, string]> = [
-      ['free at the limit', FREE, 'allowed'],
-      ['invalid at the limit', INVALID, 'allowed'],
+      ['invalid', INVALID, 'LICENSE_INVALID'],
       ['active at the limit', valid('active', 3), 'allowed'],
       ['active above the limit', valid('active', 2), 'LICENSE_USER_SEATS'],
       ['expiring above the limit', valid('expiring', 2), 'LICENSE_USER_SEATS'],
@@ -217,17 +212,18 @@ describe('the seat gates', () => {
       expect(await outcome(requireSeatsForNewConnection(transaction().tx, license, TENANT)), name).toBe(expected)
     }
 
-    // A fourth subject puts the free tier above its limit.
+    // A fourth subject puts a license of 3 user seats above its limit.
     const over = tables()
     const rows = { ...over, connectionGrant: [...over.connectionGrant, grant('conn-orders', 'zoe')] }
-    expect(await outcome(requireSeatsForNewConnection(transaction(rows).tx, FREE, TENANT))).toBe('LICENSE_USER_SEATS')
+    expect(await outcome(requireSeatsForNewConnection(transaction(rows).tx, valid('active', 3), TENANT))).toBe(
+      'LICENSE_USER_SEATS',
+    )
   })
 
-  it('refuse turning a connection active again after expiry and when its unexpired grants would bring the seats in use above the limit', async () => {
+  it('refuse turning a connection active again under an invalid license, after expiry and when its unexpired grants would bring the seats in use above the limit', async () => {
     // conn-paused adds dave to alice, bob and carol: 4 seats, while bob holds one already and gina's grant expired.
     const statuses: Array<[string, LicenseStatus, string]> = [
-      ['free', FREE, 'LICENSE_USER_SEATS'],
-      ['invalid', INVALID, 'LICENSE_USER_SEATS'],
+      ['invalid', INVALID, 'LICENSE_INVALID'],
       ['active with 4 seats', valid('active', 4), 'allowed'],
       ['active with 3 seats', valid('active', 3), 'LICENSE_USER_SEATS'],
       ['expiring with 3 seats', valid('expiring', 3), 'LICENSE_USER_SEATS'],
@@ -241,10 +237,27 @@ describe('the seat gates', () => {
     }
   })
 
+  it('refuse under an invalid license before they count any seat, whatever the seats in use, and let a grant on a paused connection pass', async () => {
+    const expected: Record<string, string> = {
+      'a grant': 'LICENSE_INVALID',
+      'a grant on a paused connection': 'allowed',
+      'a new connection': 'LICENSE_INVALID',
+      'a reactivation': 'LICENSE_INVALID',
+    }
+    // No grant at all, so every limit of a valid license would allow these writes.
+    const rows = { ...tables(), connectionGrant: [] }
+    for (const [write, gate] of GATES) {
+      const { tx, statements } = transaction(rows)
+      expect(await outcome(gate(tx, INVALID)), write).toBe(expected[write])
+      expect(locksTenant(statements[0].text), write).toBe(true)
+      expect(statements.filter((statement) => statement.text.includes('count(')), write).toEqual([])
+    }
+  })
+
   it('allow a write to a connection that is active already, deleted, of another tenant or unknown, in every state', async () => {
     // None of these turns a connection active again: the write keeps the seats as they are, or answers NotFound.
     for (const connectionId of ['conn-orders', 'conn-gone', 'conn-foreign', 'conn-unknown']) {
-      for (const license of [valid('expired', 0), valid('active', 0), FREE]) {
+      for (const license of [valid('expired', 0), valid('active', 0), INVALID]) {
         const { tx } = transaction()
         expect(await outcome(requireSeatsForReactivation(tx, license, TENANT, connectionId)), connectionId).toBe('allowed')
       }

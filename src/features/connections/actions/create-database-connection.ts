@@ -16,8 +16,8 @@ import { requireSealKey, sealCredential } from '../lib/credential-sealing'
  * Creates a connection Studio serves through bridge.connections_v1. The id is generated before
  * sealing, because the AAD of each envelope binds it with the engine and the definition, and the row and its
  * admin action are written in one transaction. The creator gets no grant: access to a connection comes from grants
- * alone. In self-hosted mode the license of the install refuses a new connection once it has expired, and while more
- * user seats are in use than it allows. Returns the id only, never an envelope.
+ * alone. In self-hosted mode the license of the install refuses a new connection when it could not be verified or has
+ * expired, and while more user seats are in use than it allows. Returns the id only, never an envelope.
  */
 export const createDatabaseConnection = safeAction(
   'createDatabaseConnection',

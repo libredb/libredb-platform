@@ -62,6 +62,7 @@ describe('LoginPage', () => {
   it.each([
     ['LICENSE_ADMIN_SEATS', 'Your first sign-in needs a free admin seat'],
     ['LICENSE_EXPIRED', 'Your first sign-in needs a renewed license'],
+    ['LICENSE_INVALID', 'Your first sign-in needs a valid license'],
   ] as const)('explains %s as the refusal of the license and not as a missing admin role', async (code, title) => {
     await renderLogin('self-hosted', { error: code })
 

@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/shared/components/ui/table'
-import { FREE_TIER_LIMITS, type LicenseErrorCode } from '@/shared/lib/license'
+import type { LicenseErrorCode } from '@/shared/lib/license'
 import type { AdminSeatState } from '@/shared/lib/license/admin-seats'
 import type { HolderAccount, LicensePageData, LicenseSummary } from '../lib/license-page'
 
@@ -26,7 +26,6 @@ function formatTime(iso: string): string {
 }
 
 const STATE_LABELS: Record<LicenseSummary['state'], string> = {
-  free: 'Free tier',
   invalid: 'Invalid',
   active: 'Active',
   expiring: 'Expiring',
@@ -35,7 +34,6 @@ const STATE_LABELS: Record<LicenseSummary['state'], string> = {
 }
 
 const STATE_VARIANTS = {
-  free: 'secondary',
   invalid: 'destructive',
   active: 'success',
   expiring: 'warning',
@@ -52,14 +50,10 @@ const FAILURE_REASONS: Record<LicenseErrorCode, string> = {
   LICENSE_HOST_MISMATCH: 'the license does not list the host of AUTH_URL',
 }
 
-const FREE_TIER = `the free tier of ${FREE_TIER_LIMITS.adminSeats} admin seat${FREE_TIER_LIMITS.adminSeats === 1 ? '' : 's'} and ${FREE_TIER_LIMITS.userSeats} user seats`
-
 function stateText(license: LicenseSummary): string {
   switch (license.state) {
-    case 'free':
-      return `No license is installed, so the install runs on ${FREE_TIER}.`
     case 'invalid':
-      return `The installed license could not be verified (${license.code}): ${FAILURE_REASONS[license.code]}. The install runs on ${FREE_TIER}.`
+      return `The installed license could not be verified (${license.code}): ${FAILURE_REASONS[license.code]}. No user, connection or admin can be added until a valid license is installed, and existing access keeps working.`
     case 'active':
       return `The license is valid until ${formatTime(license.expiresAt)}.`
     case 'expiring':
@@ -98,12 +92,26 @@ function Section({ id, title, children }: { id: string; title: string; children:
   )
 }
 
+/** A link that writes to the licensor, where license keys come from. */
+function ContactLink() {
+  return (
+    <a href={`mailto:${LICENSE_CONTACT}`} className="font-medium underline underline-offset-2">
+      {LICENSE_CONTACT}
+    </a>
+  )
+}
+
 function StatusSection({ license }: { license: LicenseSummary }) {
   return (
     <Section id="license-status-heading" title="Status">
       <Badge variant={STATE_VARIANTS[license.state]}>{STATE_LABELS[license.state]}</Badge>
       <p className="text-sm text-muted-foreground">{stateText(license)}</p>
-      {license.state !== 'free' && license.state !== 'invalid' && (
+      {license.state === 'invalid' && (
+        <p className="text-sm text-muted-foreground">
+          Write to <ContactLink /> for a license that this install can verify.
+        </p>
+      )}
+      {license.state !== 'invalid' && (
         <dl className="grid max-w-2xl grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-sm">
           <dt className="text-muted-foreground">Customer</dt>
           <dd>{license.customer}</dd>
@@ -123,21 +131,39 @@ function StatusSection({ license }: { license: LicenseSummary }) {
   )
 }
 
+/** A count of seats without a bar: the seats in use of a license that allows none, or Unknown. */
+function SeatCount({ label, text }: { label: string; text: string }) {
+  return (
+    <div className="flex items-center justify-between text-xs">
+      <span className="font-medium uppercase tracking-wider text-muted-foreground">{label}</span>
+      <span className="tabular-nums">{text}</span>
+    </div>
+  )
+}
+
+/**
+ * The seats in use against the seats allowed, or only the seats in use when the license allows none, so that no count
+ * reads as a limit of 0; Unknown when Keycloak could not be asked how many are in use.
+ */
+function SeatUse({ label, inUse, allowed }: { label: string; inUse: number | null; allowed: number | null }) {
+  if (inUse === null) return <SeatCount label={label} text="Unknown" />
+  if (allowed === null) return <SeatCount label={label} text={`${inUse} in use`} />
+  return <UsageBar label={label} used={inUse} limit={allowed} />
+}
+
 function SeatsSection({ data }: { data: LicensePageData }) {
   const { adminSeats, userSeats } = data
   return (
     <Section id="license-seats-heading" title="Seats">
       <div className="grid max-w-2xl gap-6 sm:grid-cols-2">
-        {adminSeats.inUse === null ? (
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-medium uppercase tracking-wider text-muted-foreground">Admin seats</span>
-            <span>Unknown</span>
-          </div>
-        ) : (
-          <UsageBar label="Admin seats" used={adminSeats.inUse} limit={adminSeats.allowed} />
-        )}
-        <UsageBar label="User seats" used={userSeats.inUse} limit={userSeats.allowed} />
+        <SeatUse label="Admin seats" inUse={adminSeats.inUse} allowed={adminSeats.allowed} />
+        <SeatUse label="User seats" inUse={userSeats.inUse} allowed={userSeats.allowed} />
       </div>
+      {data.license.state === 'invalid' && (
+        <p className="text-sm text-muted-foreground">
+          An invalid license grants no seat, so only the seats in use are shown.
+        </p>
+      )}
     </Section>
   )
 }
@@ -288,11 +314,8 @@ export function LicenseOverview({ data }: { data: LicensePageData }) {
       <UsersSection userSeats={data.userSeats} />
       <Section id="license-renew-heading" title="Renew">
         <p className="max-w-3xl text-sm text-muted-foreground">
-          License keys come from SEKOYA GRUP BİLİŞİM VE TEKNOLOJİ LİMİTED ŞİRKETİ: write to{' '}
-          <a href={`mailto:${LICENSE_CONTACT}`} className="font-medium underline underline-offset-2">
-            {LICENSE_CONTACT}
-          </a>{' '}
-          for a new license or a renewal.
+          License keys come from SEKOYA GRUP BİLİŞİM VE TEKNOLOJİ LİMİTED ŞİRKETİ: write to <ContactLink /> for a new
+          license or a renewal.
         </p>
         <p className="max-w-3xl text-sm text-muted-foreground">
           To install or renew a license, save the license file you receive at the path that{' '}

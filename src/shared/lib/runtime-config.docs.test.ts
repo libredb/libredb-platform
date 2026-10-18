@@ -73,9 +73,9 @@ describe('docs/deploy/platform-runtime.md', () => {
   it('the license section names every state, every verification failure and the exact text of every refusal', () => {
     const license = section(readDoc(), 'License')
     const lines = license.split('\n')
-    for (const state of ['free', 'invalid', 'active', 'expiring', 'grace', 'expired']) {
-      expect(lines.some(line => line.startsWith(`| \`${state}\` |`)), state).toBe(true)
-    }
+    // The rows of the table of states, which lists each state once and no other.
+    const states = lines.map(line => /^\| `([a-z]+)` \|/.exec(line)?.[1]).filter(state => state !== undefined)
+    expect(states).toEqual(['invalid', 'active', 'expiring', 'grace', 'expired'])
     for (const code of LICENSE_ERROR_CODES) {
       expect(license).toContain(`\`${code}\``)
     }
@@ -88,7 +88,7 @@ describe('docs/deploy/platform-runtime.md', () => {
   it('the license section names where a refused or failed first sign-in of an admin lands, and the Keycloak rights it needs', () => {
     const license = section(readDoc(), 'License')
     // The codes the admin-seat gate refuses a first sign-in with.
-    const refusals: LicenseLimitCode[] = ['LICENSE_ADMIN_SEATS', 'LICENSE_EXPIRED']
+    const refusals: LicenseLimitCode[] = ['LICENSE_ADMIN_SEATS', 'LICENSE_EXPIRED', 'LICENSE_INVALID']
     for (const landing of [...refusals.map(code => `/login?error=${code}`), ADMIN_SEAT_CHECK_FAILED_URL]) {
       expect(license, landing).toContain(`\`${landing}\``)
     }

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
+import { SMALL_LICENSE_ACTIVE } from '../../../../tests/license/statuses'
 import { licenseStatus, type LicensePayload, type LicenseStatus } from '@/shared/lib/license'
 import { licenseNotice, type SeatsInUse } from '@/shared/lib/license/notice'
 import { LicenseBanner } from './license-banner'
@@ -26,7 +27,6 @@ function valid(state: keyof typeof AT): LicenseStatus {
   return licenseStatus({ ok: true, license: LICENSE }, AT[state])
 }
 
-const FREE = licenseStatus(null, AT.active)
 const INVALID = licenseStatus({ ok: false, code: 'LICENSE_MALFORMED' }, AT.active)
 const WITHIN: SeatsInUse = { userSeats: 3, adminSeats: 1 }
 
@@ -42,8 +42,8 @@ function banner(title: string): HTMLElement {
 }
 
 describe('LicenseBanner', () => {
-  it('renders nothing for an active license or the free tier within their limits', () => {
-    for (const status of [valid('active'), FREE]) {
+  it('renders nothing for an active license within its limits', () => {
+    for (const status of [valid('active'), SMALL_LICENSE_ACTIVE]) {
       const { container, unmount } = renderBanner(status)
       expect(container, status.state).toBeEmptyDOMElement()
       unmount()
@@ -74,16 +74,18 @@ describe('LicenseBanner', () => {
     )
   })
 
-  it('names an invalid license with its code and the free tier it runs on', () => {
+  it('names an invalid license with its code, and that nothing can be added until a valid one is installed', () => {
     renderBanner(INVALID)
 
-    expect(banner('The license is invalid')).toHaveTextContent(
-      'Platform could not verify the installed license (LICENSE_MALFORMED), so the install runs on the free tier of 1 admin seat and 3 user seats.',
+    const invalid = banner('The license is invalid')
+    expect(invalid).toHaveTextContent(
+      'Platform could not verify the installed license (LICENSE_MALFORMED). No user, connection or admin can be added until a valid license is installed. Existing access keeps working.',
     )
+    expect(invalid).not.toHaveTextContent(/free tier/i)
   })
 
-  it('reports user and admin seats over the limit, in any state', () => {
-    const { unmount } = renderBanner(FREE, { userSeats: 5, adminSeats: 2 })
+  it('reports user and admin seats over the limit of a valid license, in any of its states', () => {
+    const { unmount } = renderBanner(SMALL_LICENSE_ACTIVE, { userSeats: 5, adminSeats: 2 })
 
     const over = banner('More seats are in use than the license allows')
     expect(over).toHaveTextContent('5 user seats are in use, and the license allows 3: no user or connection can be added until seats are freed.')
@@ -91,11 +93,17 @@ describe('LicenseBanner', () => {
     expect(over).toHaveTextContent('Existing access keeps working.')
     unmount()
 
-    // An invalid license over the user limit keeps its own title and adds the seats.
-    renderBanner(INVALID, { userSeats: 4, adminSeats: 1 })
-    const invalid = banner('The license is invalid')
-    expect(invalid).toHaveTextContent('4 user seats are in use, and the license allows 3')
-    expect(invalid).not.toHaveTextContent('admin seats are in use')
+    // An expired license over the user limit keeps its own title and adds the seats.
+    renderBanner(valid('expired'), { userSeats: 30, adminSeats: 1 })
+    const expired = banner('The license has expired')
+    expect(expired).toHaveTextContent('30 user seats are in use, and the license allows 25')
+    expect(expired).not.toHaveTextContent('admin seats are in use')
+  })
+
+  it('reports no seats over a limit for an invalid license, which grants none', () => {
+    renderBanner(INVALID, { userSeats: 40, adminSeats: 5 })
+
+    expect(banner('The license is invalid')).not.toHaveTextContent('seats are in use')
   })
 
   it('counts one seat in the singular', () => {

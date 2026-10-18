@@ -45,6 +45,8 @@ export class LimitExceededError extends AppError {
 const LICENSE_LIMIT_MESSAGES = {
   LICENSE_EXPIRED:
     'The license has expired. Existing access keeps working, and adding users, connections or admins needs a renewed license.',
+  LICENSE_INVALID:
+    'The license could not be verified. Existing access keeps working, and adding users, connections or admins needs a valid license.',
   LICENSE_USER_SEATS:
     'Not enough user seats. Free a seat by revoking all grants of a user, or install a license with more user seats.',
   LICENSE_ADMIN_SEATS:
@@ -64,7 +66,10 @@ export function licenseLimitMessage(code: LicenseLimitCode): string {
   return LICENSE_LIMIT_MESSAGES[code]
 }
 
-/** A write that the license of a self-hosted install refuses: one after its expiry, or beyond its user or admin seats. */
+/**
+ * A write that the license of a self-hosted install refuses: one under a license that could not be verified, one after
+ * its expiry, or one beyond its user or admin seats.
+ */
 export class LicenseLimitError extends AppError {
   declare readonly code: LicenseLimitCode
 

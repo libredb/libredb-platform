@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { SMALL_LICENSE_ACTIVE } from '../../../../tests/license/statuses'
 import {
   KeycloakAuthError,
   KeycloakConfigError,
@@ -39,7 +40,6 @@ const LICENSE: LicensePayload = {
   expiresAt: 1_823_644_800,
 }
 
-const FREE = licenseStatus(null, new Date('2027-01-01T00:00:00Z'))
 const INVALID = licenseStatus({ ok: false, code: 'LICENSE_MALFORMED' }, new Date('2027-01-01T00:00:00Z'))
 const EXPIRED = licenseStatus({ ok: true, license: LICENSE }, new Date('2027-11-01T00:00:00Z'))
 
@@ -60,7 +60,8 @@ function adminUsage(admins: number): AdminSeatUsage {
 }
 
 beforeEach(() => {
-  install.status = FREE
+  // An active license of 1 admin seat and 3 user seats.
+  install.status = SMALL_LICENSE_ACTIVE
   install.userSeats = 2
   install.adminSeats = async () => adminUsage(1)
 })
@@ -81,7 +82,7 @@ describe('getLicenseNotice', () => {
     expect(getAdminSeatUsage).not.toHaveBeenCalled()
   })
 
-  it('is null on the free tier within its limits, and names an invalid license', async () => {
+  it('is null for an active license within its limits, and names an invalid license', async () => {
     expect(await getLicenseNotice(ADMIN)).toBeNull()
     expect(countUserSeatsInUse).toHaveBeenCalledWith(db)
 
@@ -91,6 +92,24 @@ describe('getLicenseNotice', () => {
       userSeatsOver: null,
       adminSeatsOver: null,
     })
+  })
+
+  it('names an invalid license alone without reading any seat, because it grants none', async () => {
+    install.status = INVALID
+    install.userSeats = 40
+    // A Keycloak that does not answer, which the banner of an invalid license neither waits for nor logs.
+    install.adminSeats = async () => {
+      throw new KeycloakUnavailableError('Keycloak Admin API GET /users/{id} did not answer within 5 s')
+    }
+
+    expect(await getLicenseNotice(ADMIN)).toEqual({
+      attention: { state: 'invalid', code: 'LICENSE_MALFORMED' },
+      userSeatsOver: null,
+      adminSeatsOver: null,
+    })
+    expect(countUserSeatsInUse).not.toHaveBeenCalled()
+    expect(getAdminSeatUsage).not.toHaveBeenCalled()
+    expect(logger.warn).not.toHaveBeenCalled()
   })
 
   it('counts the user seats in the database and the admin seats through Keycloak', async () => {
@@ -117,14 +136,14 @@ describe('getLicenseNotice', () => {
   })
 
   it('leaves the admin seats out when Keycloak does not answer, and throws a KeycloakConfigError', async () => {
-    install.status = INVALID
+    install.userSeats = 4
     install.adminSeats = async () => {
       throw new KeycloakUnavailableError('Keycloak Admin API GET /users/{id} did not answer within 5 s')
     }
 
     expect(await getLicenseNotice(ADMIN)).toEqual({
-      attention: { state: 'invalid', code: 'LICENSE_MALFORMED' },
-      userSeatsOver: null,
+      attention: null,
+      userSeatsOver: { inUse: 4, allowed: 3 },
       adminSeatsOver: null,
     })
     expect(logger.warn).toHaveBeenCalledWith('License notice: the Keycloak directory is unreachable', {
@@ -149,14 +168,13 @@ describe('getLicenseNotice', () => {
       'Keycloak Admin API GET /users/{id} answered 401 to a new service-account token of client libredb-platform',
     ),
   ])('leaves the admin seats out and logs once when Keycloak refuses with a $name', async (refusal) => {
-    install.status = INVALID
     install.userSeats = 4
     install.adminSeats = async () => {
       throw refusal
     }
 
     expect(await getLicenseNotice(ADMIN)).toEqual({
-      attention: { state: 'invalid', code: 'LICENSE_MALFORMED' },
+      attention: null,
       userSeatsOver: { inUse: 4, allowed: 3 },
       adminSeatsOver: null,
     })
@@ -177,13 +195,19 @@ describe('getNewConnectionRefusal', () => {
     expect(countUserSeatsInUse).not.toHaveBeenCalled()
   })
 
-  it('gives the refusal text of an expired license, and of user seats above the limit', async () => {
+  it('gives the refusal text of an invalid license and of an expired one whatever the seats in use, and of user seats above the limit', async () => {
+    install.userSeats = 0
+    install.status = INVALID
+    expect(await getNewConnectionRefusal()).toBe(
+      'The license could not be verified. Existing access keeps working, and adding users, connections or admins needs a valid license.',
+    )
+
     install.status = EXPIRED
     expect(await getNewConnectionRefusal()).toBe(
       'The license has expired. Existing access keeps working, and adding users, connections or admins needs a renewed license.',
     )
 
-    install.status = FREE
+    install.status = SMALL_LICENSE_ACTIVE
     install.userSeats = 4
     expect(await getNewConnectionRefusal()).toBe(
       'Not enough user seats. Free a seat by revoking all grants of a user, or install a license with more user seats.',

@@ -45,8 +45,7 @@ function valid(state: keyof typeof AT, adminSeats: number): LicenseStatus {
   return status
 }
 
-// Without a token, and with a token that fails verification: 1 admin seat either way.
-const FREE = licenseStatus(null, AT.active)
+// A token that fails verification, which grants no seat.
 const INVALID = licenseStatus({ ok: false, code: 'LICENSE_BAD_SIGNATURE' }, AT.active)
 
 // The Keycloak realm: alice holds admin directly and grace through a group, so both have it among their effective
@@ -205,9 +204,8 @@ describe('requireAdminSeat', () => {
     expect(missing.statements).toHaveLength(1)
   })
 
-  it('refuses a new admin after expiry and when the admin seats in use reach the limit, and lets every identity with a Platform user pass in every state', async () => {
+  it('refuses a new admin under an invalid license, after expiry and when the admin seats in use reach the limit, and lets every identity with a Platform user pass in every state', async () => {
     const statuses: Array<[string, LicenseStatus]> = [
-      ['free', FREE],
       ['invalid', INVALID],
       ['active below the limit', valid('active', 3)],
       ['active at the limit', valid('active', 2)],
@@ -237,8 +235,7 @@ describe('requireAdminSeat', () => {
       'kc-gone': 'allowed',
     })
     expect(outcomes).toEqual({
-      free: newAdmin('LICENSE_ADMIN_SEATS'),
-      invalid: newAdmin('LICENSE_ADMIN_SEATS'),
+      invalid: newAdmin('LICENSE_INVALID'),
       'active below the limit': newAdmin('allowed'),
       'active at the limit': newAdmin('LICENSE_ADMIN_SEATS'),
       'active above the limit': newAdmin('LICENSE_ADMIN_SEATS'),

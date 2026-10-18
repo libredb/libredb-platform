@@ -8,7 +8,7 @@
  * HTTP call runs while the gate holds the lock of the install tenant that every gated write shares (seats.ts).
  *
  * No license state ends any access: the gate refuses only the first sign-in of an admin who has no Platform user yet,
- * while an admin who has one signs in in every state.
+ * while an admin who has one signs in in every state, a license that could not be verified included.
  */
 import type { Prisma } from '@prisma/client'
 import { LicenseLimitError } from '../errors'
@@ -87,8 +87,8 @@ export async function identitiesWithoutAdminSeat(
  * began, as holding no seat. Every other Platform user of a Keycloak account counts as a seat, a user created since
  * included, because only a first sign-in that passed this gate creates one.
  * An identity whose user exists by now, such as one whose other first sign-in committed first, takes no new seat and
- * passes in every state. Otherwise an expired license refuses the sign-in, and so does a license whose admin seats are
- * all in use. Without a license status, which is cloud mode, the gate neither locks nor counts.
+ * passes in every state. Otherwise an invalid or expired license refuses the sign-in, and so does a license whose admin
+ * seats are all in use. Without a license status, which is cloud mode, the gate neither locks nor counts.
  */
 export async function requireAdminSeat(
   tx: AdminSeatClient,
@@ -101,6 +101,7 @@ export async function requireAdminSeat(
   await lockInstallTenant(tx, tenantId)
   const identities = await adminIdentities(tx)
   if (identities.some((identity) => identity.keycloakId === keycloakId)) return
+  if (license.state === 'invalid') throw new LicenseLimitError('LICENSE_INVALID')
   if (license.state === 'expired') throw new LicenseLimitError('LICENSE_EXPIRED')
   const seatsInUse = identities.filter((identity) => !withoutSeat.has(identity.keycloakId)).length
   if (seatsInUse >= license.limits.adminSeats) throw new LicenseLimitError('LICENSE_ADMIN_SEATS')

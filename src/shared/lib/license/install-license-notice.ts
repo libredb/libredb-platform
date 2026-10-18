@@ -44,7 +44,7 @@ async function adminSeatsInUse(user: Pick<CurrentUser, 'id' | 'directoryDegraded
 
 /**
  * The notice of the dashboard banner for this session, or null when there is none: in cloud mode, for a session
- * without PLATFORM_ADMIN, and for an active license or the free tier with no more seats in use than they allow.
+ * without PLATFORM_ADMIN, and for an active license with no more seats in use than it allows.
  */
 export async function getLicenseNotice(
   user: Pick<CurrentUser, 'id' | 'roles' | 'directoryDegraded'>,
@@ -52,6 +52,11 @@ export async function getLicenseNotice(
   if (!user.roles.includes('PLATFORM_ADMIN')) return null
   const status = getLicenseStatus()
   if (status === null) return null
+  // An invalid license grants no seat, so its notice names the failure alone and reads no seat: the banner neither
+  // counts in the database nor waits for Keycloak.
+  if (status.state === 'invalid') {
+    return { attention: { state: 'invalid', code: status.code }, userSeatsOver: null, adminSeatsOver: null }
+  }
   const [userSeats, adminSeats] = await Promise.all([countUserSeatsInUse(db), adminSeatsInUse(user)])
   return licenseNotice(status, { userSeats, adminSeats })
 }

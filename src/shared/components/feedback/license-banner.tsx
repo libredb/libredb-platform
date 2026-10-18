@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import { KeyRound } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/alert'
-import { FREE_TIER_LIMITS } from '@/shared/lib/license'
 import type { LicenseAttention, LicenseNotice, SeatUse } from '@/shared/lib/license/notice'
 import { cn } from '@/shared/lib/utils'
 
@@ -42,7 +41,7 @@ function attentionText(attention: LicenseAttention): string {
     case 'expired':
       return 'No user, connection or admin can be added until a renewed license is installed. Existing access keeps working.'
     case 'invalid':
-      return `Platform could not verify the installed license (${attention.code}), so the install runs on the free tier of ${seatText(FREE_TIER_LIMITS.adminSeats, 'admin')} and ${seatText(FREE_TIER_LIMITS.userSeats, 'user')}.`
+      return `Platform could not verify the installed license (${attention.code}). No user, connection or admin can be added until a valid license is installed. Existing access keeps working.`
   }
 }
 
@@ -63,7 +62,7 @@ interface LicenseBannerProps {
 /**
  * Tells an admin of a self-hosted install that the license needs attention: it expires within 30 days, is in its grace
  * period, has expired or failed verification, or more seats are in use than it allows. It links to the License page,
- * and renders nothing for an active license or the free tier within their limits.
+ * and renders nothing for an active license within its limits.
  */
 export function LicenseBanner({ notice, className }: LicenseBannerProps) {
   if (notice === null) return null

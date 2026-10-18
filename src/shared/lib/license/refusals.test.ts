@@ -20,7 +20,6 @@ const LICENSE: LicensePayload = {
 }
 
 const STATUSES: Record<string, LicenseStatus> = {
-  free: licenseStatus(null, new Date('2027-01-01T00:00:00Z')),
   invalid: licenseStatus({ ok: false, code: 'LICENSE_UNKNOWN_KID' }, new Date('2027-01-01T00:00:00Z')),
   active: licenseStatus({ ok: true, license: LICENSE }, new Date('2027-01-01T00:00:00Z')),
   expiring: licenseStatus({ ok: true, license: LICENSE }, new Date('2027-10-01T00:00:00Z')),
@@ -66,10 +65,11 @@ describe('newConnectionRefusal', () => {
     }
   })
 
-  it('refuses after expiry and above the limit, and allows a connection at the limit', () => {
+  it('refuses under an invalid license, after expiry and above the limit, and allows a connection at the limit', () => {
+    expect(newConnectionRefusal(STATUSES.invalid, 0)).toBe('LICENSE_INVALID')
     expect(newConnectionRefusal(STATUSES.expired, 0)).toBe('LICENSE_EXPIRED')
-    expect(newConnectionRefusal(STATUSES.free, 4)).toBe('LICENSE_USER_SEATS')
-    expect(newConnectionRefusal(STATUSES.free, 3)).toBeNull()
+    expect(newConnectionRefusal(STATUSES.active, 4)).toBe('LICENSE_USER_SEATS')
+    expect(newConnectionRefusal(STATUSES.active, 3)).toBeNull()
     expect(newConnectionRefusal(STATUSES.grace, 3)).toBeNull()
   })
 

@@ -8,12 +8,13 @@ import type { LicenseStatus } from './state'
 
 /**
  * The code the gate of a new connection would refuse with at this many user seats in use, or null when it would allow
- * one: an expired license refuses every new connection, and so does an install with more user seats in use than its
- * license allows, while one at its limit may still add a connection, which takes no seat by itself. Without a license
- * status, which is cloud mode, nothing is refused.
+ * one: an invalid or expired license refuses every new connection, and so does an install with more user seats in use
+ * than its license allows, while one at its limit may still add a connection, which takes no seat by itself. Without a
+ * license status, which is cloud mode, nothing is refused.
  */
 export function newConnectionRefusal(license: LicenseStatus | null, userSeatsInUse: number): LicenseLimitCode | null {
   if (license === null) return null
+  if (license.state === 'invalid') return 'LICENSE_INVALID'
   if (license.state === 'expired') return 'LICENSE_EXPIRED'
   if (userSeatsInUse > license.limits.userSeats) return 'LICENSE_USER_SEATS'
   return null

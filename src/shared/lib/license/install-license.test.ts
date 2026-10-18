@@ -29,8 +29,6 @@ const EXPIRING_AT = new Date('2027-10-01T00:00:00Z')
 const GRACE_AT = new Date('2027-10-20T00:00:00Z')
 const EXPIRED_AT = new Date('2027-11-01T00:00:00Z')
 
-const FREE_TIER = { adminSeats: 1, userSeats: 3 }
-
 const CLOUD: Record<string, string> = {
   DEPLOYMENT_MODE: 'cloud',
   DATABASE_URL: 'postgresql://libredb_platform:db-password@db.internal:5432/libredb?schema=platform',
@@ -81,16 +79,32 @@ describe('getLicenseStatus', () => {
     }
   })
 
-  it('is free in self-hosted mode without PLATFORM_LICENSE, and an empty value counts as unset', async () => {
+  it('throws the ConfigError of the runtime configuration in self-hosted mode without PLATFORM_LICENSE, and an empty value counts as unset', async () => {
     for (const token of [undefined, '']) {
       const { getLicenseStatus } = await startProcess({ ...SELF_HOSTED, PLATFORM_LICENSE: token })
-      expect(getLicenseStatus(ACTIVE_AT)).toEqual({ state: 'free', limits: FREE_TIER })
+      expect(() => getLicenseStatus(ACTIVE_AT)).toThrow(
+        'Invalid runtime configuration: PLATFORM_LICENSE is required in self-hosted mode',
+      )
+    }
+  })
+
+  it('throws instead of making up a state for a self-hosted configuration without PLATFORM_LICENSE from any other source', async () => {
+    vi.doMock('../runtime-config', () => ({
+      getRuntimeConfig: () => ({ DEPLOYMENT_MODE: 'self-hosted', AUTH_URL: 'https://platform.example.test' }),
+    }))
+    try {
+      const { getLicenseStatus } = await startProcess(SELF_HOSTED)
+      expect(() => getLicenseStatus(ACTIVE_AT)).toThrow(
+        expect.objectContaining({ code: 'CONFIG_ERROR', message: 'PLATFORM_LICENSE is required in self-hosted mode' }),
+      )
+    } finally {
+      vi.doUnmock('../runtime-config')
     }
   })
 
   it('verifies PLATFORM_LICENSE against the key list of the build and the host of AUTH_URL', async () => {
     const valid = (license: LicensePayload) => ({ state: 'active', license, limits: { adminSeats: 2, userSeats: 25 } })
-    const invalid = (code: LicenseErrorCode) => ({ state: 'invalid', code, limits: FREE_TIER })
+    const invalid = (code: LicenseErrorCode) => ({ state: 'invalid', code })
     const cases: Array<[string, Record<string, string | undefined>, object]> = [
       ['a license bound to no host', { PLATFORM_LICENSE: sign(LICENSE) }, valid(LICENSE)],
       ['a license bound to no host, without AUTH_URL', { PLATFORM_LICENSE: sign(LICENSE), AUTH_URL: undefined }, valid(LICENSE)],
@@ -235,24 +249,21 @@ describe('logLicenseStatus', () => {
       logLicenseStatus()
 
       expect(printedLines(), code).toEqual([
-        { level: 'warn', message: 'License invalid, running on the free tier', state: 'invalid', code },
+        { level: 'warn', message: 'License invalid, no seat can be added', state: 'invalid', code },
       ])
       expectTokenNotPrinted(token)
       vi.restoreAllMocks()
     }
   })
 
-  it('logs one line with the free tier without PLATFORM_LICENSE, and nothing in cloud mode', async () => {
-    silenceConsole()
-    const selfHosted = await startProcess(SELF_HOSTED)
-    selfHosted.logLicenseStatus()
-    expect(printedLines()).toEqual([{ level: 'info', message: 'No license, running on the free tier', state: 'free' }])
-    vi.restoreAllMocks()
-
-    silenceConsole()
-    const cloud = await startProcess({ ...CLOUD, PLATFORM_LICENSE: sign(LICENSE) })
-    cloud.logLicenseStatus()
-    expect(printedLines()).toEqual([])
+  it('logs nothing in cloud mode, whatever PLATFORM_LICENSE holds', async () => {
+    for (const token of [undefined, 'ldl1.leaked-license-value', sign(LICENSE)]) {
+      silenceConsole()
+      const cloud = await startProcess({ ...CLOUD, PLATFORM_LICENSE: token })
+      cloud.logLicenseStatus()
+      expect(printedLines()).toEqual([])
+      vi.restoreAllMocks()
+    }
   })
 
   it('logs the failure and returns for a key list that is not valid, so the start goes on', async () => {

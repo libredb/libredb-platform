@@ -34,7 +34,7 @@ afterEach(() => {
 })
 
 describe('GrantDialog', () => {
-  it.each(['LICENSE_USER_SEATS', 'LICENSE_EXPIRED'] as const)(
+  it.each(['LICENSE_USER_SEATS', 'LICENSE_EXPIRED', 'LICENSE_INVALID'] as const)(
     'shows the exact text of the %s refusal of a new grant and stays open',
     async (code) => {
       // safeAction answers a write that the license refuses with the message of its LicenseLimitError, as

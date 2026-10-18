@@ -50,6 +50,7 @@ describe('SignInError', () => {
     expect(landings.map(landing => landing.code)).toEqual([
       'LICENSE_ADMIN_SEATS',
       'LICENSE_EXPIRED',
+      'LICENSE_INVALID',
       ADMIN_SEAT_CHECK_FAILED,
     ])
     for (const { code, title, text } of landings) {

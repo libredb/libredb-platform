@@ -16,7 +16,6 @@ export const LICENSE_HOLDERS_PAGE_SIZE = 20
 
 /** The license of the install as the page shows it, with its times as ISO strings. */
 export type LicenseSummary =
-  | { readonly state: 'free' }
   | { readonly state: 'invalid'; readonly code: LicenseErrorCode }
   | {
       readonly state: 'active' | 'expiring' | 'grace' | 'expired'
@@ -53,14 +52,16 @@ export type DirectoryReading = 'available' | 'degraded' | 'unreachable' | 'refus
 export interface LicensePageData {
   readonly license: LicenseSummary
   readonly adminSeats: {
-    readonly allowed: number
+    /** Null for a license that grants no seat, which an invalid one is. */
+    readonly allowed: number | null
     /** Null when Keycloak could not be asked. */
     readonly inUse: number | null
     /** Every admin identity by email, or null when Keycloak could not be asked. */
     readonly holders: readonly AdminSeatHolderRow[] | null
   }
   readonly userSeats: {
-    readonly allowed: number
+    /** Null for a license that grants no seat, which an invalid one is. */
+    readonly allowed: number | null
     readonly inUse: number
     /** The holders of the page shown, by username. */
     readonly holders: readonly UserSeatHolderRow[]
@@ -78,7 +79,6 @@ export function parseHoldersPage(query: Record<string, string | string[] | undef
 }
 
 function summaryOf(status: LicenseStatus): LicenseSummary {
-  if (status.state === 'free') return { state: 'free' }
   if (status.state === 'invalid') return { state: 'invalid', code: status.code }
   const iso = (seconds: number) => new Date(seconds * 1000).toISOString()
   return {
@@ -166,7 +166,7 @@ async function readAccounts(
  * The License page of this self-hosted install: the license, the seats in use against the seats it allows, every
  * admin identity, and one page of the holders of user seats, each with how Keycloak reports them now. The seats in use
  * are counted in the database without a lock, as the gates count them, and the admin seats come from a reading of
- * Keycloak at most 60 seconds old.
+ * Keycloak at most 60 seconds old. An invalid license allows no seat, so its seats in use have no limit.
  */
 export async function loadLicensePage(
   user: Pick<CurrentUser, 'id' | 'directoryDegraded'>,
@@ -183,11 +183,12 @@ export async function loadLicensePage(
     max: LICENSE_HOLDERS_PAGE_SIZE,
   })
   const { directory, admins, accounts } = await readAccounts(user, holders)
+  const limits = status.state === 'invalid' ? null : status.limits
 
   return {
     license: summaryOf(status),
     adminSeats: {
-      allowed: status.limits.adminSeats,
+      allowed: limits === null ? null : limits.adminSeats,
       inUse: admins === null ? null : admins.seatsInUse,
       holders:
         admins === null
@@ -195,7 +196,7 @@ export async function loadLicensePage(
           : admins.identities.map(({ keycloakId, email, name, state }) => ({ keycloakId, email, name, state })),
     },
     userSeats: {
-      allowed: status.limits.userSeats,
+      allowed: limits === null ? null : limits.userSeats,
       inUse,
       holders: holders.map((holder, index) => ({ ...holder, account: accounts[index] })),
       page,

@@ -1,10 +1,10 @@
 /**
  * The license state of an install, computed from the outcome of verifying its token and from the clock on every read.
  *
- * Without a token an install is `free`, and with a token that fails verification `invalid`; both run on the free tier.
- * A valid license is `active` until 30 days before it expires, then `expiring`, then `grace` for the 14 days after its
- * expiry, while its seats still apply, and `expired` from then on, when additions stop. No state ends any existing
- * access: a state only decides whether a new seat may be taken.
+ * A token that fails verification is `invalid`, and grants no seat. A valid license is `active` until 30 days before it
+ * expires, then `expiring`, then `grace` for the 14 days after its expiry, while its seats still apply, and `expired`
+ * from then on, when additions stop. No state ends any existing access: a state only decides whether a new seat may be
+ * taken.
  */
 import type { LicenseErrorCode } from './errors'
 import type { LicensePayload, LicenseVerification } from './token'
@@ -14,9 +14,6 @@ export interface SeatLimits {
   readonly adminSeats: number
   readonly userSeats: number
 }
-
-/** The free tier: 1 admin seat and 3 user seats, without a license or with one that fails verification. */
-export const FREE_TIER_LIMITS: SeatLimits = Object.freeze({ adminSeats: 1, userSeats: 3 })
 
 const DAY_SECONDS = 86_400
 /** Admins see a warning from this many days before the license expires. */
@@ -35,8 +32,8 @@ export interface LicenseBoundaries {
 }
 
 export type LicenseStatus =
-  | { readonly state: 'free'; readonly limits: SeatLimits }
-  | { readonly state: 'invalid'; readonly code: LicenseErrorCode; readonly limits: SeatLimits }
+  // A token that fails verification grants no seat, so its status has no limits, unlike a valid license of 0 seats.
+  | { readonly state: 'invalid'; readonly code: LicenseErrorCode }
   | {
       readonly state: 'active' | 'expiring' | 'grace' | 'expired'
       readonly license: LicensePayload
@@ -48,14 +45,13 @@ export type LicenseStatus =
 export type LicenseState = LicenseStatus['state']
 
 /**
- * The status of an install at `now`. `verification` is the outcome of verifying the install's token, or null when the
- * install has none. A `now` that is not a valid date throws a RangeError, so a broken clock never reads as a state.
+ * The status of an install at `now`, from the outcome of verifying the install's token. A `now` that is not a valid
+ * date throws a RangeError, so a broken clock never reads as a state.
  */
-export function licenseStatus(verification: LicenseVerification | null, now: Date): LicenseStatus {
+export function licenseStatus(verification: LicenseVerification, now: Date): LicenseStatus {
   const nowMs = now.getTime()
   if (Number.isNaN(nowMs)) throw new RangeError('The license state needs a valid date')
-  if (verification === null) return { state: 'free', limits: FREE_TIER_LIMITS }
-  if (!verification.ok) return { state: 'invalid', code: verification.code, limits: FREE_TIER_LIMITS }
+  if (!verification.ok) return { state: 'invalid', code: verification.code }
 
   const { license } = verification
   const boundaries: LicenseBoundaries = {

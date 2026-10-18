@@ -76,8 +76,8 @@ test.describe('Keycloak sign-in in self-hosted mode', () => {
     expect(await countUsersByKeycloakId(FIXTURE_USERS.carol.keycloakId)).toBe(0)
   })
 
-  test("grace, an admin who never signed in, is refused while alice holds the free tier's one admin seat", async ({ page, browser }) => {
-    // The server runs without PLATFORM_LICENSE, so the install is on the free tier of 1 admin seat, which alice takes.
+  test("grace, an admin who never signed in, is refused while alice holds the license's one admin seat", async ({ page, browser }) => {
+    // The license of the run, in PLATFORM_LICENSE, has 1 admin seat, which alice takes.
     const aliceContext = await browser.newContext()
     try {
       await signInThroughKeycloak(await aliceContext.newPage(), FIXTURE_USERS.alice)

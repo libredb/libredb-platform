@@ -136,8 +136,9 @@ export const DatabaseConnectionRepository = {
 
   /**
    * Inserts a connection and its admin action in one transaction. `license` is the license status of the install, or
-   * null in cloud mode: the seat gate refuses a new connection after expiry and while more user seats are in use than
-   * the license allows, and locks the row of the tenant before anything else.
+   * null in cloud mode: the seat gate refuses a new connection under a license that could not be verified or has
+   * expired, and while more user seats are in use than the license allows, and locks the row of the tenant before
+   * anything else.
    */
   create(
     tenantId: string,

@@ -135,6 +135,7 @@ vi.mock('@/shared/lib/license/install-license', () => ({ getLicenseStatus: () =>
 
 import { createDatabaseConnection } from './create-database-connection'
 import { answerSeatStatement, locksTenant, statementText } from '../../../../tests/license/seat-statements'
+import { SMALL_LICENSE_ACTIVE } from '../../../../tests/license/statuses'
 import { LicenseLimitError } from '@/shared/lib/errors'
 import { licenseStatus, type LicensePayload, type LicenseStatus } from '@/shared/lib/license'
 
@@ -200,7 +201,7 @@ const LICENSE: LicensePayload = {
   expiresAt: 1_823_644_800,
 }
 const ACTIVE_AT = new Date('2027-01-01T00:00:00Z')
-const FREE = licenseStatus(null, ACTIVE_AT)
+const INVALID = licenseStatus({ ok: false, code: 'LICENSE_HOST_MISMATCH' }, ACTIVE_AT)
 const TWO_SEATS = licenseStatus({ ok: true, license: { ...LICENSE, userSeats: 2 } }, ACTIVE_AT)
 const EXPIRED = licenseStatus({ ok: true, license: { ...LICENSE, userSeats: 100 } }, new Date('2027-11-01T00:00:00Z'))
 
@@ -214,8 +215,8 @@ beforeEach(() => {
   runtime.config = { DEPLOYMENT_MODE: 'self-hosted', BRIDGE_SEAL_PUBLIC_KEY: SEAL_PUBLIC_KEY }
   caller.permissions = ['connection.view', 'connection.create', 'connection.edit', 'connection.delete']
   plan.maxConnections = 10
-  // A self-hosted install without a license runs on the free tier.
-  license.status = FREE
+  // A self-hosted install with an active license of 1 admin seat and 3 user seats.
+  license.status = SMALL_LICENSE_ACTIVE
   tables.tenant = [{ id: 'tenant-1' }]
   tables.databaseConnection = []
   tables.connectionGrant = []
@@ -388,14 +389,14 @@ describe('createDatabaseConnection', () => {
 })
 
 describe('createDatabaseConnection and the license of the install', () => {
-  // bob, carol and dave take the three user seats of the free tier through a connection that exists.
-  function takeTheFreeSeats() {
+  // bob, carol and dave take the three user seats of the license through a connection that exists.
+  function takeEveryUserSeat() {
     tables.databaseConnection = [storedRow({ id: 'conn-existing', tenantId: 'tenant-1' })]
     tables.connectionGrant = ['bob', 'carol', 'dave'].map((subject) => storedGrant('conn-existing', subject))
   }
 
-  it('creates a connection at the user-seat limit, and refuses one above the limit and after expiry, writing nothing', async () => {
-    takeTheFreeSeats()
+  it('creates a connection at the user-seat limit, and refuses one under an invalid license, above the limit and after expiry, writing nothing', async () => {
+    takeEveryUserSeat()
 
     // A new connection takes no seat, so an install whose seats are all taken may still add one.
     expect((await createDatabaseConnection(input())).success).toBe(true)
@@ -403,6 +404,7 @@ describe('createDatabaseConnection and the license of the install', () => {
     const recorded = tables.adminAction.length
 
     for (const [status, code] of [
+      [INVALID, 'LICENSE_INVALID'],
       [TWO_SEATS, 'LICENSE_USER_SEATS'],
       [EXPIRED, 'LICENSE_EXPIRED'],
     ] as const) {
@@ -428,7 +430,7 @@ describe('createDatabaseConnection and the license of the install', () => {
   })
 
   it('creates a connection in cloud mode, which has no license status, whatever the seats in use, and takes no lock', async () => {
-    takeTheFreeSeats()
+    takeEveryUserSeat()
     tables.connectionGrant.push(storedGrant('conn-existing', 'erin'))
     license.status = null
 
