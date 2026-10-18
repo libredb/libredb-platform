@@ -68,15 +68,15 @@ describe('getAuthorizedMenus', () => {
     vi.clearAllMocks()
   })
 
-  it('self-hosted hides BILLING, TEAM, ADMIN_TENANTS and ADMIN_PLANS from PLATFORM_ADMIN', async () => {
+  it('self-hosted hides BILLING, TEAM, ADMIN_TENANTS, ADMIN_USERS and ADMIN_PLANS from PLATFORM_ADMIN', async () => {
     vi.stubEnv('DEPLOYMENT_MODE', 'self-hosted')
 
     const menus = await getAuthorizedMenus(['PLATFORM_ADMIN'])
 
-    expect(codes(menus)).toEqual(['CONNECTIONS', 'ADMIN', 'ADMIN_DASHBOARD', 'ADMIN_USERS'])
+    expect(codes(menus)).toEqual(['CONNECTIONS', 'ADMIN', 'ADMIN_DASHBOARD'])
   })
 
-  it('cloud mode keeps BILLING, TEAM, ADMIN_TENANTS and ADMIN_PLANS for PLATFORM_ADMIN', async () => {
+  it('cloud mode keeps BILLING, TEAM, ADMIN_TENANTS, ADMIN_USERS and ADMIN_PLANS for PLATFORM_ADMIN', async () => {
     vi.stubEnv('DEPLOYMENT_MODE', 'cloud')
 
     const menus = await getAuthorizedMenus(['PLATFORM_ADMIN'])
@@ -109,8 +109,8 @@ describe('getAuthorizedMenus', () => {
 })
 
 describe('menusForMode', () => {
-  it('lists BILLING, TEAM, ADMIN_TENANTS and ADMIN_PLANS as cloud-only', () => {
-    expect([...CLOUD_ONLY_MENU_CODES].sort()).toEqual(['ADMIN_PLANS', 'ADMIN_TENANTS', 'BILLING', 'TEAM'])
+  it('lists BILLING, TEAM, ADMIN_TENANTS, ADMIN_USERS and ADMIN_PLANS as cloud-only', () => {
+    expect([...CLOUD_ONLY_MENU_CODES].sort()).toEqual(['ADMIN_PLANS', 'ADMIN_TENANTS', 'ADMIN_USERS', 'BILLING', 'TEAM'])
   })
 
   it('cloud mode hides a code listed in SELF_HOSTED_ONLY_MENU_CODES', () => {
@@ -142,7 +142,7 @@ describe('menusForMode', () => {
 
     expect(SELF_HOSTED_ONLY_MENU_CODES).toContain('ADMIN_LICENSE')
     expect(menusForMode(rows, 'cloud').map(m => m.code)).toEqual(['ADMIN', 'ADMIN_USERS'])
-    expect(menusForMode(rows, 'self-hosted').map(m => m.code)).toEqual(['ADMIN', 'ADMIN_USERS', 'ADMIN_LICENSE'])
+    expect(menusForMode(rows, 'self-hosted').map(m => m.code)).toEqual(['ADMIN', 'ADMIN_LICENSE'])
   })
 
   it('cloud mode hides every code of SELF_HOSTED_ONLY_MENU_CODES with the default lists', () => {

@@ -8,11 +8,15 @@ import { QUERY_EVENTS } from './data/query-events'
 
 // The development seed fills a database of its own, so the counts below see only its rows.
 const DATABASE = 'libredb_seed_development'
+// SEED_USER_PASSWORD of this run: every user the development seed creates signs in with it.
+const SEED_USER_PASSWORD = 'a development password'
 
 describe('seedDevelopment', () => {
   let seedProduction: typeof import('./production').seedProduction
   let seedDevelopment: typeof import('./development').seedDevelopment
   let ConfigErrorClass: typeof import('../../src/shared/lib/errors').ConfigError
+  let authorizeCredentials: typeof import('../../src/shared/lib/identity/authorize-credentials').authorizeCredentials
+  let db: typeof import('../../src/shared/lib/db').db
   let superuser: Client
   let studio: Client
 
@@ -25,7 +29,7 @@ describe('seedDevelopment', () => {
     // A fresh module graph, so the seeds' Prisma clients read this database's DATABASE_URL when they load.
     vi.stubEnv('DATABASE_URL', `${fixtureUrl('platform', DATABASE)}?schema=platform`)
     vi.stubEnv('SEED_STUDIO_DATABASE_URL', fixtureUrl('studio', DATABASE))
-    vi.stubEnv('SEED_USER_PASSWORD', 'a development password')
+    vi.stubEnv('SEED_USER_PASSWORD', SEED_USER_PASSWORD)
     vi.stubEnv('DEPLOYMENT_MODE', 'cloud')
     vi.stubEnv('BOOTSTRAP_ADMIN_EMAIL', undefined)
     vi.stubEnv('BOOTSTRAP_ADMIN_PASSWORD', undefined)
@@ -33,6 +37,8 @@ describe('seedDevelopment', () => {
     ;({ seedProduction } = await import('./production'))
     ;({ seedDevelopment } = await import('./development'))
     ;({ ConfigError: ConfigErrorClass } = await import('../../src/shared/lib/errors'))
+    ;({ authorizeCredentials } = await import('../../src/shared/lib/identity/authorize-credentials'))
+    ;({ db } = await import('../../src/shared/lib/db'))
     superuser = await connectSuperuser(DATABASE)
     studio = await connectStudio(DATABASE)
 
@@ -42,8 +48,25 @@ describe('seedDevelopment', () => {
 
   afterAll(async () => {
     vi.unstubAllEnvs()
+    await db?.$disconnect()
     await superuser?.end()
     await studio?.end()
+  })
+
+  // The sign-in of a cloud install reads the roles of the user's default membership.
+  it('signs in admin@libredb.example as PLATFORM_ADMIN and devops@libredb.example as PLATFORM_TECH of the platform tenant', async () => {
+    for (const [email, role] of [
+      ['admin@libredb.example', 'PLATFORM_ADMIN'],
+      ['devops@libredb.example', 'PLATFORM_TECH'],
+    ]) {
+      const signedIn = await authorizeCredentials(db, { email, password: SEED_USER_PASSWORD })
+
+      expect(signedIn, email).toMatchObject({
+        email,
+        roles: [role],
+        accessibleTenants: [expect.objectContaining({ slug: 'libredb-platform' })],
+      })
+    }
   })
 
   it('the development seed creates sealed connections that bridge.connections_v1 shows and writes no legacy connection', async () => {
@@ -95,7 +118,7 @@ describe('seedDevelopment', () => {
     }
   })
 
-  it('seeds the support fixtures as tickets of sarah.chen@acme.com in Acme Corp and tom.reed@startuplabs.io in Startup Labs', async () => {
+  it('seeds the support fixtures as tickets of sarah.chen@acme.test in Acme Corp and tom.reed@startuplabs.test in Startup Labs', async () => {
     const fixtures = await rows<{ ticketNumber: string; tenant: string; customer: string; status: string }>(
       superuser,
       `SELECT t."ticketNumber", tn.slug AS tenant, u.email AS customer, t.status
@@ -107,9 +130,9 @@ describe('seedDevelopment', () => {
     )
 
     expect(fixtures).toEqual([
-      { ticketNumber: 'TKT-SEED-001', tenant: 'acme-corp', customer: 'sarah.chen@acme.com', status: 'OPEN' },
-      { ticketNumber: 'TKT-SEED-002', tenant: 'acme-corp', customer: 'sarah.chen@acme.com', status: 'RESOLVED' },
-      { ticketNumber: 'TKT-SEED-003', tenant: 'startup-labs', customer: 'tom.reed@startuplabs.io', status: 'IN_PROGRESS' },
+      { ticketNumber: 'TKT-SEED-001', tenant: 'acme-corp', customer: 'sarah.chen@acme.test', status: 'OPEN' },
+      { ticketNumber: 'TKT-SEED-002', tenant: 'acme-corp', customer: 'sarah.chen@acme.test', status: 'RESOLVED' },
+      { ticketNumber: 'TKT-SEED-003', tenant: 'startup-labs', customer: 'tom.reed@startuplabs.test', status: 'IN_PROGRESS' },
     ])
   })
 
@@ -134,10 +157,12 @@ describe('seedDevelopment', () => {
     ])
   })
 
-  it('a second run adds no connection, no grant and no query event', async () => {
+  it('a second run adds no connection, no grant, no query event, no membership and no role', async () => {
     const count = `SELECT (SELECT count(*)::int FROM platform.database_connections) AS connections,
                           (SELECT count(*)::int FROM platform.connection_grants) AS grants,
-                          (SELECT count(*)::int FROM bridge.query_event) AS events`
+                          (SELECT count(*)::int FROM bridge.query_event) AS events,
+                          (SELECT count(*)::int FROM platform.tenant_members) AS memberships,
+                          (SELECT count(*)::int FROM platform.user_roles) AS roles`
     const before = await rows(superuser, count)
 
     await seedDevelopment()

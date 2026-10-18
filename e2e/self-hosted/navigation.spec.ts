@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { FIXTURE_USERS, signInThroughKeycloak } from './helpers/keycloak-login'
 
-// Self-hosted mode has no billing, team, tenant or plan administration, no tenant switching, and no
+// Self-hosted mode has no billing, team, tenant, user or plan administration, no tenant switching, and no
 // registration or password reset.
 
 test.describe('Navigation in self-hosted mode', () => {
@@ -11,7 +11,7 @@ test.describe('Navigation in self-hosted mode', () => {
 
     const sidebar = page.locator('[data-sidebar="sidebar"]')
     await expect(sidebar.getByRole('link', { name: 'Connections' })).toBeVisible()
-    for (const name of ['Billing', 'Team', 'Tenants', 'Plans']) {
+    for (const name of ['Billing', 'Team', 'Tenants', 'Users', 'Plans']) {
       await expect(sidebar.getByRole('link', { name, exact: true })).toHaveCount(0)
     }
 

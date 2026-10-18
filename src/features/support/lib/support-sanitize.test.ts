@@ -100,6 +100,34 @@ describe('sanitizeTicketHtml', () => {
     expect(out).toBe('<p>hi</p>')
   })
 
+  it('strips data and aria attributes that the composer does not render', () => {
+    const out = sanitizeTicketHtml('<p aria-label="x" data-foo="y">hi</p>')
+    expect(out).toBe('<p>hi</p>')
+  })
+
+  it('keeps the data attributes that the composer renders on a mention and strips the others', () => {
+    // The composer's HTML for a mention of Ayşe
+    const mention =
+      '<span data-type="mention" class="mention-chip" data-id="u1" data-label="Ayşe" data-mention-suggestion-char="@" data-mention-id="u1" data-mention-label="Ayşe">@Ayşe</span>'
+    const out = sanitizeTicketHtml(mention.replace('<span ', '<span data-foo="y" aria-hidden="true" '))
+    expect(out).toBe(mention)
+  })
+
+  it.each([
+    ['on a tag that the composer renders without one', '<p class="fixed inset-0">hi</p>', '<p>hi</p>'],
+    ['beside the mention chip', '<span class="mention-chip fixed inset-0">@x</span>', '<span>@x</span>'],
+    ['beside the language of a code block', '<pre><code class="language-sql fixed">x</code></pre>', '<pre><code>x</code></pre>'],
+    ['of the mention chip on another tag', '<p class="mention-chip">hi</p>', '<p>hi</p>'],
+    ['of a code block language on another tag', '<span class="language-sql">x</span>', '<span>x</span>'],
+  ])('strips a class %s', (_case, html, expected) => {
+    expect(sanitizeTicketHtml(html)).toBe(expected)
+  })
+
+  it.each(['language-sql', 'language-c++'])('keeps the code block language class %s', (className) => {
+    const html = `<pre><code class="${className}">SELECT 1;</code></pre>`
+    expect(sanitizeTicketHtml(html)).toBe(html)
+  })
+
   it('strips srcset, which would load an attachment image from another origin', () => {
     const out = sanitizeTicketHtml('<img src="/support/api/attachments/a1/download" srcset="https://evil.example/pix.png 2x">')
     expect(out).toBe('<img src="/support/api/attachments/a1/download">')

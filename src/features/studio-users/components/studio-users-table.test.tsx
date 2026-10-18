@@ -56,6 +56,9 @@ describe('StudioUsersTable', () => {
 
     const dialog = await screen.findByRole('dialog')
     expect(dialog).toHaveTextContent('Revoke the Studio sessions of bob?')
+    // A revocation ends Studio sessions only: Studio mints no MCP token in governance mode.
+    expect(dialog).toHaveTextContent('Studio ends every session of bob issued until now.')
+    expect(dialog).not.toHaveTextContent('MCP')
     expect(revokeStudioSessions).not.toHaveBeenCalled()
 
     await user.click(within(dialog).getByRole('button', { name: 'Revoke sessions' }))

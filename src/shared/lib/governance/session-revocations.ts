@@ -14,7 +14,7 @@ export type SessionRevocationReason = (typeof SESSION_REVOCATION_REASONS)[number
 export type SessionRevocationClient = Pick<Prisma.TransactionClient, 'sessionRevocation'>
 
 export interface SessionRevocationEntry {
-  /** The Keycloak user id whose Studio sessions and MCP tokens end. */
+  /** The Keycloak user id whose Studio sessions end. */
   subject: string
   reason: SessionRevocationReason
   /** The users.id of the admin who revokes, or null for directory sync. */
@@ -29,8 +29,8 @@ export interface InsertedSessionRevocation {
 }
 
 /**
- * Inserts one deny-only revocation into platform.session_revocations, which ends every Studio session and MCP token of
- * the subject issued until now: its trigger tells Studio after the commit, and Studio reads
+ * Inserts one deny-only revocation into platform.session_revocations, which ends every Studio session of the subject
+ * issued until now: its trigger tells Studio after the commit, and Studio reads
  * the latest revokedBefore per subject through bridge.session_revocations_v1.
  * "Revoke Studio sessions" and directory sync share it.
  */

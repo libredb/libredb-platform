@@ -79,9 +79,9 @@ The platform admin exists only when both `BOOTSTRAP_ADMIN_*` variables are set.
 | Role | Email | Password |
 |------|-------|----------|
 | Platform Admin | `BOOTSTRAP_ADMIN_EMAIL` | `BOOTSTRAP_ADMIN_PASSWORD` |
-| Tenant Admin | sarah.chen@acme.com | `SEED_USER_PASSWORD` |
-| Editor | james.wilson@acme.com | `SEED_USER_PASSWORD` |
-| Viewer | emily.park@acme.com | `SEED_USER_PASSWORD` |
+| Tenant Admin | sarah.chen@acme.test | `SEED_USER_PASSWORD` |
+| Editor | james.wilson@acme.test | `SEED_USER_PASSWORD` |
+| Viewer | emily.park@acme.test | `SEED_USER_PASSWORD` |
 
 ### Docker
 

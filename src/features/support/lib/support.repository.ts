@@ -1,7 +1,7 @@
 import { Prisma, type SupportTicket } from '@prisma/client'
 import { db } from '@/shared/lib/db'
 import { NotFoundError } from '@/shared/lib/errors'
-import type { CreateTicketData, UpdateTicketData, InboxFilters } from './support.schema'
+import type { InboxFilters } from './support.schema'
 
 /** The `support_tickets` composite (tenantId, ticketNumber) unique index of the baseline migration. */
 const TICKET_NUMBER_INDEX = 'support_tickets_tenantId_ticketNumber_key'
@@ -107,17 +107,6 @@ export class SupportRepository {
   }
 
   /**
-   * @deprecated Prefer `createWithAutoNumber` so ticket-number allocation
-   * and ticket creation happen together with collision retry. Left for the
-   * legacy `create()` path below; will be removed with that method.
-   */
-  static async getNextTicketNumber(tenantId: string | null): Promise<string> {
-    const prefix = tenantId ? 'TKT' : 'INT'
-    const count = await db.supportTicket.count({ where: { tenantId } })
-    return `${prefix}-${String(count + 1).padStart(4, '0')}`
-  }
-
-  /**
    * Allocate a per-tenant ticket number and create the ticket inside a
    * single transaction, retrying on unique-constraint collisions from
    * concurrent creates. Returns whatever the callback returns, so callers
@@ -206,104 +195,6 @@ export class SupportRepository {
       },
       select: { id: true, name: true, email: true },
       take: 10,
-    })
-  }
-
-  // ─── Legacy aliases (deprecated, and no longer called) ───
-
-  /** @deprecated use findInbox, as the inbox route does */
-  static async findByTenant(
-    tenantId: string,
-    options?: { userId?: string; status?: string; priority?: string; category?: string },
-  ) {
-    return this.findInbox(
-      { mode: 'tenant', tenantId },
-      { view: options?.status ? 'all' : 'open', limit: 100 } as any,
-    )
-  }
-
-  /** @deprecated legacy create; use createWithAutoNumber, as the create-ticket action does */
-  static async create(tenantId: string, userId: string, data: CreateTicketData) {
-    const ticketNumber = await this.getNextTicketNumber(tenantId)
-
-    return db.supportTicket.create({
-      data: {
-        tenantId,
-        ticketNumber,
-        subject: data.subject,
-        descriptionRich: data.descriptionRich,
-        descriptionPlain: data.descriptionPlain,
-        status: 'OPEN',
-        priority: data.priority,
-        category: data.category,
-        createdByUserId: userId,
-      },
-    })
-  }
-
-  /** @deprecated legacy update; the update-ticket action updates the ticket and its activity in one transaction */
-  static async update(id: string, data: UpdateTicketData) {
-    const updateData: Record<string, unknown> = {}
-
-    if (data.status !== undefined) {
-      updateData.status = data.status
-      if (data.status === 'RESOLVED') {
-        updateData.resolvedAt = new Date()
-      }
-      if (data.status === 'CLOSED') {
-        updateData.closedAt = new Date()
-      }
-    }
-    if (data.priority !== undefined) {
-      updateData.priority = data.priority
-    }
-    if (data.category !== undefined) {
-      updateData.category = data.category
-    }
-    if (data.assignedToUserId !== undefined) {
-      updateData.assignedToUserId = data.assignedToUserId
-    }
-
-    return db.supportTicket.update({
-      where: { id },
-      data: updateData,
-    })
-  }
-
-  /** @deprecated legacy addMessage; the send-message action creates the message and its attachments together */
-  static async addMessage(
-    ticketId: string,
-    userId: string,
-    bodyRich: string,
-    isInternal: boolean = false,
-  ) {
-    return db.supportMessage.create({
-      data: {
-        ticketId,
-        senderUserId: userId,
-        bodyRich,
-        isInternal,
-      },
-    })
-  }
-
-  /** @deprecated legacy messages query; findById returns the messages with the ticket */
-  static async getMessages(ticketId: string) {
-    return db.supportMessage.findMany({
-      where: { ticketId },
-      include: { attachments: true },
-      orderBy: { createdAt: 'asc' },
-    })
-  }
-
-  /** @deprecated legacy tenant members for assignee dropdown; use searchPlatformStaff for new code */
-  static async getTenantMembers(tenantId: string) {
-    return db.tenantMember.findMany({
-      where: { tenantId, active: true },
-      include: {
-        user: { select: { id: true, name: true, email: true } },
-      },
-      orderBy: { createdAt: 'asc' },
     })
   }
 }

@@ -42,7 +42,7 @@ test.describe('LibreDB Platform Smoke Tests', () => {
     if (!studioUrl) throw new Error('STUDIO_PUBLIC_URL must be set for the Platform dev server and this test')
 
     // Login first
-    const sarah = seedUserCredentials('sarah.chen@acme.com')
+    const sarah = seedUserCredentials('sarah.chen@acme.test')
     await page.goto('/login')
     await page.getByLabel('Email').fill(sarah.email)
     await page.getByLabel('Password').fill(sarah.password)

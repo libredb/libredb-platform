@@ -24,7 +24,7 @@ export const PLATFORM_USERS: SeedUser[] = [
 export const TENANT_USERS: SeedUser[] = [
   // Acme Corp (8 users)
   {
-    email: 'sarah.chen@acme.com',
+    email: 'sarah.chen@acme.test',
     name: 'Sarah Chen',
     memberships: [
       { tenantSlug: 'acme-corp', roleCode: 'TENANT_ADMIN', isDefault: true },
@@ -32,49 +32,49 @@ export const TENANT_USERS: SeedUser[] = [
     ],
   },
   {
-    email: 'james.wilson@acme.com',
+    email: 'james.wilson@acme.test',
     name: 'James Wilson',
     memberships: [
       { tenantSlug: 'acme-corp', roleCode: 'TENANT_EDITOR', isDefault: true },
     ],
   },
   {
-    email: 'maria.garcia@acme.com',
+    email: 'maria.garcia@acme.test',
     name: 'Maria Garcia',
     memberships: [
       { tenantSlug: 'acme-corp', roleCode: 'TENANT_EDITOR', isDefault: true },
     ],
   },
   {
-    email: 'alex.kumar@acme.com',
+    email: 'alex.kumar@acme.test',
     name: 'Alex Kumar',
     memberships: [
       { tenantSlug: 'acme-corp', roleCode: 'TENANT_EDITOR', isDefault: true },
     ],
   },
   {
-    email: 'emily.park@acme.com',
+    email: 'emily.park@acme.test',
     name: 'Emily Park',
     memberships: [
       { tenantSlug: 'acme-corp', roleCode: 'TENANT_VIEWER', isDefault: true },
     ],
   },
   {
-    email: 'david.jones@acme.com',
+    email: 'david.jones@acme.test',
     name: 'David Jones',
     memberships: [
       { tenantSlug: 'acme-corp', roleCode: 'TENANT_VIEWER', isDefault: true },
     ],
   },
   {
-    email: 'lisa.zhang@acme.com',
+    email: 'lisa.zhang@acme.test',
     name: 'Lisa Zhang',
     memberships: [
       { tenantSlug: 'acme-corp', roleCode: 'TENANT_VIEWER', isDefault: true },
     ],
   },
   {
-    email: 'mike.brown@acme.com',
+    email: 'mike.brown@acme.test',
     name: 'Mike Brown',
     memberships: [
       { tenantSlug: 'acme-corp', roleCode: 'TENANT_VIEWER', isDefault: true },
@@ -82,21 +82,21 @@ export const TENANT_USERS: SeedUser[] = [
   },
   // Startup Labs (3 users)
   {
-    email: 'tom.reed@startuplabs.io',
+    email: 'tom.reed@startuplabs.test',
     name: 'Tom Reed',
     memberships: [
       { tenantSlug: 'startup-labs', roleCode: 'TENANT_ADMIN', isDefault: true },
     ],
   },
   {
-    email: 'anna.white@startuplabs.io',
+    email: 'anna.white@startuplabs.test',
     name: 'Anna White',
     memberships: [
       { tenantSlug: 'startup-labs', roleCode: 'TENANT_EDITOR', isDefault: true },
     ],
   },
   {
-    email: 'jake.lee@startuplabs.io',
+    email: 'jake.lee@startuplabs.test',
     name: 'Jake Lee',
     memberships: [
       { tenantSlug: 'startup-labs', roleCode: 'TENANT_VIEWER', isDefault: true },

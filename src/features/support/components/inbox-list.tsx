@@ -6,6 +6,7 @@ import { Input } from '@/shared/components/ui/input'
 import { SearchIcon } from 'lucide-react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useInbox } from '../hooks/use-inbox'
+import { isFromInteractiveControl } from '../lib/hotkeys'
 import { InboxListRow } from './inbox-list-row'
 
 interface ReferenceValue { code: string; name: string }
@@ -22,12 +23,12 @@ export function InboxList({ priorityValues }: { priorityValues: ReferenceValue[]
   const [selectedIdx, setSelectedIdx] = useState(0)
   const ticketCount = data?.tickets?.length ?? 0
 
-  useHotkeys('j', () => setSelectedIdx(i => Math.min((data?.tickets?.length ?? 1) - 1, i + 1)), [data])
-  useHotkeys('k', () => setSelectedIdx(i => Math.max(0, i - 1)), [])
+  useHotkeys('j', () => setSelectedIdx(i => Math.min((data?.tickets?.length ?? 1) - 1, i + 1)), { ignoreEventWhen: isFromInteractiveControl }, [data])
+  useHotkeys('k', () => setSelectedIdx(i => Math.max(0, i - 1)), { ignoreEventWhen: isFromInteractiveControl }, [])
   useHotkeys('enter', () => {
     const t = data?.tickets?.[selectedIdx]
     if (t) router.push(`/support/${t.id}`)
-  }, [data, selectedIdx])
+  }, { ignoreEventWhen: isFromInteractiveControl }, [data, selectedIdx])
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault()

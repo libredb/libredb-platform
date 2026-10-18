@@ -17,8 +17,11 @@ export interface MenuItem {
   children: MenuItem[]
 }
 
-/** Menu codes of features that exist only in cloud mode. */
-export const CLOUD_ONLY_MENU_CODES: readonly string[] = ['BILLING', 'TEAM', 'ADMIN_TENANTS', 'ADMIN_PLANS']
+/**
+ * Menu codes of features that exist only in cloud mode. ADMIN_USERS lists tenant memberships, which a self-hosted
+ * sign-in never writes; STUDIO_USERS lists the users of a self-hosted install instead.
+ */
+export const CLOUD_ONLY_MENU_CODES: readonly string[] = ['BILLING', 'TEAM', 'ADMIN_TENANTS', 'ADMIN_USERS', 'ADMIN_PLANS']
 
 /** Menu codes of features that exist only in self-hosted mode; a slice adds its code with a failing test. */
 export const SELF_HOSTED_ONLY_MENU_CODES: readonly string[] = ['STUDIO_SETTINGS', 'STUDIO_USERS', 'ADMIN_LICENSE']

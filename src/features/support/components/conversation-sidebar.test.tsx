@@ -48,7 +48,7 @@ function renderSidebar(ticket: Record<string, unknown>, userMap: Record<string, 
       onTagAdd={vi.fn()}
       onTagRemove={vi.fn()}
       customerName="Sarah Chen"
-      customerEmail="sarah.chen@acme.com"
+      customerEmail="sarah.chen@acme.test"
       tenantName="Acme"
       tenantHref={tenantHref}
       tenantPlan={null}
@@ -103,5 +103,14 @@ describe('ConversationSidebar', () => {
 
     expect(screen.getByText('Acme')).toBeInTheDocument()
     expect(screen.queryByRole('link')).not.toBeInTheDocument()
+  })
+
+  it('names each select after the label above it', () => {
+    renderSidebar({})
+
+    expect(screen.getByRole('combobox', { name: 'Assigned To' })).toHaveTextContent('Ayse Yilmaz')
+    expect(screen.getByRole('combobox', { name: 'Status' })).toHaveTextContent('Open')
+    expect(screen.getByRole('combobox', { name: 'Priority' })).toHaveTextContent('Urgent')
+    expect(screen.getByRole('combobox', { name: 'Category' })).toHaveTextContent('Technical')
   })
 })

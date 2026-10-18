@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { seedUserCredentials } from './credentials'
 
 // A tenant user of the development seed, as in support.spec.ts.
-const CUSTOMER = seedUserCredentials('sarah.chen@acme.com')
+const CUSTOMER = seedUserCredentials('sarah.chen@acme.test')
 
 async function login(page: Page, email: string, password: string) {
   await page.goto('/login')

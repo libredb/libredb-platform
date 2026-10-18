@@ -67,7 +67,7 @@ describe('TenantRepository on PostgreSQL', () => {
 
   afterAll(async () => {
     await superuser.query('DELETE FROM platform.database_connections WHERE "createdById" = $1', [USER_ID])
-    await superuser.query('DELETE FROM platform.users WHERE id = $1', [USER_ID])
+    await superuser.query('DELETE FROM platform.users WHERE id LIKE $1', [`${MARKER}-%`])
     await superuser.query('DELETE FROM platform.tenants WHERE id IN ($1, $2)', [TENANT_ID, OTHER_TENANT_ID])
     await superuser.query('DELETE FROM platform.plan_configs WHERE id = $1', [PLAN_ID])
     await superuser.end()
@@ -101,5 +101,17 @@ describe('TenantRepository on PostgreSQL', () => {
 
     const recent = await AdminStatsRepository.getRecentTenants(1)
     expect(recent.map((tenant) => [tenant.id, tenant._count])).toEqual([[TENANT_ID, { members: 0, connections: 2 }]])
+  })
+
+  it('the Active Users count of the admin dashboard leaves out inactive users', async () => {
+    const before = (await AdminStatsRepository.getStats()).users
+
+    await superuser.query(
+      `INSERT INTO platform.users (id, email, active, "updatedAt")
+       VALUES ($1, 'active@libredb.test', true, now()), ($2, 'inactive@libredb.test', false, now())`,
+      [`${MARKER}-active`, `${MARKER}-inactive`],
+    )
+
+    expect((await AdminStatsRepository.getStats()).users).toBe(before + 1)
   })
 })

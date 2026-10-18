@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { safeAction } from '@/shared/lib/safe-action'
 import { requirePermission } from '@/shared/lib/auth-utils'
 import { PERMISSIONS } from '@/shared/lib/permissions'
-import { checkLimit } from '@/shared/lib/feature-flags'
+import { checkLimit, getLimit } from '@/shared/lib/feature-flags'
 import { LimitExceededError } from '@/shared/lib/errors'
 import { getLicenseStatus } from '@/shared/lib/license/install-license'
 import { createDatabaseConnectionSchema } from '../lib/database-connection.schema'
@@ -32,7 +32,7 @@ export const createDatabaseConnection = safeAction(
 
     const count = await DatabaseConnectionRepository.countByTenant(tenantId)
     if (!(await checkLimit(tenantId, 'maxConnections', count))) {
-      throw new LimitExceededError('connections', count)
+      throw new LimitExceededError('connections', await getLimit(tenantId, 'maxConnections'))
     }
 
     const id = randomUUID()

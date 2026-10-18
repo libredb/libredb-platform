@@ -5,7 +5,7 @@ import { adminCredentials, seedUserCredentials } from './credentials'
 // The customer is a tenant user of the development seed (prisma/seeds/development.ts),
 // and the agent is the platform admin that the production seed creates from BOOTSTRAP_ADMIN_*.
 // e2e/credentials.ts reads both passwords from E2E_* variables.
-const CUSTOMER = seedUserCredentials('sarah.chen@acme.com')
+const CUSTOMER = seedUserCredentials('sarah.chen@acme.test')
 const AGENT    = adminCredentials()
 
 // ─── Helpers ────────────────────────────────────────────────
@@ -67,6 +67,19 @@ async function resolveAsAgent(browser: Browser, ticketUrl: string) {
   }
 }
 
+/** Searches the inbox for `query` and waits for the searched inbox to arrive, because the list is empty while it loads. */
+async function searchInbox(page: Page, query: string) {
+  // The search input has placeholder "Search..." (InboxList component)
+  const searchInput = page.locator('input[placeholder="Search..."]')
+  await searchInput.fill(query)
+  const searched = page.waitForResponse((response) => {
+    const url = new URL(response.url())
+    return url.pathname === '/support/api/inbox' && url.searchParams.get('q') === query
+  })
+  await searchInput.press('Enter')
+  await searched
+}
+
 // ─── Tests ──────────────────────────────────────────────────
 // Tests 2 and 5 open a ticket of their own and follow it by its URL, because the CSAT prompt shows only to the
 // ticket's creator, only the creator's reply reopens a ticket, and the inbox lists only open tickets by default.
@@ -125,28 +138,25 @@ test.describe('Support', () => {
 
   test('4. search keeps the ticket that matches and drops a ticket that does not', async ({ page }) => {
     await login(page, AGENT.email, AGENT.password)
+    // The inbox loads after the page hydrates, and only then does the search form submit through the router.
+    const inboxLoaded = page.waitForResponse((response) => new URL(response.url()).pathname === '/support/api/inbox')
     await page.goto('/support')
+    await inboxLoaded
 
-    // Two open tickets of the development seed: TKT-SEED-001 matches the query and TKT-SEED-003 does not.
-    // The open inbox lists both before the search, so only a search that filters the list drops the second.
-    const matching = page.getByRole('link', { name: /Database unreachable/ })
-    const notMatching = page.getByRole('link', { name: /AI query suggestions not working/ })
-    await expect(matching).toBeVisible({ timeout: 10_000 })
-    await expect(notMatching).toBeVisible()
+    // Two tickets of the development seed, each found by a query that misses the other: TKT-SEED-001 (Database
+    // unreachable) by unreach, and TKT-SEED-003 (AI query suggestions not working) by suggestions.
+    // The open inbox lists only its 50 newest tickets, and every run of this file adds two open tickets, so the seed
+    // tickets drop out of it on a reused database, and the test reads only searched lists.
+    const unreachable = page.getByRole('link', { name: /TKT-SEED-001/ })
+    const suggestions = page.getByRole('link', { name: /TKT-SEED-003/ })
 
-    // The search input has placeholder "Search..." (InboxList component)
-    const searchInput = page.locator('input[placeholder="Search..."]')
-    await searchInput.fill('unreach')
-    // The list empties while the searched inbox loads, so the assertions below wait for that inbox to arrive.
-    const searched = page.waitForResponse((response) => {
-      const url = new URL(response.url())
-      return url.pathname === '/support/api/inbox' && url.searchParams.get('q') === 'unreach'
-    })
-    await searchInput.press('Enter')
-    await searched
+    await searchInbox(page, 'suggestions')
+    await expect(suggestions).toBeVisible()
+    await expect(unreachable).toBeHidden()
 
-    await expect(matching).toBeVisible()
-    await expect(notMatching).toBeHidden()
+    await searchInbox(page, 'unreach')
+    await expect(unreachable).toBeVisible()
+    await expect(suggestions).toBeHidden()
   })
 
   test('5. customer reply on resolved ticket auto-reopens', async ({ page, browser }) => {
