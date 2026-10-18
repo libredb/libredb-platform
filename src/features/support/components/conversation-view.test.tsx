@@ -48,7 +48,7 @@ function renderView() {
       priorityMap={{}}
       platformStaffIds={[]}
       customerName="Sarah Chen"
-      customerEmail="sarah.chen@acme.com"
+      customerEmail="sarah.chen@acme.test"
       tenantName="Acme"
       tenantSlug="acme"
       tenantPlan={null}

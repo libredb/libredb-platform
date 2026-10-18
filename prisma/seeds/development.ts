@@ -238,10 +238,10 @@ export async function seedDevelopment() {
 
   // ─── User Streaks ─────────────────────────────────────
   const streakData = [
-    { email: 'sarah.chen@acme.com', current: 7, longest: 12, totalDays: 28 },
-    { email: 'james.wilson@acme.com', current: 5, longest: 9, totalDays: 22 },
-    { email: 'maria.garcia@acme.com', current: 3, longest: 5, totalDays: 14 },
-    { email: 'tom.reed@startuplabs.io', current: 2, longest: 6, totalDays: 15 },
+    { email: 'sarah.chen@acme.test', current: 7, longest: 12, totalDays: 28 },
+    { email: 'james.wilson@acme.test', current: 5, longest: 9, totalDays: 22 },
+    { email: 'maria.garcia@acme.test', current: 3, longest: 5, totalDays: 14 },
+    { email: 'tom.reed@startuplabs.test', current: 2, longest: 6, totalDays: 15 },
     { email: 'dev@example.com', current: 1, longest: 3, totalDays: 8 },
   ]
   for (const s of streakData) {
@@ -267,7 +267,7 @@ export async function seedDevelopment() {
   console.log('  - User streaks')
 
   // ─── Notifications (sample) ───────────────────────────
-  const notificationUsers = ['sarah.chen@acme.com', 'james.wilson@acme.com', 'tom.reed@startuplabs.io']
+  const notificationUsers = ['sarah.chen@acme.test', 'james.wilson@acme.test', 'tom.reed@startuplabs.test']
   for (const email of notificationUsers) {
     const userId = userMap.get(email)!
     const membership = [...membershipMap.entries()].find(([key]) => key.startsWith(`${email}:`))
@@ -310,8 +310,8 @@ export async function seedDevelopment() {
 // The fixtures are tickets of two customers, each in their own tenant, answered by a platform staff member. They are
 // named here, because the first tenant by creation date is the "LibreDB Platform" tenant of the production seed.
 const SUPPORT_FIXTURE_PEOPLE = {
-  customer1: { tenantSlug: 'acme-corp', email: 'sarah.chen@acme.com' },
-  customer2: { tenantSlug: 'startup-labs', email: 'tom.reed@startuplabs.io' },
+  customer1: { tenantSlug: 'acme-corp', email: 'sarah.chen@acme.test' },
+  customer2: { tenantSlug: 'startup-labs', email: 'tom.reed@startuplabs.test' },
   agentEmail: 'admin@libredb.example',
 } as const
 

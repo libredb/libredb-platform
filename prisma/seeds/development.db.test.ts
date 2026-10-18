@@ -118,7 +118,7 @@ describe('seedDevelopment', () => {
     }
   })
 
-  it('seeds the support fixtures as tickets of sarah.chen@acme.com in Acme Corp and tom.reed@startuplabs.io in Startup Labs', async () => {
+  it('seeds the support fixtures as tickets of sarah.chen@acme.test in Acme Corp and tom.reed@startuplabs.test in Startup Labs', async () => {
     const fixtures = await rows<{ ticketNumber: string; tenant: string; customer: string; status: string }>(
       superuser,
       `SELECT t."ticketNumber", tn.slug AS tenant, u.email AS customer, t.status
@@ -130,9 +130,9 @@ describe('seedDevelopment', () => {
     )
 
     expect(fixtures).toEqual([
-      { ticketNumber: 'TKT-SEED-001', tenant: 'acme-corp', customer: 'sarah.chen@acme.com', status: 'OPEN' },
-      { ticketNumber: 'TKT-SEED-002', tenant: 'acme-corp', customer: 'sarah.chen@acme.com', status: 'RESOLVED' },
-      { ticketNumber: 'TKT-SEED-003', tenant: 'startup-labs', customer: 'tom.reed@startuplabs.io', status: 'IN_PROGRESS' },
+      { ticketNumber: 'TKT-SEED-001', tenant: 'acme-corp', customer: 'sarah.chen@acme.test', status: 'OPEN' },
+      { ticketNumber: 'TKT-SEED-002', tenant: 'acme-corp', customer: 'sarah.chen@acme.test', status: 'RESOLVED' },
+      { ticketNumber: 'TKT-SEED-003', tenant: 'startup-labs', customer: 'tom.reed@startuplabs.test', status: 'IN_PROGRESS' },
     ])
   })
 

@@ -48,7 +48,7 @@ function renderSidebar(ticket: Record<string, unknown>, userMap: Record<string, 
       onTagAdd={vi.fn()}
       onTagRemove={vi.fn()}
       customerName="Sarah Chen"
-      customerEmail="sarah.chen@acme.com"
+      customerEmail="sarah.chen@acme.test"
       tenantName="Acme"
       tenantSlug="acme"
       tenantPlan={null}

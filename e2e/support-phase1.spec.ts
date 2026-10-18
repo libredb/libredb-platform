@@ -5,7 +5,7 @@ import { adminCredentials, seedUserCredentials } from './credentials'
 // The customer is a tenant user of the development seed (prisma/seeds/development.ts),
 // and the agent is the platform admin that the production seed creates from BOOTSTRAP_ADMIN_*.
 // e2e/credentials.ts reads both passwords from E2E_* variables.
-const CUSTOMER = seedUserCredentials('sarah.chen@acme.com')
+const CUSTOMER = seedUserCredentials('sarah.chen@acme.test')
 const AGENT    = adminCredentials()
 
 // ─── Helpers ────────────────────────────────────────────────

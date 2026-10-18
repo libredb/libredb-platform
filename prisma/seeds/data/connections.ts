@@ -27,7 +27,7 @@ export const CONNECTIONS: SeedConnection[] = [
     definition: { host: 'pg-prod.acme.internal', port: 5432, database: 'acme_production', ssl: { mode: 'verify-full' } },
     readCredential: { user: 'acme_readonly', password: 'seed_password' },
     writeCredential: { user: 'acme_writer', password: 'seed_password' },
-    createdByEmail: 'sarah.chen@acme.com',
+    createdByEmail: 'sarah.chen@acme.test',
   },
   {
     tenantSlug: 'acme-corp',
@@ -37,7 +37,7 @@ export const CONNECTIONS: SeedConnection[] = [
     definition: { host: 'pg-staging.acme.internal', port: 5432, database: 'acme_staging' },
     readCredential: { user: 'acme_dev', password: 'seed_password' },
     writeCredential: { user: 'acme_dev_writer', password: 'seed_password' },
-    createdByEmail: 'sarah.chen@acme.com',
+    createdByEmail: 'sarah.chen@acme.test',
   },
   {
     tenantSlug: 'acme-corp',
@@ -46,7 +46,7 @@ export const CONNECTIONS: SeedConnection[] = [
     environment: 'production',
     definition: { host: 'mysql-analytics.acme.internal', port: 3306, database: 'acme_analytics', ssl: { mode: 'require' } },
     readCredential: { user: 'analytics_reader', password: 'seed_password' },
-    createdByEmail: 'sarah.chen@acme.com',
+    createdByEmail: 'sarah.chen@acme.test',
   },
   {
     tenantSlug: 'acme-corp',
@@ -55,7 +55,7 @@ export const CONNECTIONS: SeedConnection[] = [
     environment: 'production',
     definition: { host: 'redis.acme.internal', port: 6379, database: '0' },
     readCredential: { user: 'default', password: 'seed_password' },
-    createdByEmail: 'sarah.chen@acme.com',
+    createdByEmail: 'sarah.chen@acme.test',
   },
   {
     tenantSlug: 'acme-corp',
@@ -70,7 +70,7 @@ export const CONNECTIONS: SeedConnection[] = [
       ssl: { mode: 'verify-full' },
     },
     readCredential: { user: 'doc_reader', password: 'seed_password' },
-    createdByEmail: 'sarah.chen@acme.com',
+    createdByEmail: 'sarah.chen@acme.test',
   },
   // Startup Labs (2 connections)
   {
@@ -81,7 +81,7 @@ export const CONNECTIONS: SeedConnection[] = [
     definition: { host: 'db.startuplabs.io', port: 5432, database: 'startup_main', ssl: { mode: 'require' } },
     readCredential: { user: 'startup_app', password: 'seed_password' },
     writeCredential: { user: 'startup_app_writer', password: 'seed_password' },
-    createdByEmail: 'tom.reed@startuplabs.io',
+    createdByEmail: 'tom.reed@startuplabs.test',
   },
   {
     tenantSlug: 'startup-labs',
@@ -90,7 +90,7 @@ export const CONNECTIONS: SeedConnection[] = [
     environment: 'development',
     definition: { host: 'dev-mysql.startuplabs.io', port: 3306, database: 'startup_dev' },
     readCredential: { user: 'dev_user', password: 'seed_password' },
-    createdByEmail: 'tom.reed@startuplabs.io',
+    createdByEmail: 'tom.reed@startuplabs.test',
   },
   // Solo Developer (1 connection)
   {
@@ -110,6 +110,6 @@ export const CONNECTIONS: SeedConnection[] = [
     environment: 'local',
     definition: { host: 'localhost', port: 5432, database: 'libredb' },
     readCredential: { user: 'libredb_platform', password: 'libredb_platform_dev' },
-    createdByEmail: 'sarah.chen@acme.com',
+    createdByEmail: 'sarah.chen@acme.test',
   },
 ]
