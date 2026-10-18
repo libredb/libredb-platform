@@ -1,8 +1,9 @@
 import { requireAuth } from '@/shared/lib/auth-utils'
 import { db } from '@/shared/lib/db'
 import { SupportRepository } from '@/features/support/lib/support.repository'
-import { canViewTicket, canManageTicket, canSeeInternalNotes } from '@/features/support/lib/support-permissions'
+import { canViewTicket, canManageTicket, canSeeInternalNotes, tenantPageHref } from '@/features/support/lib/support-permissions'
 import { ConversationView } from '@/features/support/components/conversation-view'
+import { getDeploymentMode } from '@/shared/lib/deployment'
 import { notFound, redirect } from 'next/navigation'
 
 export default async function TicketDetailPage({
@@ -51,7 +52,7 @@ export default async function TicketDetailPage({
   const tenant = ticket.tenantId
     ? await db.tenant.findUnique({
         where: { id: ticket.tenantId },
-        select: { name: true, slug: true, planConfig: { select: { name: true } } },
+        select: { id: true, name: true, planConfig: { select: { name: true } } },
       })
     : null
 
@@ -79,7 +80,7 @@ export default async function TicketDetailPage({
       customerName={userMap[ticket.createdByUserId] ?? 'Unknown'}
       customerEmail={users.find(u => u.id === ticket.createdByUserId)?.email ?? null}
       tenantName={tenant?.name ?? null}
-      tenantSlug={tenant?.slug ?? null}
+      tenantHref={tenant ? tenantPageHref(user, tenant.id, getDeploymentMode()) : null}
       tenantPlan={tenant?.planConfig.name ?? null}
     />
   )

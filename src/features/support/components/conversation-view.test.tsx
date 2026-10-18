@@ -50,7 +50,7 @@ function renderView() {
       customerName="Sarah Chen"
       customerEmail="sarah.chen@acme.com"
       tenantName="Acme"
-      tenantSlug="acme"
+      tenantHref={null}
       tenantPlan={null}
     />,
   )
