@@ -6,8 +6,8 @@ import { Badge } from '@/shared/components/ui/badge'
 import { calculateSlaStatus } from '@/features/support/lib/support-sla'
 
 export function InboxListRow({
-  ticket, active, href,
-}: { ticket: any; active: boolean; href: string }) {
+  ticket, priorityLabel, active, href,
+}: { ticket: any; priorityLabel: string; active: boolean; href: string }) {
   const sla = calculateSlaStatus({
     createdAt: new Date(ticket.createdAt),
     priority: ticket.priority,
@@ -26,7 +26,7 @@ export function InboxListRow({
       <div className="mt-1 truncate text-sm font-medium">{ticket.subject}</div>
       <div className="mt-1 flex flex-wrap items-center gap-1">
         <Badge variant={ticket.priority === 'URGENT' || ticket.priority === 'HIGH' ? 'destructive' : 'secondary'} className="h-4 text-[9px]">
-          {ticket.priority}
+          {priorityLabel}
         </Badge>
         {ticket.tags?.slice(0, 2).map((t: any) => (
           <span key={t.tag.id} className="rounded px-1.5 text-[9px] text-foreground"
