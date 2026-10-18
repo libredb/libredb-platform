@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { StarIcon } from 'lucide-react'
+import { CheckIcon, StarIcon } from 'lucide-react'
 import { Button } from '@/shared/components/ui/button'
 import { Textarea } from '@/shared/components/ui/textarea'
 import { useAction } from '@/shared/hooks/use-action'
@@ -18,7 +18,7 @@ export function CsatPrompt({ ticketId }: { ticketId: string }) {
   })
 
   if (submitted) {
-    return <div className="rounded-md border bg-card p-4 text-center text-sm">✓ Thank you for your rating.</div>
+    return <div className="flex items-center justify-center gap-1.5 rounded-md border bg-card p-4 text-sm"><CheckIcon className="size-4" aria-hidden /> Thank you for your rating.</div>
   }
 
   return (

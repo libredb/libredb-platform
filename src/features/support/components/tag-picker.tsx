@@ -26,8 +26,8 @@ export function TagPicker({ ticketTags, availableTags, canManage, onAdd, onRemov
       {ticketTags.map(t => (
         <span
           key={t.id}
-          className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px]"
-          style={{ backgroundColor: (t.colorCode ?? '#6366f1') + '22', color: t.colorCode ?? '#6366f1' }}
+          className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-foreground"
+          style={{ backgroundColor: (t.colorCode ?? '#6366f1') + '22' }}
         >
           {t.name}
           {canManage && (

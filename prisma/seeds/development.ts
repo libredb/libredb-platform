@@ -21,7 +21,7 @@ const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! })
 const db = new PrismaClient({ adapter })
 
 export async function seedDevelopment() {
-  console.log('🔧 Seeding development data...')
+  console.log('Seeding development data...')
 
   // Every seeded user signs in with SEED_USER_PASSWORD, and no default password exists.
   const password = process.env.SEED_USER_PASSWORD
@@ -47,7 +47,7 @@ export async function seedDevelopment() {
     })
     tenantMap.set(t.slug, tenant.id)
   }
-  console.log('  ✓ Tenants (3)')
+  console.log('  - Tenants (3)')
 
   // ─── Subscriptions ────────────────────────────────────
   for (const t of TENANTS) {
@@ -64,7 +64,7 @@ export async function seedDevelopment() {
       })
     }
   }
-  console.log('  ✓ Subscriptions')
+  console.log('  - Subscriptions')
 
   // ─── Users & Memberships ──────────────────────────────
   const userMap = new Map<string, string>() // email -> id
@@ -79,7 +79,7 @@ export async function seedDevelopment() {
     const roleCode = u.email === 'admin@libredb.example' ? SYSTEM_ROLES.PLATFORM_ADMIN : SYSTEM_ROLES.PLATFORM_TECH
     await assignPlatformRole(userId, roleCode)
   }
-  console.log('  ✓ Platform users (2)')
+  console.log('  - Platform users (2)')
 
   // Tenant users
   for (const u of TENANT_USERS) {
@@ -112,19 +112,19 @@ export async function seedDevelopment() {
       }
     }
   }
-  console.log('  ✓ Tenant users (12) with memberships')
+  console.log('  - Tenant users (12) with memberships')
 
   // ─── Connections ──────────────────────────────────────
   const connectionMap = await seedConnections(tenantMap, userMap)
-  console.log(`  ✓ Database connections (${CONNECTIONS.length}) sealed to the development seal key`)
+  console.log(`  - Database connections (${CONNECTIONS.length}) sealed to the development seal key`)
 
   // ─── Grants ───────────────────────────────────────────
   await seedGrants(connectionMap, userMap)
-  console.log(`  ✓ Grants of ${SEED_GRANTEES.map((g) => g.username).join(' and ')} on the ${CONNECTIONS.length} connections`)
+  console.log(`  - Grants of ${SEED_GRANTEES.map((g) => g.username).join(' and ')} on the ${CONNECTIONS.length} connections`)
 
   // ─── Sample Query Events ──────────────────────────────
   await seedQueryEvents(studioDatabaseUrl, connectionMap)
-  console.log(`  ✓ Sample query events (${QUERY_EVENTS.length})`)
+  console.log(`  - Sample query events (${QUERY_EVENTS.length})`)
 
   // ─── Support Tickets ──────────────────────────────────
   let ticketNum = 1000
@@ -183,7 +183,7 @@ export async function seedDevelopment() {
       }
     }
   }
-  console.log('  ✓ Support tickets (6) with messages')
+  console.log('  - Support tickets (6) with messages')
 
   // ─── Shared Queries ───────────────────────────────────
   for (const sq of SHARED_QUERIES) {
@@ -207,7 +207,7 @@ export async function seedDevelopment() {
       })
     }
   }
-  console.log('  ✓ Shared queries (6)')
+  console.log('  - Shared queries (6)')
 
   // ─── User Achievements ────────────────────────────────
   for (const ua of USER_ACHIEVEMENTS) {
@@ -231,7 +231,7 @@ export async function seedDevelopment() {
       },
     })
   }
-  console.log('  ✓ User achievements')
+  console.log('  - User achievements')
 
   // ─── User Streaks ─────────────────────────────────────
   const streakData = [
@@ -261,7 +261,7 @@ export async function seedDevelopment() {
       },
     })
   }
-  console.log('  ✓ User streaks')
+  console.log('  - User streaks')
 
   // ─── Notifications (sample) ───────────────────────────
   const notificationUsers = ['sarah.chen@acme.com', 'james.wilson@acme.com', 'tom.reed@startuplabs.io']
@@ -294,12 +294,12 @@ export async function seedDevelopment() {
       },
     })
   }
-  console.log('  ✓ Sample notifications')
+  console.log('  - Sample notifications')
 
   // ─── Support Phase 1 Fixtures ──────────────────────────
   await seedSupportPhase1(tenantMap, userMap)
 
-  console.log('✅ Development seed complete')
+  console.log('Development seed complete')
 }
 
 // ─── Support Phase 1 ─────────────────────────────────────
@@ -330,7 +330,7 @@ async function seedSupportPhase1(tenantMap: Map<string, string>, userMap: Map<st
     where: { tenantId_ticketNumber: { tenantId: tenant1Id, ticketNumber: 'TKT-SEED-001' } },
   })
   if (existing) {
-    console.log('  ✓ Support Phase 1 fixtures already present')
+    console.log('  - Support Phase 1 fixtures already present')
     return
   }
 
@@ -433,7 +433,7 @@ async function seedSupportPhase1(tenantMap: Map<string, string>, userMap: Map<st
     },
   })
 
-  console.log('  ✓ Support Phase 1 fixtures (3 tickets)')
+  console.log('  - Support Phase 1 fixtures (3 tickets)')
 }
 
 // ─── Helpers ──────────────────────────────────────────────

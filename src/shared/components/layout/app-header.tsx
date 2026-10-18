@@ -1,5 +1,6 @@
 'use client'
 
+import { Fragment } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { SidebarTrigger } from '@/shared/components/ui/sidebar'
@@ -52,17 +53,20 @@ export function AppHeader() {
             const isUuid = /^[0-9a-f-]{36}$/i.test(segment)
             if (isUuid) return null
 
+            // The separator is an <li> of its own beside the item: inside the item, the browser would end the item at it.
             return (
-              <BreadcrumbItem key={href}>
+              <Fragment key={href}>
                 {index > 0 && <BreadcrumbSeparator />}
-                {isLast ? (
-                  <BreadcrumbPage>{label}</BreadcrumbPage>
-                ) : (
-                  <Link href={href} className="transition-colors hover:text-foreground">
-                    {label}
-                  </Link>
-                )}
-              </BreadcrumbItem>
+                <BreadcrumbItem>
+                  {isLast ? (
+                    <BreadcrumbPage>{label}</BreadcrumbPage>
+                  ) : (
+                    <Link href={href} className="transition-colors hover:text-foreground">
+                      {label}
+                    </Link>
+                  )}
+                </BreadcrumbItem>
+              </Fragment>
             )
           })}
         </BreadcrumbList>

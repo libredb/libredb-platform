@@ -14,6 +14,7 @@ import { useAttachmentUpload } from '../hooks/use-attachment-upload'
 import { addTag } from '../actions/add-tag'
 import { removeTag } from '../actions/remove-tag'
 import { reopenTicket } from '../actions/reopen-ticket'
+import { isFromInteractiveControl } from '../lib/hotkeys'
 
 interface ConversationViewProps {
   ticketId: string
@@ -74,13 +75,13 @@ export function ConversationView(props: ConversationViewProps) {
   // They're declared above the early return below. Callbacks reference
   // `update.mutateAsync` directly so there is no ordering dependency on
   // `handleUpdate` which is defined later.
-  useHotkeys('r', (ev) => { ev.preventDefault(); setReplyMode('reply') }, { enableOnFormTags: false })
-  useHotkeys('c', (ev) => { if (props.canManage) { ev.preventDefault(); setReplyMode('internal') } }, { enableOnFormTags: false })
+  useHotkeys('r', (ev) => { ev.preventDefault(); setReplyMode('reply') }, { enableOnFormTags: false, ignoreEventWhen: isFromInteractiveControl })
+  useHotkeys('c', (ev) => { if (props.canManage) { ev.preventDefault(); setReplyMode('internal') } }, { enableOnFormTags: false, ignoreEventWhen: isFromInteractiveControl })
   useHotkeys('e', async () => {
     if (!props.canManage) return
     const res = await update.mutateAsync({ status: 'RESOLVED' })
     if (!res.success) toast.error(res.error)
-  }, { enableOnFormTags: false })
+  }, { enableOnFormTags: false, ignoreEventWhen: isFromInteractiveControl })
 
   if (!ticket) return <div className="flex h-full items-center justify-center text-muted-foreground">Loading...</div>
 
@@ -162,6 +163,7 @@ export function ConversationView(props: ConversationViewProps) {
         priorityValues={props.priorityValues}
         categoryValues={props.categoryValues}
         members={props.members}
+        userMap={props.userMap}
         tags={ticket.tags.map((tt: any) => tt.tag)}
         availableTags={props.availableTags}
         customerName={props.customerName}

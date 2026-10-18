@@ -29,8 +29,8 @@ export function InboxListRow({
           {ticket.priority}
         </Badge>
         {ticket.tags?.slice(0, 2).map((t: any) => (
-          <span key={t.tag.id} className="rounded px-1.5 text-[9px]"
-            style={{ backgroundColor: (t.tag.colorCode ?? '#6366f1') + '22', color: t.tag.colorCode ?? '#6366f1' }}>
+          <span key={t.tag.id} className="rounded px-1.5 text-[9px] text-foreground"
+            style={{ backgroundColor: (t.tag.colorCode ?? '#6366f1') + '22' }}>
             {t.tag.name}
           </span>
         ))}

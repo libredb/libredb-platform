@@ -21,4 +21,22 @@ describe('AppHeader', () => {
     expect(screen.getByText('License')).toHaveAttribute('aria-current', 'page')
     expect(screen.queryByText('license')).not.toBeInTheDocument()
   })
+
+  // The browser's HTML parser closes an open <li> at the next <li>, so a separator inside an item makes the server's
+  // HTML differ from React's tree, and hydration fails on every page with more than one breadcrumb.
+  it('puts each breadcrumb separator between the items, never inside an item', () => {
+    const { container } = render(
+      <SidebarProvider>
+        <AppHeader />
+      </SidebarProvider>,
+    )
+
+    const list = container.querySelector('[data-slot="breadcrumb-list"]')!
+    expect([...list.children].map((child) => child.getAttribute('data-slot'))).toEqual([
+      'breadcrumb-item',
+      'breadcrumb-separator',
+      'breadcrumb-item',
+    ])
+    expect(container.querySelector('li li')).toBeNull()
+  })
 })

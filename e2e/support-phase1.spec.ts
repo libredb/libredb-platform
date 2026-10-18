@@ -67,6 +67,19 @@ async function resolveAsAgent(browser: Browser, ticketUrl: string) {
   }
 }
 
+/** Searches the inbox for `query` and waits for the searched inbox to arrive, because the list is empty while it loads. */
+async function searchInbox(page: Page, query: string) {
+  // The search input has placeholder "Search..." (InboxList component)
+  const searchInput = page.locator('input[placeholder="Search..."]')
+  await searchInput.fill(query)
+  const searched = page.waitForResponse((response) => {
+    const url = new URL(response.url())
+    return url.pathname === '/support/api/inbox' && url.searchParams.get('q') === query
+  })
+  await searchInput.press('Enter')
+  await searched
+}
+
 // ─── Tests ──────────────────────────────────────────────────
 // Tests 2 and 5 open a ticket of their own and follow it by its URL, because the CSAT prompt shows only to the
 // ticket's creator, only the creator's reply reopens a ticket, and the inbox lists only open tickets by default.
@@ -123,23 +136,27 @@ test.describe('Support Phase 1', () => {
     await expect(page).toHaveURL(/\/support\/[a-zA-Z0-9-]+/, { timeout: 5_000 })
   })
 
-  test('4. search finds ticket by subject', async ({ page }) => {
+  test('4. search keeps the ticket that matches and drops a ticket that does not', async ({ page }) => {
     await login(page, AGENT.email, AGENT.password)
+    // The inbox loads after the page hydrates, and only then does the search form submit through the router.
+    const inboxLoaded = page.waitForResponse((response) => new URL(response.url()).pathname === '/support/api/inbox')
     await page.goto('/support')
+    await inboxLoaded
 
-    // The search input has placeholder "Search..." (InboxList component)
-    const searchInput = page.locator('input[placeholder="Search..."]')
-    await expect(searchInput).toBeVisible({ timeout: 5_000 })
+    // Two tickets of the development seed, each found by a query that misses the other: TKT-SEED-001 (Database
+    // unreachable) by unreach, and TKT-SEED-003 (AI query suggestions not working) by suggestions.
+    // The open inbox lists only its 50 newest tickets, and every run of this file adds two open tickets, so the seed
+    // tickets drop out of it on a reused database, and the test reads only searched lists.
+    const unreachable = page.getByRole('link', { name: /TKT-SEED-001/ })
+    const suggestions = page.getByRole('link', { name: /TKT-SEED-003/ })
 
-    // Search for a seeded ticket subject fragment
-    // TKT-SEED-001 subject: "Database unreachable"
-    await searchInput.fill('unreach')
-    await searchInput.press('Enter')
+    await searchInbox(page, 'suggestions')
+    await expect(suggestions).toBeVisible()
+    await expect(unreachable).toBeHidden()
 
-    // Should find at least the seeded ticket
-    await expect(
-      page.locator('text=unreach').first(),
-    ).toBeVisible({ timeout: 10_000 })
+    await searchInbox(page, 'unreach')
+    await expect(unreachable).toBeVisible()
+    await expect(suggestions).toBeHidden()
   })
 
   test('5. customer reply on resolved ticket auto-reopens', async ({ page, browser }) => {
