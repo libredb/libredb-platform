@@ -10,6 +10,7 @@ import { beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { NO_RENEWAL_TIMER } from "../../src/steps/base-docker";
+import { LICENSE_ARGS } from "./support/install";
 
 const packageRoot = join(import.meta.dir, "..", "..");
 const INSTALLER = process.env.LIBREDB_INSTALLER_BIN ?? join(packageRoot, "dist", "libredb-installer-linux-x64");
@@ -29,7 +30,12 @@ const systemdRuns = existsSync("/run/systemd/system");
 /** What plan prints on a converged host; without systemd, base also warns that no timer renews the certificates. */
 const CONVERGED_PLAN = systemdRuns ? "No changes\n" : `No changes\nWarning: ${NO_RENEWAL_TIMER}\n`;
 
-const ARGS = ["-c", CONFIG, ...(REGISTRY === undefined || REGISTRY === "" ? [] : ["--set", `images.registry=${REGISTRY}`])];
+const ARGS = [
+  "-c",
+  CONFIG,
+  ...(REGISTRY === undefined || REGISTRY === "" ? [] : ["--set", `images.registry=${REGISTRY}`]),
+  ...LICENSE_ARGS,
+];
 
 interface RunResult {
   code: number;

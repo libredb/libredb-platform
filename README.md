@@ -30,12 +30,13 @@ LibreDB Platform replaces distributing connection strings with a managed web int
 
 ## Install
 
-Platform 1.0.0 is the first release, published as the image `ghcr.io/libredb/libredb-platform`, and pairs with LibreDB Studio 1.0.0.
+Platform 1.0.1 is the current release, published as the image `ghcr.io/libredb/libredb-platform`, and pairs with LibreDB Studio 1.0.0.
 It installs with Docker on one x86_64 Linux host: the installer deploys PostgreSQL, Keycloak, Platform, Studio and a Caddy edge, and can use an existing PostgreSQL server or Keycloak instead.
 Kubernetes support follows in the next release.
 Cloud mode serves development and the hosted service of a later release, and it is not a supported way to install LibreDB.
 Download the installer from this repository's [GitHub releases](https://github.com/libredb/libredb-platform/releases) and follow the [Docker install guide](docs/deploy/install-docker.md).
-Without a license key the install runs on the free tier of 1 admin seat and 3 user seats, as [License](#license) describes.
+Every install needs a license key from LibreDB, and Platform does not start in self-hosted mode without one.
+Write to [info@libredb.org](mailto:info@libredb.org) for a free license of 1 admin seat and 3 user seats for 12 months, as [License](#license) describes.
 
 ## Development setup
 
@@ -154,7 +155,7 @@ prisma/                     # Schema (36 models), migrations, seeds
 
 Report bugs and ask questions in [GitHub Issues](https://github.com/libredb/libredb-platform/issues).
 Report a security vulnerability privately, as [SECURITY.md](SECURITY.md) describes, and never in a public issue.
-For a license key or a renewal, write to [info@libredb.org](mailto:info@libredb.org).
+For a license key, the free one included, or a renewal, write to [info@libredb.org](mailto:info@libredb.org).
 To propose a change, open an issue, as [CONTRIBUTING.md](CONTRIBUTING.md) explains, because pull requests from outside the team are not accepted at this time.
 
 ## Related Projects
@@ -170,10 +171,11 @@ This is a summary: the [LICENSE](LICENSE) file holds the full terms.
 
 [LibreDB Studio](https://github.com/libredb/libredb-studio), the database web editor that Platform governs, stays open source in its own repository.
 
-A self-hosted install runs on a free tier of 1 admin seat and 3 user seats until it has a valid license key.
-License keys come from SEKOYA GRUP BİLİŞİM VE TEKNOLOJİ LİMİTED ŞİRKETİ: write to [info@libredb.org](mailto:info@libredb.org) for a new license or a renewal.
+Every self-hosted install needs a license key, and Platform does not start in self-hosted mode without `PLATFORM_LICENSE`.
+License keys come from SEKOYA GRUP BİLİŞİM VE TEKNOLOJİ LİMİTED ŞİRKETİ: write to [info@libredb.org](mailto:info@libredb.org) for a free license, which covers 1 admin seat and 3 user seats for 12 months, for a license with more seats, or for a renewal.
 A key names the customer, the admin and user seats, an expiry and, optionally, the hosts it may run on, which must then include the host of `AUTH_URL`.
 To install or renew a key, save the license file you receive at the path that the installer's `platform.licenseFile` names and run `libredb-installer apply -c <libredb.yaml>` as root, which passes it to Platform as `PLATFORM_LICENSE`, as the [Docker install guide](docs/deploy/install-docker.md) shows; without the installer, set `PLATFORM_LICENSE` to the token the file holds and restart `serve`.
 Admins see a warning from 30 days before the key expires, and a grace period of 14 days follows the expiry, in which the key's seats still apply.
 After the grace period no new users, connections or admins can be added, while existing access and the audit log keep working.
+Platform also starts with a key that it cannot verify, which adds no user, connection or admin until a valid key is installed, while existing access keeps working.
 [`docs/deploy/platform-runtime.md`](docs/deploy/platform-runtime.md#license) describes each license state, how seats are counted and which writes a license refuses.

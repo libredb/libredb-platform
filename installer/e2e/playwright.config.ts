@@ -29,8 +29,8 @@ export default defineConfig({
   // The specs of an installation in the hostnames style, and those of the ports style (ports-*.spec.ts), each run
   // against an installation of their own style: `--project hostnames` or `--project ports`. The first admin's first
   // login, platform-login.spec.ts, runs first as the project first-login that hostnames depends on, and every other spec
-  // of the hostnames style signs in as that admin, who then holds the one admin seat of an installation without a
-  // license; `--no-deps` skips it against an installation whose first admin already signed in.
+  // of the hostnames style signs in as that admin, who then holds the one admin seat of the license that the end-to-end
+  // tests install; `--no-deps` skips it against an installation whose first admin already signed in.
   projects: [
     { name: "first-login", testMatch: "platform-login.spec.ts", use: { ...devices["Desktop Chrome"] } },
     {

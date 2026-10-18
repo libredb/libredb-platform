@@ -10,9 +10,9 @@
 // of the applied configuration /opt/libredb/libredb.yaml that it edits, and USER_ID, the Keycloak id of a user.
 // The tests run in order and share the installation, the connection and the sessions they build; the suite creates the
 // target database container, a Keycloak user and the connection and removes them at the end. It signs in to Platform
-// as the installer's first admin, whom platform-login.spec.ts signs in before it: an installation without a license
-// has one admin seat, which the first admin then holds, so the first sign-in of another admin would be refused. The
-// seal key drill expects its connection to be the only one, so the specs that run before it delete theirs.
+// as the installer's first admin, whom platform-login.spec.ts signs in before it: the license that the end-to-end tests
+// install has one admin seat, which the first admin then holds, so the first sign-in of another admin would be refused.
+// The seal key drill expects its connection to be the only one, so the specs that run before it delete theirs.
 import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";

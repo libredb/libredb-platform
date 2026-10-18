@@ -5,6 +5,7 @@ import { startScheduler } from '@/shared/lib/jobs/scheduler'
 import { getLockPool } from '@/shared/lib/jobs/lock-pool'
 import { TASKS } from '@/shared/lib/jobs/registry'
 import type { LicenseErrorCode, LicenseKey, LicensePayload, LicenseState } from '@/shared/lib/license'
+import { SMALL_LICENSE } from '../tests/license/statuses'
 import { LICENSE_TEST_KEY, signLicense } from '../tests/license/test-keys'
 
 vi.mock('@/shared/lib/jobs/scheduler', () => ({ startScheduler: vi.fn() }))
@@ -12,11 +13,12 @@ vi.mock('@/shared/lib/jobs/lock-pool', () => ({ getLockPool: vi.fn(() => ({ conn
 // The Prisma client's raw statement, through which the canary publication inserts into platform.seal_canary.
 const executeRaw = vi.hoisted(() => vi.fn<(query: TemplateStringsArray, ...values: unknown[]) => Promise<number>>())
 vi.mock('@/shared/lib/db', () => ({ db: { $executeRaw: executeRaw } }))
-// The key list a start reads, which the license tests fill: with the list of the build, or with a test key. The mock
-// stays for the whole file, because Vitest settles a pending vi.doUnmock and a later vi.doMock of one module in either
-// order, and a start could then read the other list.
+// The key list a start reads: the test key, unless the license tests fill it with the list of the build. The mock stays
+// for the whole file, because Vitest settles a pending vi.doUnmock and a later vi.doMock of one module in either order,
+// and a start could then read the other list.
 const licenseKeys = vi.hoisted((): LicenseKey[] => [])
 vi.mock('@/shared/lib/license/keys', () => ({ LICENSE_KEYS: licenseKeys }))
+const TEST_KEY_LIST: LicenseKey[] = [{ kid: LICENSE_TEST_KEY.kid, publicKey: LICENSE_TEST_KEY.publicKey }]
 
 const VARIABLES = [
   'NEXT_RUNTIME',
@@ -60,6 +62,8 @@ const VALID_ENV: Record<string, string | undefined> = {
   AUTH_KEYCLOAK_ID: 'libredb-platform',
   AUTH_KEYCLOAK_SECRET: 'keycloak-client-secret-value',
   BRIDGE_SEAL_PUBLIC_KEY: SEAL_PUBLIC_KEY,
+  // A license of 1 admin seat and 3 user seats, signed by the test key.
+  PLATFORM_LICENSE: signLicense(LICENSE_TEST_KEY, SMALL_LICENSE),
 }
 
 function stubEnv(runtime: string, env: Record<string, string | undefined>) {
@@ -77,6 +81,7 @@ describe('register', () => {
   let consoleError: MockInstance<typeof console.error>
 
   beforeEach(() => {
+    licenseKeys.splice(0, licenseKeys.length, ...TEST_KEY_LIST)
     exit = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never)
     consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     vi.spyOn(console, 'log').mockImplementation(() => {})
@@ -406,14 +411,16 @@ describe('register', () => {
       for (const [token, code] of cases) {
         await startProcess({ ...VALID_ENV, PLATFORM_LICENSE: token })
 
-        expect(licenseLines(), code).toEqual([expect.objectContaining({ level: 'warn', state: 'invalid', code })])
+        expect(licenseLines(), code).toEqual([
+          expect.objectContaining({ level: 'warn', message: 'License invalid, no seat can be added', state: 'invalid', code }),
+        ])
         expectTokenNotPrinted(token)
         await expectStarted(code)
       }
     })
 
     it('starts in every state of a valid license and logs one line with that state', async () => {
-      licenseKeys.splice(0, licenseKeys.length, { kid: LICENSE_TEST_KEY.kid, publicKey: LICENSE_TEST_KEY.publicKey })
+      licenseKeys.splice(0, licenseKeys.length, ...TEST_KEY_LIST)
       vi.useFakeTimers({ toFake: ['Date'] })
       const token = signLicense(LICENSE_TEST_KEY, LICENSE)
       // An instant in each state: the license is expiring from 2027-09-16, in grace from 2027-10-16 and expired from
@@ -434,13 +441,36 @@ describe('register', () => {
       }
     })
 
-    it('logs the free tier without PLATFORM_LICENSE, and nothing about a license in cloud mode', async () => {
-      await startProcess(VALID_ENV)
-      expect(licenseLines()).toEqual([expect.objectContaining({ level: 'info', state: 'free' })])
-      await expectStarted('free')
+    it('stops in self-hosted mode without PLATFORM_LICENSE with a ConfigError that names it, and an empty value counts as unset', async () => {
+      const message = 'Invalid runtime configuration: PLATFORM_LICENSE is required in self-hosted mode'
+      for (const token of [undefined, '']) {
+        for (const method of [console.log, console.warn, console.error]) vi.mocked(method).mockClear()
+        exit.mockClear()
+        stubEnv('nodejs', { ...VALID_ENV, PLATFORM_LICENSE: token })
+        vi.stubEnv('LOG_LEVEL', 'info')
+        vi.stubEnv('LOG_FORMAT', 'json')
+        vi.resetModules()
+        const fresh = await import('./instrumentation')
 
-      await startProcess({ ...VALID_ENV, DEPLOYMENT_MODE: 'cloud', PLATFORM_LICENSE: 'ldl1.leaked-license-value' })
-      expect(licenseLines()).toEqual([])
+        const error = await fresh.register().then(() => null, (reason: unknown) => reason)
+        await nextTurn()
+
+        expect(error, String(token)).toMatchObject({ code: 'CONFIG_ERROR', message })
+        expect(exit, String(token)).toHaveBeenCalledWith(1)
+        expect(printed().map(line => JSON.parse(line)), String(token)).toEqual([
+          expect.objectContaining({ level: 'error', message: 'Platform failed to start', error: expect.objectContaining({ message }) }),
+        ])
+        const { startScheduler: started } = await import('@/shared/lib/jobs/scheduler')
+        expect(started, String(token)).not.toHaveBeenCalled()
+        expect(executeRaw, String(token)).not.toHaveBeenCalled()
+      }
+    })
+
+    it('starts in cloud mode with or without PLATFORM_LICENSE, and logs nothing about a license', async () => {
+      for (const token of [undefined, 'ldl1.leaked-license-value']) {
+        await startProcess({ ...VALID_ENV, DEPLOYMENT_MODE: 'cloud', PLATFORM_LICENSE: token })
+        expect(licenseLines(), String(token)).toEqual([])
+      }
       expectTokenNotPrinted('ldl1.leaked-license-value')
     })
   })

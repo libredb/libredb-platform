@@ -141,8 +141,9 @@ function valid(state: 'active' | 'expired', adminSeats: number): LicenseStatus {
   return status
 }
 
-// Without a token: 1 admin seat.
-const FREE = licenseStatus(null, new Date('2027-01-01T00:00:00Z'))
+// A license of 1 admin seat, and a token that fails verification, which grants no seat.
+const ONE_ADMIN_SEAT = valid('active', 1)
+const INVALID = licenseStatus({ ok: false, code: 'LICENSE_UNKNOWN_KID' }, new Date('2027-01-01T00:00:00Z'))
 
 // zoe, an admin of the realm, signs in for the first time.
 const ZOE = { sub: 'kc-zoe', email: 'zoe@libredb.test', name: 'Zoe Admin' }
@@ -238,7 +239,7 @@ async function outcome(admitted: Promise<void>): Promise<string> {
 
 describe('admitKeycloakAdmin', () => {
   it('lets an identity with a Platform user sign in in every state, without reading the license, locking or asking Keycloak', async () => {
-    const licenses: Array<LicenseStatus | null> = [FREE, valid('expired', 100), valid('active', 0), null]
+    const licenses: Array<LicenseStatus | null> = [INVALID, valid('expired', 100), valid('active', 0), null]
     for (const license of licenses) {
       const users = [userRow('alice'), userRow('frank')]
       const { client, events, findUnique } = fakeDatabase(users)
@@ -259,7 +260,7 @@ describe('admitKeycloakAdmin', () => {
 
     // A license that cannot be read, a defect of the build, still lets an existing admin in.
     const { client } = fakeDatabase([userRow('alice')])
-    const { admission } = admissionOf(FREE)
+    const { admission } = admissionOf(ONE_ADMIN_SEAT)
     admission.getLicenseStatus = () => {
       throw new Error('License key 0 has a kid that is not derived from its public key')
     }
@@ -272,11 +273,11 @@ describe('admitKeycloakAdmin', () => {
     const signedInAt = new Date('2027-01-01T08:00:00Z')
     const users = [userRow('carol'), userRow('frank')]
     const { client, events } = fakeDatabase(users)
-    const { admission } = admissionOf(FREE, REALM, events)
+    const { admission } = admissionOf(ONE_ADMIN_SEAT, REALM, events)
 
     expect(await outcome(admitKeycloakAdmin(client, ZOE, admission, signedInAt))).toBe('admitted')
 
-    // carol's role was removed and frank's account is disabled, so neither holds the free tier's one admin seat.
+    // carol's role was removed and frank's account is disabled, so neither holds the license's one admin seat.
     const begin = events.indexOf('begin')
     expect(events.slice(0, 2)).toEqual(['find user kc-zoe', 'read admin identities'])
     expect(events.slice(2, begin).sort()).toEqual(['getEffectiveRoles kc-carol', 'getUser kc-carol', 'getUser kc-frank'])
@@ -288,10 +289,10 @@ describe('admitKeycloakAdmin', () => {
     ])
   })
 
-  it('refuses a new admin when the admin seats in use reach the limit and after expiry, and writes no user', async () => {
+  it('refuses a new admin under an invalid license, when the admin seats in use reach the limit and after expiry, and writes no user', async () => {
     // alice holds an admin seat, and frank's disabled account holds none.
     const statuses: Array<[string, LicenseStatus, string]> = [
-      ['free', FREE, 'LICENSE_ADMIN_SEATS'],
+      ['invalid', INVALID, 'LICENSE_INVALID'],
       ['active at the limit', valid('active', 1), 'LICENSE_ADMIN_SEATS'],
       ['active below the limit', valid('active', 2), 'admitted'],
       ['expired', valid('expired', 100), 'LICENSE_EXPIRED'],
@@ -306,9 +307,9 @@ describe('admitKeycloakAdmin', () => {
         expected === 'admitted' ? ['kc-alice', 'kc-frank', 'kc-zoe'] : ['kc-alice', 'kc-frank'],
       )
       if (expected !== 'admitted') expect(events.at(-1), name).toBe('rollback')
-      // An expired license refuses every new admin whatever the seats, so neither Keycloak nor the admin identities it
-      // would be asked about are read before the transaction.
-      if (license.state === 'expired') {
+      // An invalid or expired license refuses every new admin whatever the seats, so neither Keycloak nor the admin
+      // identities it would be asked about are read before the transaction.
+      if (license.state === 'invalid' || license.state === 'expired') {
         expect(directory.calls, name).toEqual([])
         expect(events.slice(0, events.indexOf('begin')), name).toEqual(['find user kc-zoe'])
       }
@@ -324,7 +325,7 @@ describe('admitKeycloakAdmin', () => {
     ]
     for (const [name, accounts, expected] of changes) {
       const { client } = fakeDatabase([userRow('alice')])
-      const { admission } = admissionOf(FREE, accounts)
+      const { admission } = admissionOf(ONE_ADMIN_SEAT, accounts)
 
       expect(await outcome(admitKeycloakAdmin(client, ZOE, admission)), name).toBe(expected)
     }
@@ -332,7 +333,7 @@ describe('admitKeycloakAdmin', () => {
 
   it('fails the sign-in when Keycloak cannot be read, before any transaction, instead of freeing a seat', async () => {
     const { client, events } = fakeDatabase([userRow('alice')])
-    const { admission, directory } = admissionOf(FREE)
+    const { admission, directory } = admissionOf(ONE_ADMIN_SEAT)
     const unreachable = new KeycloakUnavailableError('Keycloak Admin API GET /users/{id} answered 503')
     directory.getUser.mockRejectedValue(unreachable)
 
@@ -343,7 +344,7 @@ describe('admitKeycloakAdmin', () => {
   it('fails without asking Keycloak or writing a user when the install does not have exactly one tenant', async () => {
     const users = [userRow('alice')]
     const { client, events } = fakeDatabase(users)
-    const { admission, directory } = admissionOf(FREE)
+    const { admission, directory } = admissionOf(ONE_ADMIN_SEAT)
     admission.getInstallTenant = async () => {
       throw new ConfigError('a self-hosted install needs exactly one tenant, and the database holds none')
     }
@@ -369,16 +370,18 @@ describe('admitKeycloakAdmin', () => {
     // Another first sign-in of zoe committed her user first: she takes no new seat and her user is refreshed.
     const own = [userRow('carol')]
     const first = fakeDatabase(own, { beforeLock: () => own.push(userRow('zoe')) })
-    expect(await outcome(admitKeycloakAdmin(first.client, ZOE, admissionOf(FREE).admission))).toBe('admitted')
+    expect(await outcome(admitKeycloakAdmin(first.client, ZOE, admissionOf(ONE_ADMIN_SEAT).admission))).toBe('admitted')
     expect(own.map((row) => [row.keycloakId, row.name])).toEqual([
       ['kc-carol', 'carol'],
       ['kc-zoe', 'Zoe Admin'],
     ])
 
-    // The first sign-in of hugo committed first and took the free tier's one admin seat.
+    // The first sign-in of hugo committed first and took the license's one admin seat.
     const other = [userRow('carol')]
     const second = fakeDatabase(other, { beforeLock: () => other.push(userRow('hugo')) })
-    expect(await outcome(admitKeycloakAdmin(second.client, ZOE, admissionOf(FREE).admission))).toBe('LICENSE_ADMIN_SEATS')
+    expect(await outcome(admitKeycloakAdmin(second.client, ZOE, admissionOf(ONE_ADMIN_SEAT).admission))).toBe(
+      'LICENSE_ADMIN_SEATS',
+    )
     expect(other.map((row) => row.keycloakId)).toEqual(['kc-carol', 'kc-hugo'])
   })
 })

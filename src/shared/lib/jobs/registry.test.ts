@@ -9,6 +9,8 @@ const VALID_ENV = {
   AUTH_KEYCLOAK_ID: 'libredb-platform',
   AUTH_KEYCLOAK_SECRET: 'keycloak-client-secret-value',
   BRIDGE_SEAL_PUBLIC_KEY: 'b6-f045B6re3Ue7V8Cr5jO9ApZzyOxGk659gM3tn5wE',
+  // Self-hosted mode requires a license token, which nothing here verifies; no key signed this one.
+  PLATFORM_LICENSE: 'ldl1.0123456789abcdef.e30.AA',
 }
 
 async function loadRegistry(env: Record<string, string | undefined>) {

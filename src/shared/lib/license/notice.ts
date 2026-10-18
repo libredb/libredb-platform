@@ -25,7 +25,7 @@ export type LicenseAttention =
 
 /** The notice of the dashboard banner, which holds only data that the page may show. */
 export interface LicenseNotice {
-  /** The state, or null in `active` and `free`. */
+  /** The state, or null in `active`. */
   readonly attention: LicenseAttention | null
   /** The user seats, when more are in use than the license allows. */
   readonly userSeatsOver: SeatUse | null
@@ -45,7 +45,6 @@ function over(inUse: number | null, allowed: number): SeatUse | null {
 
 function attentionOf(status: LicenseStatus): LicenseAttention | null {
   switch (status.state) {
-    case 'free':
     case 'active':
       return null
     case 'invalid':
@@ -61,13 +60,15 @@ function attentionOf(status: LicenseStatus): LicenseAttention | null {
 
 /**
  * The notice for the install at this status and these seats in use, or null when nothing needs an admin's attention:
- * an active license or the free tier, with no more seats in use than they allow. Seats at their limit are not over it.
+ * an active license with no more seats in use than it allows. Seats at their limit are not over it. An invalid license
+ * grants no seat, so no seat in use is over a limit of it, and its notice names the failure alone.
  */
 export function licenseNotice(status: LicenseStatus, inUse: SeatsInUse): LicenseNotice | null {
+  const limits = status.state === 'invalid' ? null : status.limits
   const notice: LicenseNotice = {
     attention: attentionOf(status),
-    userSeatsOver: over(inUse.userSeats, status.limits.userSeats),
-    adminSeatsOver: over(inUse.adminSeats, status.limits.adminSeats),
+    userSeatsOver: limits === null ? null : over(inUse.userSeats, limits.userSeats),
+    adminSeatsOver: limits === null ? null : over(inUse.adminSeats, limits.adminSeats),
   }
   if (notice.attention === null && notice.userSeatsOver === null && notice.adminSeatsOver === null) return null
   return notice

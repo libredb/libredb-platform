@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import { fakeAdminDirectory, type KeycloakAccount } from '../../../../../tests/license/admin-directory'
 import {
   KeycloakAuthError,
@@ -73,7 +73,6 @@ const LICENSE: LicensePayload = {
 
 const ACTIVE = licenseStatus({ ok: true, license: LICENSE }, new Date('2027-01-01T00:00:00Z'))
 const EXPIRED = licenseStatus({ ok: true, license: LICENSE }, new Date('2027-11-01T00:00:00Z'))
-const FREE = licenseStatus(null, new Date('2027-01-01T00:00:00Z'))
 const INVALID = licenseStatus({ ok: false, code: 'LICENSE_MALFORMED' }, new Date('2027-01-01T00:00:00Z'))
 
 // alice is an admin, and Keycloak removed carol's admin role.
@@ -166,7 +165,7 @@ describe('LicensePage', () => {
   })
 
   it('tells an admin where license keys come from: SEKOYA GRUP BİLİŞİM VE TEKNOLOJİ LİMİTED ŞİRKETİ at info@libredb.org', async () => {
-    setInstall(FREE, [holder('kc-bob', 'bob')])
+    setInstall(ACTIVE, [holder('kc-bob', 'bob')])
 
     await renderPage()
 
@@ -179,7 +178,7 @@ describe('LicensePage', () => {
   })
 
   it('tells an admin to save the license file at the path platform.licenseFile names and run apply as root, or to set PLATFORM_LICENSE', async () => {
-    setInstall(FREE, [holder('kc-bob', 'bob')])
+    setInstall(ACTIVE, [holder('kc-bob', 'bob')])
 
     await renderPage()
 
@@ -192,21 +191,7 @@ describe('LicensePage', () => {
     )
   })
 
-  it('shows the free tier without a license', async () => {
-    setInstall(FREE, [holder('kc-bob', 'bob')])
-
-    await renderPage()
-
-    const status = screen.getByRole('region', { name: 'Status' })
-    expect(within(status).getByText('Free tier')).toBeInTheDocument()
-    expect(status).toHaveTextContent('No license is installed, so the install runs on the free tier of 1 admin seat and 3 user seats.')
-    expect(status).not.toHaveTextContent('Customer')
-    const seats = screen.getByRole('region', { name: 'Seats' })
-    expect(seats).toHaveTextContent('Admin seats1 / 1')
-    expect(seats).toHaveTextContent('User seats1 / 3')
-  })
-
-  it('names the failure of an invalid license and the free tier it runs on', async () => {
+  it('names the failure of an invalid license, says that nothing can be added until a valid one is installed, and where licenses come from', async () => {
     setInstall(INVALID)
 
     await renderPage()
@@ -214,9 +199,32 @@ describe('LicensePage', () => {
     const status = screen.getByRole('region', { name: 'Status' })
     expect(within(status).getByText('Invalid')).toBeInTheDocument()
     expect(status).toHaveTextContent(
-      'The installed license could not be verified (LICENSE_MALFORMED): the token is not a well-formed LibreDB license. The install runs on the free tier of 1 admin seat and 3 user seats.',
+      'The installed license could not be verified (LICENSE_MALFORMED): the token is not a well-formed LibreDB license. No user, connection or admin can be added until a valid license is installed, and existing access keeps working.',
     )
-    expect(screen.getByRole('region', { name: 'Seats' })).toHaveTextContent('User seats5 / 3')
+    expect(status).toHaveTextContent('Write to info@libredb.org for a license that this install can verify.')
+    expect(within(status).getByRole('link', { name: 'info@libredb.org' })).toHaveAttribute('href', 'mailto:info@libredb.org')
+    expect(status).not.toHaveTextContent('Customer')
+    expect(status).not.toHaveTextContent(/free tier/i)
+  })
+
+  it('shows the seats in use of an invalid license without any limit, because it grants none', async () => {
+    setInstall(INVALID)
+
+    await renderPage()
+
+    const seats = screen.getByRole('region', { name: 'Seats' })
+    expect(seats).toHaveTextContent('Admin seats1 in use')
+    expect(seats).toHaveTextContent('User seats5 in use')
+    expect(seats).toHaveTextContent('An invalid license grants no seat, so only the seats in use are shown.')
+    // No count reads as a limit, of 0 or of any other number.
+    expect(seats).not.toHaveTextContent('/')
+
+    // Keycloak could not be asked about the admins, so their count is unknown.
+    session.directoryDegraded = true
+    cleanup()
+    await renderPage()
+    expect(screen.getByRole('region', { name: 'Seats' })).toHaveTextContent('Admin seatsUnknown')
+    expect(screen.getByRole('region', { name: 'Seats' })).toHaveTextContent('User seats5 in use')
   })
 
   it('tells an admin of an expired license that no seat can be added', async () => {

@@ -52,9 +52,24 @@ jobs:
           LIBREDB_STUDIO_REPO: ${{ github.workspace }}/studio-src
       - name: Resolve the test hostnames to this runner
         run: echo "127.0.0.1 platform.libredb.test studio.libredb.test auth.libredb.test" | sudo tee -a /etc/hosts
+      # Every install of the end-to-end tests names LIBREDB_E2E_LICENSE_FILE, the file of the CI license, which the
+      # repository secret LIBREDB_E2E_LICENSE holds: a license that the pinned Platform image verifies for
+      # platform.libredb.test and lab.libredb.test, with 1 admin seat and 3 user seats.
+      - name: Write the CI license to a file
+        env:
+          LIBREDB_E2E_LICENSE: ${{ secrets.LIBREDB_E2E_LICENSE }}
+        run: |
+          if [ -z "$LIBREDB_E2E_LICENSE" ]; then
+            echo "::error::The secret LIBREDB_E2E_LICENSE is not set, and every install of the convergence matrix uses the CI license that it holds"
+            exit 1
+          fi
+          umask 077
+          printf '%s' "$LIBREDB_E2E_LICENSE" > "$RUNNER_TEMP/libredb-e2e.license"
+          echo "LIBREDB_E2E_LICENSE_FILE=$RUNNER_TEMP/libredb-e2e.license" >> "$GITHUB_ENV"
       # Each combination installs from nothing, applies, verifies, applies again with No changes and verifies again.
+      # sudo resets the environment, so the command passes LIBREDB_E2E_LICENSE_FILE on to the test itself.
       - name: Converge the combination as root
-        run: sudo env "LIBREDB_E2E_MATRIX=$LIBREDB_E2E_MATRIX" "$(command -v bun)" test test/e2e/matrix.test.ts
+        run: sudo env "LIBREDB_E2E_MATRIX=$LIBREDB_E2E_MATRIX" "LIBREDB_E2E_LICENSE_FILE=$LIBREDB_E2E_LICENSE_FILE" "$(command -v bun)" test test/e2e/matrix.test.ts
         env:
           LIBREDB_E2E_MATRIX: ${{ matrix.combination }}
       - name: Show the installer state and logs
@@ -102,6 +117,18 @@ jobs:
         run: sudo sysctl -w net.ipv6.conf.default.addr_gen_mode=1
       - name: Install Chromium for the browser specs
         run: bunx playwright install --with-deps chromium
+      # The install of the egress test names LIBREDB_E2E_LICENSE_FILE, the file of the CI license, as in the matrix job.
+      - name: Write the CI license to a file
+        env:
+          LIBREDB_E2E_LICENSE: ${{ secrets.LIBREDB_E2E_LICENSE }}
+        run: |
+          if [ -z "$LIBREDB_E2E_LICENSE" ]; then
+            echo "::error::The secret LIBREDB_E2E_LICENSE is not set, and the install of the egress test uses the CI license that it holds"
+            exit 1
+          fi
+          umask 077
+          printf '%s' "$LIBREDB_E2E_LICENSE" > "$RUNNER_TEMP/libredb-e2e.license"
+          echo "LIBREDB_E2E_LICENSE_FILE=$RUNNER_TEMP/libredb-e2e.license" >> "$GITHUB_ENV"
       # The images are pulled before the iptables rules count and drop every packet from the libredb networks to a
       # non-private address; apply, verify and the interop suite then run, and the counter must stay at 0. The interop
       # suite runs as root inside the test, after the first admin's first login that --project=hostnames runs before it,
@@ -110,7 +137,7 @@ jobs:
         run: |
           sudo env "PATH=$PATH" "PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/ms-playwright" \
             "LIBREDB_E2E_INTEROP_COMMAND=bunx playwright test --config e2e/playwright.config.ts --project=hostnames --output $RUNNER_TEMP/interop-results interop.spec.ts" \
-            "$(command -v bun)" test test/e2e/egress.test.ts
+            "LIBREDB_E2E_LICENSE_FILE=$LIBREDB_E2E_LICENSE_FILE" "$(command -v bun)" test test/e2e/egress.test.ts
       # The installation the egress test leaves: each app stops while the other keeps serving and starts again. The spec
       # signs in as the first admin with the account that the first login of the egress step saved as root, so it runs as
       # root as well, and --no-deps skips that first login, which the installation no longer offers.

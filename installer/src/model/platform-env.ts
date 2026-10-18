@@ -22,8 +22,8 @@ export interface PlatformEnvInputs {
     authSecret: string;
     /** AUTH_SECRET_PREVIOUS while a rotation window is open: the value of platform.authSecretPreviousFile. */
     authSecretPrevious?: string;
-    /** PLATFORM_LICENSE: the license token of platform.licenseFile; absent on the free tier. */
-    license?: string;
+    /** PLATFORM_LICENSE: the license token of platform.licenseFile, which a self-hosted Platform requires. */
+    license: string;
     /** The client secret of the Keycloak client `libredb-platform`. */
     oidcClientSecret: string;
     /** The password of libredb_platform. */
@@ -67,17 +67,16 @@ export function readAuthSecretPrevious(
 }
 
 /**
- * The license token of PLATFORM_LICENSE, from the file platform.licenseFile names, or undefined while it is unset, and
- * Platform then runs on its free tier. The file holds the token alone on one line and loses one trailing line break. A
- * missing or empty file, or one that holds anything else, is a configuration error that names the file and never its
- * content. The token is registered with the redactor before it is returned, so no output of the run carries it.
+ * The license token of PLATFORM_LICENSE, from the file platform.licenseFile names, which every configuration holds. The
+ * file holds the token alone on one line and loses one trailing line break. A missing or empty file, or one that holds
+ * anything else, is a configuration error that names the file and never its content. The token is registered with the
+ * redactor before it is returned, so no output of the run carries it.
  */
 export function readPlatformLicense(
   platform: LibreDBInstallation["platform"],
   readFile: (path: string) => string | undefined,
   redactor: Redactor,
-): string | undefined {
-  if (platform.licenseFile === undefined) return undefined;
+): string {
   const lookup = readSecretReference({ path: "platform.license", file: platform.licenseFile }, { env: {}, readFile });
   if ("missing" in lookup) throw new ConfigError([`platform.licenseFile: ${lookup.missing}`]);
   if (!LICENSE_TOKEN.test(lookup.value)) {
@@ -93,7 +92,6 @@ export function readPlatformLicense(
 export function renderPlatformEnv(desired: DesiredInstallation, inputs: PlatformEnvInputs): PlatformEnv {
   const adminUrl = desired.keycloak.platformAdminUrl;
   const previous = inputs.secrets.authSecretPrevious;
-  const license = inputs.secrets.license;
   // Platform refuses to start with two equal values, so the installer never writes them.
   if (previous !== undefined && previous === inputs.secrets.authSecret) {
     throw new EnvRenderError(
@@ -106,7 +104,7 @@ export function renderPlatformEnv(desired: DesiredInstallation, inputs: Platform
       platformDatabaseUrl: platformDatabaseUrl(inputs.postgres, inputs.secrets.databasePassword),
       authSecret: inputs.secrets.authSecret,
       ...(previous === undefined ? {} : { authSecretPrevious: previous }),
-      ...(license === undefined ? {} : { license }),
+      license: inputs.secrets.license,
       platformUrl: desired.urls.platform,
       oidcClientSecret: inputs.secrets.oidcClientSecret,
       issuer: desired.issuer,
@@ -125,7 +123,6 @@ export function renderPlatformEnv(desired: DesiredInstallation, inputs: Platform
     envConditions(desired, {
       volumeSize: inputs.platformDbVolumeBytes !== undefined,
       authSecretPrevious: previous !== undefined,
-      license: license !== undefined,
     }),
   );
 }
@@ -142,6 +139,6 @@ export function renderPlatformMigrateEnv(
       platformDatabaseUrl: platformDatabaseUrl(inputs.postgres, inputs.secrets.databasePassword),
       organizationName: desired.organizationName,
     },
-    envConditions(desired, { volumeSize: false, authSecretPrevious: false, license: false }),
+    envConditions(desired, { volumeSize: false, authSecretPrevious: false }),
   );
 }

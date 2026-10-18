@@ -3,9 +3,9 @@
 // test/fixtures/configs/docker.yaml, the installer's first admin connects a customer PostgreSQL in Platform and grants
 // it to a user holding libredb:user, who works in Studio. The spec creates the target database container, that Keycloak
 // user and the connection, and removes them at the end. It signs in to Platform as the first admin, whom
-// platform-login.spec.ts signs in before it: an installation without a license has one admin seat, which the first
-// admin then holds, so the first sign-in of another admin would be refused. Each test starts the container it stopped
-// again, even when it fails. The docker command is LIBREDB_E2E_DOCKER's.
+// platform-login.spec.ts signs in before it: the license that the end-to-end tests install has one admin seat, which
+// the first admin then holds, so the first sign-in of another admin would be refused. Each test starts the container
+// it stopped again, even when it fails. The docker command is LIBREDB_E2E_DOCKER's.
 import { randomBytes, randomUUID } from "node:crypto";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { createKeycloakUsers, deleteKeycloakUsers, type KeycloakUser } from "./fixtures/keycloak-users";

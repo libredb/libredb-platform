@@ -9,6 +9,9 @@ Run every command as root on the install host.
 `LIBREDB_CONFIG` names the configuration file you apply, for example `/etc/libredb/libredb.yaml`; `/opt/libredb/libredb.yaml` holds the configuration of the last `apply` if you no longer have yours.
 Platform, Studio and the other services whose image changes restart during the upgrade, so plan it for a maintenance window.
 
+An installation without `platform.licenseFile`, which release 1.0.0 allowed, needs a license before the upgrade, because the new installer refuses a configuration without it: `preflight`, `plan` and `apply` exit 2 and change nothing.
+Request the license before the maintenance window as [Request a license](../../../docs/deploy/install-docker.md#request-a-license) describes, save it as [Save the license file](../../../docs/deploy/install-docker.md#save-the-license-file) shows, and add `platform.licenseFile` with its path to the configuration that `LIBREDB_CONFIG` names.
+
 ## 1. Back up
 
 Take a backup set as [restore.md](restore.md#back-up) describes, and keep a copy of the license file and of the configuration with it.

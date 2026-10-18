@@ -328,9 +328,9 @@ sequenceDiagram
 
 | Step | Who refuses | When |
 | --- | --- | --- |
-| 1 | Platform | the license has expired or more user seats are in use than it allows (see the [License section](deploy/platform-runtime.md#license) of the runtime guide), or the admin has not confirmed that the read credential can only read |
+| 1 | Platform | the license is invalid or has expired, or more user seats are in use than it allows (see the [License section](deploy/platform-runtime.md#license) of the runtime guide), or the admin has not confirmed that the read credential can only read |
 | 9, 12 | Platform | the session cannot read the Keycloak directory |
-| 12 | Platform | write is asked but the connection has no write credential, Keycloak has no user with that id, the user is disabled, the end date is not in the future, or the grant would give a user who holds no user seat access to an active connection while the license has expired or every user seat is in use |
+| 12 | Platform | write is asked but the connection has no write credential, Keycloak has no user with that id, the user is disabled, the end date is not in the future, or the grant would give a user who holds no user seat access to an active connection while the license is invalid or has expired or every user seat is in use |
 | 7, 8 | Studio | the row breaks a contract rule of `docs/GOVERNANCE.md`, for example a malformed or repeated id, an engine Studio does not serve, an engine that opens a local file, or one outside `GOVERNANCE_ALLOWED_ENGINES` (six engines by default when it is unset, as the installer leaves it), a definition key outside the allowlist or holding a credential, or a read envelope that does not open: the row is skipped with a code. A write envelope that does not open leaves read access only |
 | list | Studio | the snapshot cannot be served: `503 GOVERNANCE_UNAVAILABLE`, never an empty list |
 

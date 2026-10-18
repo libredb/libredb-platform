@@ -15,8 +15,8 @@
 #             app's default, and null means the app's built-in value. Producer operator has no value.
 #   when      for producers installer and config, the condition under which the installer writes it:
 #             always (the default), httpsProxy, keycloakAdminUrl (a managed Keycloak, or an external one with
-#             keycloak.external.adminUrl), logoutHintVerified, volumeSize, authSecretPrevious (while
-#             platform.authSecretPreviousFile is set) or license (while platform.licenseFile is set).
+#             keycloak.external.adminUrl), logoutHintVerified, volumeSize or authSecretPrevious (while
+#             platform.authSecretPreviousFile is set).
 #
 # The installer never writes runtime settings: Platform keeps them in its tables and Studio reads them through
 # bridge.settings_v1.
@@ -370,11 +370,10 @@ variables:
     value: --max-old-space-size=384
   - name: PLATFORM_LICENSE
     apps: [platform]
-    required: optional
+    required: self-hosted
     secret: true
     producer: config
     value: "{{license}}"
-    when: license
 
 # Must be unset or false in Studio governance mode, because Studio's boot checks refuse them (Studio's GOVERNANCE.md,
 # Boot checks). LIBREDB_MCP_ENABLED and LIBREDB_AGENT_ENABLED stay here until Studio runs MCP and the agent under

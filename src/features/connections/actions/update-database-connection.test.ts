@@ -135,6 +135,7 @@ vi.mock('@/shared/lib/license/install-license', () => ({ getLicenseStatus: () =>
 
 import { updateDatabaseConnection } from './update-database-connection'
 import { answerSeatStatement, locksTenant, statementText } from '../../../../tests/license/seat-statements'
+import { SMALL_LICENSE_ACTIVE } from '../../../../tests/license/statuses'
 import { LicenseLimitError } from '@/shared/lib/errors'
 import { licenseStatus, type LicensePayload, type LicenseStatus } from '@/shared/lib/license'
 
@@ -205,7 +206,7 @@ const LICENSE: LicensePayload = {
   expiresAt: 1_823_644_800,
 }
 const ACTIVE_AT = new Date('2027-01-01T00:00:00Z')
-const FREE = licenseStatus(null, ACTIVE_AT)
+const INVALID = licenseStatus({ ok: false, code: 'LICENSE_PAYLOAD_INVALID' }, ACTIVE_AT)
 const FOUR_SEATS = licenseStatus({ ok: true, license: { ...LICENSE, userSeats: 4 } }, ACTIVE_AT)
 const EXPIRED = licenseStatus({ ok: true, license: { ...LICENSE, userSeats: 100 } }, new Date('2027-11-01T00:00:00Z'))
 
@@ -219,8 +220,8 @@ beforeEach(() => {
   runtime.config = { DEPLOYMENT_MODE: 'self-hosted', BRIDGE_SEAL_PUBLIC_KEY: CANARY.recipientPublicKey }
   caller.permissions = ['connection.view', 'connection.create', 'connection.edit', 'connection.delete']
   ephemeral.privateKey = undefined
-  // A self-hosted install without a license runs on the free tier.
-  license.status = FREE
+  // A self-hosted install with an active license of 1 admin seat and 3 user seats.
+  license.status = SMALL_LICENSE_ACTIVE
   tables.tenant = [{ id: 'tenant-1' }, { id: 'tenant-2' }]
   tables.databaseConnection = [
     connection('conn-orders'),
@@ -447,12 +448,13 @@ describe('updateDatabaseConnection and the license of the install', () => {
     ]
   }
 
-  it('refuses turning a connection active again when its grants would take more user seats than allowed, and after expiry, changing nothing', async () => {
+  it('refuses turning a connection active again when its grants would take more user seats than allowed, under an invalid license and after expiry, changing nothing', async () => {
     pauseReports()
     const before = tables.databaseConnection.map((candidate) => ({ ...candidate }))
 
     for (const [status, code] of [
-      [FREE, 'LICENSE_USER_SEATS'],
+      [SMALL_LICENSE_ACTIVE, 'LICENSE_USER_SEATS'],
+      [INVALID, 'LICENSE_INVALID'],
       [EXPIRED, 'LICENSE_EXPIRED'],
     ] as const) {
       license.status = status
@@ -470,9 +472,12 @@ describe('updateDatabaseConnection and the license of the install', () => {
     expect(row('conn-reports').active).toBe(true)
   })
 
-  it('renames, deactivates and seals again a connection after expiry, and takes no lock for it', async () => {
+  it.each<[string, LicenseStatus]>([
+    ['after expiry', EXPIRED],
+    ['under an invalid license', INVALID],
+  ])('renames, deactivates and seals again a connection %s, and takes no lock for it', async (_, status) => {
     pauseReports()
-    license.status = EXPIRED
+    license.status = status
 
     expect((await update({ id: 'conn-reports', name: 'Reports archive' })).success).toBe(true)
     expect((await update({ id: 'conn-orders', active: false })).success).toBe(true)

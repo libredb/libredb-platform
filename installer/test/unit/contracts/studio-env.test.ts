@@ -96,7 +96,6 @@ describe("renderEnv", () => {
     logoutHintVerified: false,
     volumeSize: false,
     authSecretPrevious: false,
-    license: false,
   };
 
   test("refuses a template that names an input the renderer does not have, naming the variable", () => {

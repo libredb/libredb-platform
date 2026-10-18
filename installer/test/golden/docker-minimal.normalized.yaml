@@ -25,6 +25,7 @@ keycloak:
     username: libredb-user-manager
 platform:
   organizationName: Acme Corp
+  licenseFile: /etc/libredb/platform.license
 backups:
   enabled: true
 bridge:

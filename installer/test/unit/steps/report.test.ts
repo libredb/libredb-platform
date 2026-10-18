@@ -166,43 +166,41 @@ describe("the license in the report", () => {
     '{"level":"info","message":"License active","timestamp":"2026-10-17T10:00:01.383Z","state":"active",' +
     '"licenseId":"LDL-2026-0001","customer":"Acme Corp","expiresAt":"2027-10-16T00:00:00.000Z"}';
   const INVALID =
-    '{"level":"warn","message":"License invalid, running on the free tier","timestamp":"2026-10-17T10:00:01.383Z",' +
+    '{"level":"warn","message":"License invalid, no seat can be added","timestamp":"2026-10-17T10:00:01.383Z",' +
     '"state":"invalid","code":"LICENSE_UNKNOWN_KID"}';
 
   /** The result of platform-license for a Platform whose start printed `text`, at `now`. */
-  const licenseResults = (licenseFile: string | undefined, text = ACTIVE, now = "2026-10-17T12:00:00.000Z") =>
+  const licenseResults = (text = ACTIVE, now = "2026-10-17T12:00:00.000Z") =>
     runChecks([platformLicenseCheck], {
       license: {
-        licenseFile,
+        licenseFile: FILE,
         platformUrl: "https://platform.libredb.test",
         startLog: async () => ({ startedAt: "2026-10-17T10:00:00.000Z", text }),
         now: () => Date.parse(now),
       },
     });
 
-  test("without platform.licenseFile the report prints the free tier of 1 admin and 3 users after the CA bundle", async () => {
-    expect(formatReport(input({ results: await licenseResults(undefined) }))).toContain(
-      "CA bundle: /opt/libredb/ca/ca.crt\nLicense: none, so Platform runs on the free tier of 1 admin and 3 users\n",
+  test("a license prints its id, state and expiry after the CA bundle", async () => {
+    const text = formatReport(input({ results: await licenseResults() }));
+    expect(text).toContain("LibreDB is installed and every verify check passed.");
+    expect(text).toContain(
+      "CA bundle: /opt/libredb/ca/ca.crt\nLicense: LDL-2026-0001 for Acme Corp, active, expires at 2027-10-16T00:00:00.000Z\n",
     );
   });
 
-  test("a license prints its id, state and expiry", async () => {
-    const text = formatReport(input({ results: await licenseResults(FILE) }));
-    expect(text).toContain("LibreDB is installed and every verify check passed.");
-    expect(text).toContain("License: LDL-2026-0001 for Acme Corp, active, expires at 2027-10-16T00:00:00.000Z\n");
-  });
-
-  test("an invalid token fails platform-license, and the report names its code and the free tier", async () => {
-    const text = formatReport(input({ results: await licenseResults(FILE, INVALID) }));
+  test("an invalid token fails platform-license, and the report names its code and that no seat can be added", async () => {
+    const text = formatReport(input({ results: await licenseResults(INVALID) }));
     expect(text).toContain(
       "LibreDB is installed, but 1 of 1 verify checks failed:\n" +
-        `  platform-license: the license token in ${FILE} fails Platform's verification with LICENSE_UNKNOWN_KID, `,
+        `  platform-license: the license token in ${FILE} fails Platform's verification with LICENSE_UNKNOWN_KID, ` +
+        "because a key that this Platform build does not hold signed it, so Platform adds no user, connection or admin " +
+        "until a valid license is installed\n",
     );
-    expect(text).toContain("License: invalid, LICENSE_UNKNOWN_KID, so Platform runs on the free tier of 1 admin and 3 users\n");
+    expect(text).toContain("License: invalid, LICENSE_UNKNOWN_KID, no seat can be added\n");
   });
 
   test("a license within 30 days of its expiry is listed with the warnings", async () => {
-    const text = formatReport(input({ results: await licenseResults(FILE, ACTIVE, "2027-10-01T00:00:00.000Z") }));
+    const text = formatReport(input({ results: await licenseResults(ACTIVE, "2027-10-01T00:00:00.000Z") }));
     expect(text).toContain("License: LDL-2026-0001 for Acme Corp, expiring, expires at 2027-10-16T00:00:00.000Z\n");
     expect(text).toContain(
       "Warnings:\n  - verify platform-license: the license LDL-2026-0001 for Acme Corp expires at 2027-10-16T00:00:00.000Z, " +

@@ -12,13 +12,14 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
+import { readReferencedFile } from "../../../src/adapters/host-fs";
 import { DockerPsqlRunner } from "../../../src/adapters/psql-docker";
 import { embeddedRelease } from "../../../src/cli/release";
 import { loadConfig } from "../../../src/config/load";
 import { Redactor } from "../../../src/log/redact";
 import { CA_BUNDLE_PATH, type PostgresServer } from "../../../src/model/database-urls";
 import { computeDesired } from "../../../src/model/desired";
-import { renderPlatformEnv, renderPlatformMigrateEnv } from "../../../src/model/platform-env";
+import { readPlatformLicense, renderPlatformEnv, renderPlatformMigrateEnv } from "../../../src/model/platform-env";
 import { renderStudioEnv } from "../../../src/model/studio-env";
 import { imageReference } from "../../../src/release/images";
 import { renderPgHba } from "../../../src/render/compose";
@@ -46,14 +47,20 @@ const STUDIO_IMAGE = imageReference(release.images.studio, APP_REGISTRY);
 const POSTGRES_IMAGE = imageReference(release.images.postgres, undefined);
 
 const packageRoot = join(import.meta.dir, "..", "..", "..");
-const desired = computeDesired(
-  loadConfig({ file: join(packageRoot, "test", "fixtures", "configs", "docker.yaml"), sets: [] }),
-  release,
-);
-const server: PostgresServer = { host: "postgres", port: 5432 };
-
 const scratch = mkdtempSync(join(tmpdir(), `${PREFIX}-`));
 const redactor = new Redactor();
+
+// Platform's env always holds PLATFORM_LICENSE, here from a license file with a value of the token's shape that no key
+// signed: Platform starts with it in state invalid, which is all a boot check needs.
+const LICENSE_FILE = join(scratch, "libredb.license");
+const placeholder = ["ldl1", "0123456789abcdef", Buffer.from('{"v":1}').toString("base64url"), Buffer.alloc(64).toString("base64url")];
+writeFileSync(LICENSE_FILE, `${placeholder.join(".")}\n`, { mode: 0o600 });
+const config = loadConfig({
+  file: join(packageRoot, "test", "fixtures", "configs", "docker.yaml"),
+  sets: [`platform.licenseFile=${LICENSE_FILE}`],
+});
+const desired = computeDesired(config, release);
+const server: PostgresServer = { host: "postgres", port: 5432 };
 const superuserPassword = generateSecret();
 const passwords = Object.fromEntries(APP_ROLES.map((role) => [role, generateSecret()])) as Record<AppRole, string>;
 for (const value of [superuserPassword, ...Object.values(passwords)]) redactor.register(value);
@@ -74,7 +81,12 @@ const studioEnv: Env = renderStudioEnv(desired, {
 const KEYRING_FILE = studioEnv.GOVERNANCE_PRIVATE_KEYS_FILE as string;
 const platformEnv: Env = renderPlatformEnv(desired, {
   postgres: server,
-  secrets: { authSecret: generateSecret(), oidcClientSecret: generateSecret(), databasePassword: passwords.platform },
+  secrets: {
+    authSecret: generateSecret(),
+    license: readPlatformLicense(config.platform, readReferencedFile, redactor),
+    oidcClientSecret: generateSecret(),
+    databasePassword: passwords.platform,
+  },
   sealPublicKey: sealKey.publicKey,
 });
 const migrateEnv: Env = renderPlatformMigrateEnv(desired, {

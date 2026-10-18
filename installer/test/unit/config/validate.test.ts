@@ -1,8 +1,11 @@
-import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { afterAll, describe, expect, test } from "bun:test";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { stringify } from "yaml";
 import { main, type Output } from "../../../src/cli/main";
 import { ExitCode } from "../../../src/cli/exit-codes";
+import { readConfigDocument } from "../../../src/config/load";
 import { ConfigError, findInlineSecrets, parseInstallation } from "../../../src/config/schema";
 
 const root = join(import.meta.dir, "..", "..", "..");
@@ -11,6 +14,25 @@ const golden = (name: string) => readFileSync(join(root, "test", "golden", name)
 
 // A value of the license token's shape that no key signed, which the installer must never print.
 const LICENSE_TOKEN = ["ldl1", "0123456789abcdef", Buffer.from('{"v":1}').toString("base64url"), Buffer.alloc(64).toString("base64url")].join(".");
+
+// The path of the license file in the configurations below; validate never reads it.
+const LICENSE_FILE = "/etc/libredb/platform.license";
+
+const LICENSE_REQUIRED =
+  "platform.licenseFile: every install needs a license file from LibreDB, the free license included, so request one " +
+  "at info@libredb.org as docs/deploy/install-docker.md#request-a-license describes and name its path here";
+
+const scratch = mkdtempSync(join(tmpdir(), "libredb-validate-"));
+afterAll(() => rmSync(scratch, { recursive: true, force: true }));
+
+/** docker-minimal.yaml without platform.licenseFile, written to a file of its own. */
+function unlicensedFixture(): string {
+  const document = readConfigDocument(fixture("docker-minimal.yaml"));
+  const { licenseFile: _licenseFile, ...platform } = document.platform as Record<string, unknown>;
+  const path = join(scratch, "unlicensed.yaml");
+  writeFileSync(path, stringify({ ...document, platform }));
+  return path;
+}
 
 function capture(): Output & { out: string; err: string } {
   const sink = {
@@ -35,7 +57,7 @@ function minimal(overrides: Record<string, unknown> = {}): Record<string, unknow
     endpoints: {
       hosts: { platform: "platform.corp", studio: "studio.corp", auth: "auth.corp" },
     },
-    platform: { organizationName: "Acme" },
+    platform: { organizationName: "Acme", licenseFile: LICENSE_FILE },
     ...overrides,
   };
 }
@@ -167,6 +189,22 @@ describe("validate command", () => {
     expect(io.out).toContain("platform:\n  organizationName: Acme Corp\n  licenseFile: /root/libredb.license\n");
   });
 
+  test("refuses a configuration without platform.licenseFile with exit 2, naming the license request, and so do the other commands that read it", async () => {
+    const unlicensed = unlicensedFixture();
+    const io = capture();
+    expect(await main(["validate", "-c", unlicensed], io)).toBe(ExitCode.InvalidUsage);
+    expect({ out: io.out, err: io.err }).toEqual({ out: "", err: `invalid configuration:\n  ${LICENSE_REQUIRED}\n` });
+    for (const argv of [
+      ["images", "list", "-c", unlicensed],
+      ["keycloak", "console", "-c", unlicensed],
+      ["keycloak", "export", "-c", unlicensed, "-o", join(scratch, "keycloak-export")],
+    ]) {
+      const refused = capture();
+      expect({ argv, code: await main(argv, refused), out: refused.out }).toEqual({ argv, code: ExitCode.InvalidUsage, out: "" });
+      expect(refused.err).toContain(LICENSE_REQUIRED);
+    }
+  });
+
   test("refuses a license token written inline, under platform.license or in place of the path of platform.licenseFile, and never prints it", async () => {
     const refusals = [
       { set: `platform.license=${LICENSE_TOKEN}`, issue: "platform.license: inline license tokens are not allowed, use licenseFile" },
@@ -227,7 +265,7 @@ describe("schema", () => {
         firstAdmin: { enabled: true, username: "libredb-admin" },
         userManager: { enabled: true, username: "libredb-user-manager" },
       },
-      platform: { organizationName: "Acme" },
+      platform: { organizationName: "Acme", licenseFile: LICENSE_FILE },
       backups: { enabled: true },
       bridge: { sealKeys: { issueNew: false, retire: [] } },
       docker: { systemdUnit: false },
@@ -421,9 +459,27 @@ describe("schema", () => {
   });
 
   test("refuses a missing organization name", () => {
-    expect(issuesOf(minimal({ platform: {} }))).toEqual([
+    expect(issuesOf(minimal({ platform: { licenseFile: LICENSE_FILE } }))).toEqual([
       "platform.organizationName: Invalid input: expected string, received undefined",
     ]);
+  });
+
+  test("refuses a configuration without platform.licenseFile in every mode, because every install needs a license file from LibreDB", () => {
+    for (const mode of ["docker", "kubernetes"]) {
+      // An empty value in YAML, such as `licenseFile:`, or an empty --set value, is null, and `licenseFile: ""` or
+      // --set 'platform.licenseFile=""' is the empty string.
+      for (const platform of [
+        { organizationName: "Acme" },
+        { organizationName: "Acme", licenseFile: null },
+        { organizationName: "Acme", licenseFile: "" },
+      ]) {
+        expect({ mode, platform, issues: issuesOf(minimal({ mode, platform })) }).toEqual({
+          mode,
+          platform,
+          issues: [LICENSE_REQUIRED],
+        });
+      }
+    }
   });
 
   test("refuses a document that is not a mapping", () => {

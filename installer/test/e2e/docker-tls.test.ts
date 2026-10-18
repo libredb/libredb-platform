@@ -14,6 +14,7 @@ import { join } from "node:path";
 import { parseComposePs, type ComposeContainer } from "../../src/adapters/docker";
 import { NO_RENEWAL_TIMER } from "../../src/steps/base-docker";
 import { createCa } from "../../src/tls/ca";
+import { LICENSE_ARGS } from "./support/install";
 
 const packageRoot = join(import.meta.dir, "..", "..");
 const INSTALLER = process.env.LIBREDB_INSTALLER_BIN ?? join(packageRoot, "dist", "libredb-installer-linux-x64");
@@ -32,7 +33,12 @@ const LONG = 20 * 60_000;
 // The customer CA of the first test stays configured in every later run, so the bundle stays as it was.
 const scratch = mkdtempSync(join(tmpdir(), "libredb-e2e-tls-"));
 const CUSTOMER_CA = join(scratch, "customer-ca.crt");
-const BASE_ARGS = ["-c", CONFIG, ...(REGISTRY === undefined || REGISTRY === "" ? [] : ["--set", `images.registry=${REGISTRY}`])];
+const BASE_ARGS = [
+  "-c",
+  CONFIG,
+  ...(REGISTRY === undefined || REGISTRY === "" ? [] : ["--set", `images.registry=${REGISTRY}`]),
+  ...LICENSE_ARGS,
+];
 const WITH_CUSTOMER_CA = [...BASE_ARGS, "--set", `tls.caBundleFile=${CUSTOMER_CA}`];
 
 interface RunResult {

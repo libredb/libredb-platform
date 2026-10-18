@@ -232,7 +232,7 @@ describe('signIn', () => {
   })
 
   it('signIn sends a first sign-in that the license refuses to the login page with the code of the refusal instead of AccessDenied', async () => {
-    for (const code of ['LICENSE_ADMIN_SEATS', 'LICENSE_EXPIRED'] as const) {
+    for (const code of ['LICENSE_ADMIN_SEATS', 'LICENSE_EXPIRED', 'LICENSE_INVALID'] as const) {
       const { deps, admitKeycloakAdmin } = depsOf()
       admitKeycloakAdmin.mockRejectedValue(new LicenseLimitError(code))
       const { signIn } = buildAuthCallbacks(deps)

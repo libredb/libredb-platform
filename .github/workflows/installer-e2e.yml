@@ -70,16 +70,17 @@ jobs:
       # removes it. Interfaces created from here on get no link-local address.
       - name: Keep container starts and stops from changing the runner's addresses
         run: sudo sysctl -w net.ipv6.conf.default.addr_gen_mode=1
-      # The test of a verified license in test/e2e/docker-platform.test.ts needs LIBREDB_E2E_LICENSE_FILE, the file of a
-      # license that the Platform image verifies for platform.libredb.test, and the repository secret LIBREDB_E2E_LICENSE
-      # holds that license. A run without the secret, such as one for a pull request from a fork, skips that test.
+      # Every install of the end-to-end tests names LIBREDB_E2E_LICENSE_FILE, the file of the CI license, which the
+      # repository secret LIBREDB_E2E_LICENSE holds: a license that the pinned Platform image verifies for
+      # platform.libredb.test and lab.libredb.test, with 1 admin seat and 3 user seats. Every install needs a license, so
+      # a run without the secret, such as one for a pull request from a fork, fails here.
       - name: Write the CI license to a file
         env:
           LIBREDB_E2E_LICENSE: ${{ secrets.LIBREDB_E2E_LICENSE }}
         run: |
           if [ -z "$LIBREDB_E2E_LICENSE" ]; then
-            echo "::notice::The secret LIBREDB_E2E_LICENSE is not set, so the test of a verified license in test/e2e/docker-platform.test.ts is skipped"
-            exit 0
+            echo "::error::The secret LIBREDB_E2E_LICENSE is not set, and every Docker end-to-end test installs with the CI license that it holds"
+            exit 1
           fi
           umask 077
           printf '%s' "$LIBREDB_E2E_LICENSE" > "$RUNNER_TEMP/libredb-e2e.license"
@@ -88,11 +89,11 @@ jobs:
       # nothing behind, so the managed install that the browser specs sign in to comes from docker-studio, run last.
       # The ports style installs over the hostnames style, so it runs after the hostnames browser specs.
       # The convergence matrix and the egress test run in installer-nightly.yml.
-      # sudo resets the environment, so the first command passes LIBREDB_E2E_LICENSE_FILE on to the tests itself.
+      # sudo resets the environment, so every run as root passes LIBREDB_E2E_LICENSE_FILE on to the tests itself.
       - name: Run the Docker end-to-end tests as root
         run: |
           sudo env "LIBREDB_E2E_LICENSE_FILE=$LIBREDB_E2E_LICENSE_FILE" "$(command -v bun)" test --path-ignore-patterns 'test/e2e/docker-studio.test.ts' --path-ignore-patterns 'test/e2e/docker-ports.test.ts' --path-ignore-patterns 'test/e2e/matrix.test.ts' --path-ignore-patterns 'test/e2e/egress.test.ts' test/e2e
-          sudo "$(command -v bun)" test test/e2e/docker-studio.test.ts
+          sudo env "LIBREDB_E2E_LICENSE_FILE=$LIBREDB_E2E_LICENSE_FILE" "$(command -v bun)" test test/e2e/docker-studio.test.ts
       # The browser specs run against the installation the end-to-end tests leave, whose first admin never signed in,
       # and the interop suite (e2e/interop.spec.ts) is one of them.
       - name: Install Chromium for the browser specs
@@ -105,7 +106,7 @@ jobs:
           LIBREDB_E2E_FIRST_ADMIN_PASSWORD_FILE: ${{ runner.temp }}/first-admin.txt
           LIBREDB_E2E_ACCOUNT_FILE: ${{ runner.temp }}/first-admin-hostnames.json
       - name: Run the ports style end-to-end test as root
-        run: sudo "$(command -v bun)" test test/e2e/docker-ports.test.ts
+        run: sudo env "LIBREDB_E2E_LICENSE_FILE=$LIBREDB_E2E_LICENSE_FILE" "$(command -v bun)" test test/e2e/docker-ports.test.ts
       - name: Run the browser specs of the ports style
         run: |
           sudo install -m 0600 -o "$(id -un)" /opt/libredb/secrets/first-admin.txt "$RUNNER_TEMP/first-admin-ports.txt"

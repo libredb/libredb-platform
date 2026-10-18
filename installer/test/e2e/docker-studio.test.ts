@@ -12,12 +12,18 @@ import { connect } from "node:tls";
 import { parseComposePs, type ComposeContainer } from "../../src/adapters/docker";
 import { generateSealKeyPair } from "../../src/secrets/seal-keys";
 import { CATALOGUE } from "../../src/verify/catalogue";
+import { LICENSE_ARGS } from "./support/install";
 
 const packageRoot = join(import.meta.dir, "..", "..");
 const INSTALLER = process.env.LIBREDB_INSTALLER_BIN ?? join(packageRoot, "dist", "libredb-installer-linux-x64");
 const CONFIG = join(packageRoot, "test", "fixtures", "configs", "docker.yaml");
 const REGISTRY = process.env.LIBREDB_E2E_IMAGES_REGISTRY;
-const CONFIG_ARGS = ["-c", CONFIG, ...(REGISTRY === undefined || REGISTRY === "" ? [] : ["--set", `images.registry=${REGISTRY}`])];
+const CONFIG_ARGS = [
+  "-c",
+  CONFIG,
+  ...(REGISTRY === undefined || REGISTRY === "" ? [] : ["--set", `images.registry=${REGISTRY}`]),
+  ...LICENSE_ARGS,
+];
 const INSTALL_ROOT = "/opt/libredb";
 const PROJECT = "libredb";
 const COMPOSE_FILE = join(INSTALL_ROOT, "compose.yaml");

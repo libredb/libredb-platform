@@ -12,9 +12,10 @@
  * status, which is cloud mode, a gate neither locks nor counts.
  *
  * No license state ends any access: a gate only refuses a grant that would give a subject without a user seat access
- * now, a new connection, or a connection turned active again. Changing a grant in effect, granting a seat holder
- * another connection, any grant on a paused connection, revoking a grant, and changing, deactivating or deleting a
- * connection stay allowed in every state.
+ * now, a new connection, or a connection turned active again. A license that could not be verified grants no seat, so it
+ * refuses each of these, as an expired one does, before any seat is counted. Changing a grant in effect, granting a seat
+ * holder another connection, any grant on a paused connection, revoking a grant, and changing, deactivating or deleting
+ * a connection stay allowed in every state.
  */
 import type { Prisma } from '@prisma/client'
 import { LicenseLimitError } from '../errors'
@@ -50,9 +51,9 @@ async function connectionActive(tx: SeatClient, tenantId: string, connectionId: 
  * the update that turns the connection active again counts it. The connection is read after the lock, so a
  * reactivation that commits first makes the grant one on an active connection.
  * On an active connection, a subject who holds a user seat may be granted at any level and expiry in every state, while
- * a subject who holds none would take a new seat, which an expired license refuses, and so does a license whose user
- * seats are all in use. A connection that the tenant has neither active nor paused, such as one deleted since the
- * caller found it, is gated as an active one.
+ * a subject who holds none would take a new seat, which an invalid or expired license refuses, and so does a license
+ * whose user seats are all in use. A connection that the tenant has neither active nor paused, such as one deleted since
+ * the caller found it, is gated as an active one.
  */
 export async function requireSeatForGrant(
   tx: SeatClient,
@@ -65,13 +66,14 @@ export async function requireSeatForGrant(
   await lockInstallTenant(tx, tenantId)
   if ((await connectionActive(tx, tenantId, connectionId)) === false) return
   if ((await userSeatHoldersAmong(tx, [subject])).has(subject)) return
+  if (license.state === 'invalid') throw new LicenseLimitError('LICENSE_INVALID')
   if (license.state === 'expired') throw new LicenseLimitError('LICENSE_EXPIRED')
   if ((await countUserSeatsInUse(tx)) >= license.limits.userSeats) throw new LicenseLimitError('LICENSE_USER_SEATS')
 }
 
 /**
- * The gate of a new connection, which takes no seat by itself: an expired license refuses it, and so does an install
- * that uses more user seats than its license allows, while an install at its limit may still add a connection.
+ * The gate of a new connection, which takes no seat by itself: an invalid or expired license refuses it, and so does an
+ * install that uses more user seats than its license allows, while an install at its limit may still add a connection.
  */
 export async function requireSeatsForNewConnection(
   tx: SeatClient,
@@ -80,15 +82,16 @@ export async function requireSeatsForNewConnection(
 ): Promise<void> {
   if (license === null) return
   await lockInstallTenant(tx, tenantId)
+  if (license.state === 'invalid') throw new LicenseLimitError('LICENSE_INVALID')
   if (license.state === 'expired') throw new LicenseLimitError('LICENSE_EXPIRED')
   if ((await countUserSeatsInUse(tx)) > license.limits.userSeats) throw new LicenseLimitError('LICENSE_USER_SEATS')
 }
 
 /**
  * The gate of an update that turns a connection of the tenant active again, after which bridge.grants_v1 publishes its
- * unexpired grants: an expired license refuses it, and so does a license that allows fewer user seats than the subjects
- * published already together with the subjects of those grants. A connection that is active already, deleted, of
- * another tenant or unknown passes, because the update then takes no seat or answers NotFound.
+ * unexpired grants: an invalid or expired license refuses it, and so does a license that allows fewer user seats than
+ * the subjects published already together with the subjects of those grants. A connection that is active already,
+ * deleted, of another tenant or unknown passes, because the update then takes no seat or answers NotFound.
  */
 export async function requireSeatsForReactivation(
   tx: SeatClient,
@@ -99,6 +102,7 @@ export async function requireSeatsForReactivation(
   if (license === null) return
   await lockInstallTenant(tx, tenantId)
   if ((await connectionActive(tx, tenantId, connectionId)) !== false) return
+  if (license.state === 'invalid') throw new LicenseLimitError('LICENSE_INVALID')
   if (license.state === 'expired') throw new LicenseLimitError('LICENSE_EXPIRED')
   if ((await countUserSeatsWithConnectionActive(tx, connectionId)) > license.limits.userSeats) {
     throw new LicenseLimitError('LICENSE_USER_SEATS')

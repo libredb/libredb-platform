@@ -21,7 +21,7 @@ Kubernetes support comes in the next release.
   A site without that access sets `images.registry` to a registry mirror that holds the same images under the same digests, as the [installer reference](../../installer/README.md#usage) describes.
 - Outbound HTTPS from the host to `github.com` and GitHub's release download host, such as `release-assets.githubusercontent.com`, for the [download of the installer](#download-and-verify-the-installer).
   Without that access, download and check the two files on another machine as that step shows, then copy them to the host.
-- A license file, or none for the free tier of 1 admin seat and 3 user seats.
+- A license file from LibreDB, as [Request a license](#request-a-license) describes.
 
 Run every command of this guide as root on the install host, for example in a shell that `sudo -i` opens.
 These commands show the versions, the tools and any listener on the two ports:
@@ -40,13 +40,13 @@ Expected: `x86_64`, an engine version of 28.0.0 or newer outside 28.2.0 through 
 
 ## Request a license
 
-Skip this step to install on the free tier; a license can be installed later, as [Renew or change the license](#renew-or-change-the-license) shows.
+Every install needs a license from LibreDB, the free one included, and the installer refuses a configuration without one.
+The free license covers 1 admin seat and 3 user seats for 12 months, and a license with more seats is issued the same way.
 Write to [info@libredb.org](mailto:info@libredb.org) with:
 
 - the customer name that the license shows;
-- the number of admin seats and of user seats;
-- the expiry date;
-- the Platform hostname, `endpoints.hosts.platform` of the configuration below, such as `libredb.acme.example`.
+- the Platform hostname, `endpoints.hosts.platform` of the configuration below, such as `libredb.acme.example`;
+- the number of admin seats and of user seats, 1 and 3 for the free license.
 
 An admin seat is held by an admin who has signed in to Platform, and a user seat by a user who holds an unexpired grant on an active connection, as the [License section](platform-runtime.md#license) of Platform's runtime guide counts them.
 A license that names hosts verifies only when Platform runs on one of them, so a later change of the Platform hostname needs a new license.
@@ -121,7 +121,7 @@ chmod 0600 /etc/libredb/libredb.yaml
 | `metadata.name` | A lowercase name for this installation, such as `acme` |
 | `endpoints.hosts` | The DNS names of Platform, Studio and Keycloak (`auth`); `platform` is the hostname of the license |
 | `platform.organizationName` | Your organization's name, which the first `apply` gives the install's one tenant; a later change does not rename it |
-| `platform.licenseFile` | The absolute path of the license file; leave the line out for the free tier |
+| `platform.licenseFile` | Required: the absolute path of the license file |
 
 Every other field keeps its default: `tls.mode: generated`, in which the installer's internal CA issues the certificates, a managed PostgreSQL and Keycloak, the Keycloak realm `libredb` with its admin port on `127.0.0.1:18080`, and the first accounts `libredb-admin` and `libredb-user-manager`.
 An installation keeps `postgres.mode`, `keycloak.mode` and `keycloak.realm` for life, so a later run that changes one of them stops with exit 6: choose them before the first `apply`.
@@ -138,7 +138,7 @@ cd ~/libredb-1.0.0
 ```
 
 - `validate` prints the configuration with every default filled in, or exits 2 naming each problem.
-  It does not read the license file.
+  It does not read the license file, and it refuses a configuration without `platform.licenseFile`.
 - `preflight` checks Linux, root, the Docker Engine and Compose versions, `ss` and the free ports, then prints `Preflight passed`, or exits 3 naming every problem.
   It creates `/opt/libredb` and writes its run log under `/opt/libredb/logs`, as `plan`, `apply` and `verify` do too, but installs nothing.
 - `plan` prints every action that `apply` would take.
@@ -178,12 +178,12 @@ The check `platform-license` of `verify` reads that line, and the report of `app
 License: <license id> for <customer>, active, expires at <expiry>
 ```
 
-Without a license file the line reads `License: none, so Platform runs on the free tier of 1 admin and 3 users`.
-The check fails, and `apply` exits 4, when Platform refuses the token: the cause names the code, such as `LICENSE_HOST_MISMATCH` for a license that does not name the Platform hostname, or `LICENSE_UNKNOWN_KID` for a token that no key of this release signed, and the install then runs on the free tier.
+The check fails, and `apply` exits 4, when Platform refuses the token: the cause names the code, such as `LICENSE_HOST_MISMATCH` for a license that does not name the Platform hostname, or `LICENSE_UNKNOWN_KID` for a token that no key of this release signed.
+Platform then adds no user, connection or admin until a valid license is installed, while existing access and the audit log keep working.
 Send that code, never the token, to [info@libredb.org](mailto:info@libredb.org).
 The check also warns from 30 days before the expiry and in the 14-day grace period, and fails once the grace period has ended.
 
-Platform's own line shows the same, with a message such as `License active`, `No license, running on the free tier` or `License invalid, running on the free tier` and its `code`:
+Platform's own line shows the same, with a message such as `License active` or `License invalid, no seat can be added` and its `code`:
 
 ```sh
 docker compose -p libredb -f /opt/libredb/compose.yaml logs --no-log-prefix platform | grep -i licen
@@ -217,7 +217,7 @@ Keycloak then asks for a new password, a TOTP device for the second factor, an e
 The realm's password policy asks for at least 15 characters, neither the username nor the email address, and none of the last 3 passwords.
 After 5 failed sign-ins an account waits a minute before the next one, and further failures make it wait longer, up to 15 minutes.
 More than 100 wrong OTP codes after the correct password disable the account until the user manager unlocks it, as [Keycloak roles](../../installer/docs/runbooks/keycloak-roles.md#lift-a-lockout) describes.
-This account holds `libredb:admin` and takes one admin seat, which on the free tier is the only one.
+This account holds `libredb:admin` and takes one admin seat.
 
 The second account, `libredb-user-manager`, manages the users of the realm in Keycloak's console:
 
@@ -269,7 +269,7 @@ install -m 0600 -o root -g root acme-renewed.license /etc/libredb/platform.licen
 ```
 
 `apply` writes the new token into Platform's env file and recreates Platform; then check the license as [Check the license](#check-the-license) shows.
-A free-tier install gets its first license the same way, after `platform.licenseFile` joins the configuration.
+The free license renews the same way, and so does a move to a license with more seats.
 Admins see a banner from 30 days before the expiry, and a grace period of 14 days follows the expiry, in which the license's seats still apply.
 After the grace period no new users, connections or admins can be added, while existing access and the audit log keep working.
 

@@ -140,6 +140,7 @@ vi.mock('@/shared/lib/license/install-license', () => ({ getLicenseStatus: () =>
 
 import { setConnectionGrant } from './set-connection-grant'
 import { answerSeatStatement, locksTenant, statementText } from '../../../../tests/license/seat-statements'
+import { SMALL_LICENSE_ACTIVE } from '../../../../tests/license/statuses'
 import { LicenseLimitError } from '@/shared/lib/errors'
 import { licenseStatus, type LicensePayload, type LicenseStatus } from '@/shared/lib/license'
 
@@ -202,10 +203,11 @@ const LICENSE: LicensePayload = {
   issuedAt: 1_792_108_800,
   expiresAt: 1_823_644_800,
 }
-const FREE = licenseStatus(null, NOW)
+const INVALID = licenseStatus({ ok: false, code: 'LICENSE_BAD_SIGNATURE' }, NOW)
 const EXPIRED = licenseStatus({ ok: true, license: { ...LICENSE, userSeats: 100 } }, new Date('2027-11-01T00:00:00Z'))
 
 const USER_SEATS_REFUSAL = { success: false, error: new LicenseLimitError('LICENSE_USER_SEATS').message }
+const INVALID_REFUSAL = { success: false, error: new LicenseLimitError('LICENSE_INVALID').message }
 const EXPIRED_REFUSAL = { success: false, error: new LicenseLimitError('LICENSE_EXPIRED').message }
 
 /** An unexpired read grant in the tables, as the action writes one. */
@@ -231,8 +233,8 @@ beforeEach(() => {
   caller.id = 'user-alice'
   caller.permissions = ['connection.view', 'connection.create', 'connection.edit', 'connection.delete']
   caller.directoryDegraded = false
-  // A self-hosted install without a license runs on the free tier.
-  license.status = FREE
+  // A self-hosted install with an active license of 1 admin seat and 3 user seats.
+  license.status = SMALL_LICENSE_ACTIVE
   tables.tenant = [{ id: 'tenant-1' }, { id: 'tenant-2' }]
   tx.$queryRaw.mockImplementation(async (strings: TemplateStringsArray, ...values: unknown[]) =>
     answerSeatStatement(tables, strings, values),
@@ -510,8 +512,8 @@ describe('setConnectionGrant', () => {
 })
 
 describe('setConnectionGrant and the license of the install', () => {
-  // alice, grace and dave take the three user seats of the free tier; grace's grant expires tomorrow.
-  function takeTheFreeSeats() {
+  // alice, grace and dave take the three user seats of the license; grace's grant expires tomorrow.
+  function takeEveryUserSeat() {
     tables.connectionGrant = [
       storedGrant('conn-orders', ALICE, 'alice'),
       storedGrant('conn-orders', GRACE, 'grace', { expiresAt: new Date(NOW.getTime() + DAY_MS) }),
@@ -519,11 +521,14 @@ describe('setConnectionGrant and the license of the install', () => {
     ]
   }
 
-  it('refuses a user without a seat once every user seat is taken, and after expiry, and writes nothing', async () => {
-    takeTheFreeSeats()
+  it('refuses a user without a seat once every user seat is taken, under an invalid license and after expiry, and writes nothing', async () => {
+    takeEveryUserSeat()
     const before = tables.connectionGrant.map((row) => ({ ...row }))
 
     expect(await grant({ subject: BOB })).toEqual(USER_SEATS_REFUSAL)
+
+    license.status = INVALID
+    expect(await grant({ subject: BOB })).toEqual(INVALID_REFUSAL)
 
     license.status = EXPIRED
     expect(await grant({ subject: BOB })).toEqual(EXPIRED_REFUSAL)
@@ -532,9 +537,9 @@ describe('setConnectionGrant and the license of the install', () => {
     expect(tables.adminAction).toEqual([])
   })
 
-  it('changes the level or the expiry of a seat holder, and grants a holder another connection, at the limit and after expiry', async () => {
-    for (const status of [FREE, EXPIRED]) {
-      takeTheFreeSeats()
+  it('changes the level or the expiry of a seat holder, and grants a holder another connection, at the limit, under an invalid license and after expiry', async () => {
+    for (const status of [SMALL_LICENSE_ACTIVE, INVALID, EXPIRED]) {
+      takeEveryUserSeat()
       tables.adminAction = []
       license.status = status
       const extended = new Date(NOW.getTime() + 7 * DAY_MS)
@@ -553,13 +558,14 @@ describe('setConnectionGrant and the license of the install', () => {
     }
   })
 
-  it('grants a user without a seat on a paused connection, and changes that grant, at the limit and after expiry, while the same grant on an active connection is refused', async () => {
+  it('grants a user without a seat on a paused connection, and changes that grant, at the limit, under an invalid license and after expiry, while the same grant on an active connection is refused', async () => {
     tables.databaseConnection.push(connection('conn-paused', { name: 'Paused', active: false }))
     for (const [status, refusal] of [
-      [FREE, USER_SEATS_REFUSAL],
+      [SMALL_LICENSE_ACTIVE, USER_SEATS_REFUSAL],
+      [INVALID, INVALID_REFUSAL],
       [EXPIRED, EXPIRED_REFUSAL],
     ] as const) {
-      takeTheFreeSeats()
+      takeEveryUserSeat()
       tables.adminAction = []
       license.status = status
 
@@ -590,7 +596,7 @@ describe('setConnectionGrant and the license of the install', () => {
   })
 
   it('grants any number of users in cloud mode, which has no license status, and takes no lock', async () => {
-    takeTheFreeSeats()
+    takeEveryUserSeat()
     license.status = null
 
     expect((await grant({ subject: BOB })).success).toBe(true)

@@ -23,6 +23,7 @@ import { scramSha256Verifier } from "../../src/secrets/scram";
 import { createCa } from "../../src/tls/ca";
 import { issueLeaf } from "../../src/tls/leaf";
 import { CATALOGUE } from "../../src/verify/catalogue";
+import { LICENSE_ARGS } from "./support/install";
 
 const packageRoot = join(import.meta.dir, "..", "..");
 const INSTALLER = process.env.LIBREDB_INSTALLER_BIN ?? join(packageRoot, "dist", "libredb-installer-linux-x64");
@@ -76,7 +77,7 @@ function configArgs(): string[] {
     `postgres.external.adminPasswordEnv=${ADMIN_ENV}`,
     `postgres.external.caBundleFile=${join(scratch, "corp-db-ca.crt")}`,
   ];
-  return ["-c", CONFIG, ...REGISTRY_ARGS, ...sets.flatMap((set) => ["--set", set])];
+  return ["-c", CONFIG, ...REGISTRY_ARGS, ...LICENSE_ARGS, ...sets.flatMap((set) => ["--set", set])];
 }
 
 /** Runs the installer with stdin on /dev/null, so it never sees a terminal, and the admin password only when given. */

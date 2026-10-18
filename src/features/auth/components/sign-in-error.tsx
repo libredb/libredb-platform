@@ -39,8 +39,8 @@ function Explanation({ code, studioUrl }: SignInErrorProps) {
       </>
     )
   }
-  // The license refuses the first sign-in of an admin without a free admin seat or after its expiry, with the same
-  // text as any write it refuses.
+  // The license refuses the first sign-in of an admin without a free admin seat, after its expiry, or when it could not
+  // be verified, with the same text as any write it refuses.
   if (code === 'LICENSE_ADMIN_SEATS') {
     return (
       <>
@@ -53,6 +53,14 @@ function Explanation({ code, studioUrl }: SignInErrorProps) {
     return (
       <>
         <AlertTitle>Your first sign-in needs a renewed license</AlertTitle>
+        <AlertDescription>{new LicenseLimitError(code).message}</AlertDescription>
+      </>
+    )
+  }
+  if (code === 'LICENSE_INVALID') {
+    return (
+      <>
+        <AlertTitle>Your first sign-in needs a valid license</AlertTitle>
         <AlertDescription>{new LicenseLimitError(code).message}</AlertDescription>
       </>
     )

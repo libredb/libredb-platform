@@ -379,6 +379,7 @@ describe('getKeycloakAdminClient', () => {
     'AUTH_KEYCLOAK_SECRET',
     'KEYCLOAK_ADMIN_URL',
     'BRIDGE_SEAL_PUBLIC_KEY',
+    'PLATFORM_LICENSE',
   ]
   const CLOUD = {
     NODE_ENV: 'test',
@@ -406,6 +407,8 @@ describe('getKeycloakAdminClient', () => {
       AUTH_KEYCLOAK_SECRET: 'client-secret-value',
       // The recipient key of Studio's lsb1 test vectors, a published test key.
       BRIDGE_SEAL_PUBLIC_KEY: 'b6-f045B6re3Ue7V8Cr5jO9ApZzyOxGk659gM3tn5wE',
+      // Self-hosted mode requires a license token, which nothing here verifies; no key signed this one.
+      PLATFORM_LICENSE: 'ldl1.0123456789abcdef.e30.AA',
     })
     vi.resetModules()
     const { getKeycloakAdminClient } = await import('./admin-client')

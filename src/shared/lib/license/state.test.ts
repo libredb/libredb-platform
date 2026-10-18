@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { LICENSE_ERROR_CODES } from './errors'
+import * as state from './state'
 import { licenseStatus, type LicenseState } from './state'
 import type { LicensePayload, LicenseVerification } from './token'
 
@@ -21,27 +22,23 @@ const EXPIRING_FROM = LICENSE.expiresAt - 2_592_000
 const GRACE_FROM = LICENSE.expiresAt
 const EXPIRED_FROM = LICENSE.expiresAt + 1_209_600
 
-const FREE_TIER = { adminSeats: 1, userSeats: 3 }
-
 function at(seconds: number): Date {
   return new Date(seconds * 1000)
 }
 
 describe('licenseStatus', () => {
-  it('is free, with 1 admin and 3 user seats, without a token', () => {
-    for (const seconds of [0, LICENSE.issuedAt, EXPIRED_FROM]) {
-      expect(licenseStatus(null, at(seconds))).toEqual({ state: 'free', limits: FREE_TIER })
+  it('is invalid, with the failure code and no seat limits, for a token that fails verification', () => {
+    // A token that fails verification grants no seat, so its status has no limits at all, which a license of 0 seats
+    // would have. The state does not follow the clock.
+    for (const code of LICENSE_ERROR_CODES) {
+      for (const seconds of [0, LICENSE.issuedAt, EXPIRED_FROM]) {
+        expect(licenseStatus({ ok: false, code }, at(seconds)), code).toStrictEqual({ state: 'invalid', code })
+      }
     }
   })
 
-  it('is invalid, with 1 admin and 3 user seats and the failure code, for a token that fails verification', () => {
-    for (const code of LICENSE_ERROR_CODES) {
-      expect(licenseStatus({ ok: false, code }, at(LICENSE.issuedAt)), code).toEqual({
-        state: 'invalid',
-        code,
-        limits: FREE_TIER,
-      })
-    }
+  it('has no state and no seats of its own for an install without a license', () => {
+    expect(state).not.toHaveProperty('FREE_TIER_LIMITS')
   })
 
   it('changes state exactly at each boundary, and not one second before', () => {
@@ -93,6 +90,6 @@ describe('licenseStatus', () => {
 
   it('refuses a clock that gives an invalid date', () => {
     expect(() => licenseStatus(VALID, new Date(Number.NaN))).toThrow(RangeError)
-    expect(() => licenseStatus(null, new Date('not a date'))).toThrow(RangeError)
+    expect(() => licenseStatus({ ok: false, code: 'LICENSE_MALFORMED' }, new Date('not a date'))).toThrow(RangeError)
   })
 })

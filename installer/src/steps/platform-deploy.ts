@@ -78,7 +78,7 @@ async function runtimeEnvFile(context: DockerContext) {
     secrets: {
       authSecret: secrets.value(APP_SECRET_NAMES.platformAuthSecret),
       ...(authSecretPrevious === undefined ? {} : { authSecretPrevious }),
-      ...(license === undefined ? {} : { license }),
+      license,
       oidcClientSecret: secrets.value(CLIENT_SECRET_NAMES.platform),
       databasePassword: secrets.value(ROLE_SPECS.platform.secret),
     },

@@ -12,7 +12,7 @@ import {
   type PlatformStartLog,
 } from "../../../src/verify/platform-license";
 
-// Platform's license module, whose start line, free tier and day boundaries the check copies.
+// Platform's license module, whose start line and day boundaries the check copies.
 const PLATFORM_LICENSE_SOURCES = join(import.meta.dir, "..", "..", "..", "..", "src", "shared", "lib", "license");
 
 const FILE = "/etc/libredb/platform.license";
@@ -21,15 +21,14 @@ const EXPIRES_AT = "2027-10-16T00:00:00.000Z";
 const EXPIRES_MS = Date.parse(EXPIRES_AT);
 const GRACE_ENDS_AT = "2027-10-30T00:00:00.000Z";
 const DAY_MS = 86_400_000;
-const FREE_TIER = "the free tier of 1 admin and 3 users";
+const NO_SEAT = "so Platform adds no user, connection or admin until a valid license is installed";
 const RENEWAL = `renew it at info@libredb.org, replace ${FILE} with the renewed license and run apply`;
 
 // The license lines as Platform's logger prints them in production, recorded with createLogger("info", "json") of
 // src/shared/lib/logger.ts and the fields of logLicenseStatus in src/shared/lib/license/install-license.ts.
 const RECORDED = {
-  free: '{"level":"info","message":"No license, running on the free tier","timestamp":"2026-10-17T10:00:01.383Z","state":"free"}',
   invalid: (code: string) =>
-    `{"level":"warn","message":"License invalid, running on the free tier","timestamp":"2026-10-17T10:00:01.383Z","state":"invalid","code":"${code}"}`,
+    `{"level":"warn","message":"License invalid, no seat can be added","timestamp":"2026-10-17T10:00:01.383Z","state":"invalid","code":"${code}"}`,
   active:
     '{"level":"info","message":"License active","timestamp":"2026-10-17T10:00:01.383Z","state":"active",' +
     `"licenseId":"LDL-2026-0001","customer":"Acme Corp","expiresAt":"${EXPIRES_AT}"}`,
@@ -80,15 +79,6 @@ function context(
 const at = (ms: number) => () => ms;
 
 describe("platform-license", () => {
-  test("without platform.licenseFile, passes without reading Platform's log and reports the free tier of 1 admin and 3 users", async () => {
-    const checks = context({ licenseFile: undefined });
-    expect(await platformLicenseCheck.run(checks)).toEqual({
-      passed: true,
-      detail: `none, so Platform runs on ${FREE_TIER}`,
-    });
-    expect(checks.reads).toEqual([]);
-  });
-
   test("an active license passes with its id, customer and expiry, read from the line Platform logged at its start", async () => {
     const checks = context();
     expect(await platformLicenseCheck.run(checks)).toEqual({
@@ -98,27 +88,27 @@ describe("platform-license", () => {
     expect(checks.reads).toEqual(["start-log"]);
   });
 
-  test("an invalid token fails naming its code and what it means, and Platform runs on the free tier", async () => {
+  test("an invalid token fails naming its code and what it means, and that Platform adds no user, connection or admin until a valid license is installed", async () => {
     const run = (code: string) => platformLicenseCheck.run(context({}, started(startOutput(RECORDED.invalid(code)))));
     expect(await run("LICENSE_HOST_MISMATCH")).toEqual({
       passed: false,
       cause:
         `the license token in ${FILE} fails Platform's verification with LICENSE_HOST_MISMATCH, because the license ` +
-        `lists hosts, and platform.libredb.test, the host of AUTH_URL, is not one of them, so Platform runs on ${FREE_TIER}`,
-      detail: `invalid, LICENSE_HOST_MISMATCH, so Platform runs on ${FREE_TIER}`,
+        `lists hosts, and platform.libredb.test, the host of AUTH_URL, is not one of them, ${NO_SEAT}`,
+      detail: "invalid, LICENSE_HOST_MISMATCH, no seat can be added",
     });
     expect(await run("LICENSE_UNKNOWN_KID")).toEqual({
       passed: false,
       cause:
         `the license token in ${FILE} fails Platform's verification with LICENSE_UNKNOWN_KID, because a key that this ` +
-        `Platform build does not hold signed it, so Platform runs on ${FREE_TIER}`,
-      detail: `invalid, LICENSE_UNKNOWN_KID, so Platform runs on ${FREE_TIER}`,
+        `Platform build does not hold signed it, ${NO_SEAT}`,
+      detail: "invalid, LICENSE_UNKNOWN_KID, no seat can be added",
     });
     // A code that this installer does not know is named as Platform logged it.
     expect(await run("LICENSE_FROM_THE_FUTURE")).toEqual({
       passed: false,
-      cause: `the license token in ${FILE} fails Platform's verification with LICENSE_FROM_THE_FUTURE, so Platform runs on ${FREE_TIER}`,
-      detail: `invalid, LICENSE_FROM_THE_FUTURE, so Platform runs on ${FREE_TIER}`,
+      cause: `the license token in ${FILE} fails Platform's verification with LICENSE_FROM_THE_FUTURE, ${NO_SEAT}`,
+      detail: "invalid, LICENSE_FROM_THE_FUTURE, no seat can be added",
     });
   });
 
@@ -141,14 +131,18 @@ describe("platform-license", () => {
     }
   });
 
-  test("platform.licenseFile set while Platform started without a license fails, because apply has not installed it", async () => {
-    expect(await platformLicenseCheck.run(context({}, started(startOutput(RECORDED.free))))).toEqual({
-      passed: false,
-      cause:
-        `platform.licenseFile names ${FILE}, and Platform started at ${STARTED_AT} without a license, so it runs on ` +
-        `${FREE_TIER}: apply installs the license and recreates Platform`,
-      detail: `none, Platform started without the license of platform.licenseFile and runs on ${FREE_TIER}`,
-    });
+  test("a start line of the state free, which Platform no longer has, fails naming the states the check accepts", async () => {
+    // Platform 1.0.0 logged this state when it started without a license, which every install now needs.
+    const free = '{"level":"info","message":"No license","timestamp":"2026-10-17T10:00:01.383Z","state":"free"}';
+    expect(await runChecks([platformLicenseCheck], context({}, started(startOutput(free))))).toEqual([
+      {
+        id: "platform-license",
+        result: "failed",
+        cause:
+          "the fields of Platform's license line are malformed: state: Invalid option: expected one of " +
+          '"invalid"|"active"|"expiring"|"grace"|"expired"',
+      },
+    ]);
   });
 
   test("the state of a valid license follows its expiry and the installer clock, as Platform computes it on every read", async () => {
@@ -232,7 +226,7 @@ describe("licenseStartLine", () => {
   });
 
   test("takes the last license line when a log holds more than one", () => {
-    expect(licenseStartLine(startOutput(RECORDED.free, RECORDED.active))?.state).toBe("active");
+    expect(licenseStartLine(startOutput(RECORDED.invalid("LICENSE_UNKNOWN_KID"), RECORDED.active))?.state).toBe("active");
   });
 
   test("a license line without the fields of its state is refused naming each field, never its value", () => {
@@ -265,10 +259,9 @@ describe("the facts the check copies from Platform", () => {
   test("Platform logs one line per state with a message about the license, and the fields the check reads", () => {
     const source = readFileSync(join(PLATFORM_LICENSE_SOURCES, "install-license.ts"), "utf8");
     const lines = [...source.matchAll(/^ {2}(\w+): \{ level: '(?:info|warn)', message: '([^']+)' \},$/gm)];
-    expect(lines.map((match) => match[1])).toEqual(["free", "invalid", "active", "expiring", "grace", "expired"]);
+    expect(lines.map((match) => match[1])).toEqual(["invalid", "active", "expiring", "grace", "expired"]);
     for (const match of lines) expect(match[2]).toMatch(/licen[cs]e/i);
     for (const field of [
-      "if (status.state === 'free') return { state: status.state }",
       "if (status.state === 'invalid') return { state: status.state, code: status.code }",
       "licenseId: status.license.id,",
       "customer: status.license.customer,",
@@ -278,9 +271,8 @@ describe("the facts the check copies from Platform", () => {
     }
   });
 
-  test("the free tier is 1 admin and 3 users, and a valid license expires in 30 days and has 14 days of grace", () => {
+  test("a valid license warns from 30 days before its expiry and has 14 days of grace", () => {
     const source = readFileSync(join(PLATFORM_LICENSE_SOURCES, "state.ts"), "utf8");
-    expect(source).toContain("export const FREE_TIER_LIMITS: SeatLimits = Object.freeze({ adminSeats: 1, userSeats: 3 })");
     expect(source).toContain("const WARNING_DAYS = 30\n");
     expect(source).toContain("const GRACE_DAYS = 14\n");
   });

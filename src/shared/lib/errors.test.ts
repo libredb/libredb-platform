@@ -55,6 +55,10 @@ describe('AppError', () => {
         'The license has expired. Existing access keeps working, and adding users, connections or admins needs a renewed license.',
       ],
       [
+        'LICENSE_INVALID',
+        'The license could not be verified. Existing access keeps working, and adding users, connections or admins needs a valid license.',
+      ],
+      [
         'LICENSE_USER_SEATS',
         'Not enough user seats. Free a seat by revoking all grants of a user, or install a license with more user seats.',
       ],

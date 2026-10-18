@@ -9,3 +9,4 @@ endpoints:
   host: lab.corp
 platform:
   organizationName: Acme Corp
+  licenseFile: /etc/libredb/platform.license

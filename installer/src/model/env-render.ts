@@ -45,8 +45,6 @@ export interface CallerConditions {
   volumeSize: boolean;
   /** platform.authSecretPreviousFile is set, so a Platform rotation window is open. */
   authSecretPrevious: boolean;
-  /** platform.licenseFile is set, so Platform receives the license token of that file. */
-  license: boolean;
 }
 
 /** The conditions the desired model decides, and those only the caller knows. */
@@ -58,7 +56,6 @@ export function envConditions(desired: DesiredInstallation, caller: CallerCondit
     logoutHintVerified: desired.logoutHintVerified,
     volumeSize: caller.volumeSize,
     authSecretPrevious: caller.authSecretPrevious,
-    license: caller.license,
   };
 }
 

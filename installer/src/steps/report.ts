@@ -71,7 +71,7 @@ export function formatReport(input: ReportInput): string {
     "",
     `CA bundle: ${input.caBundleFile}`,
   );
-  // The license or the free tier, as platform-license found it; a check that failed without reading it names none.
+  // The license as platform-license found it; a check that failed without reading it names none.
   const license = input.results.find((result) => result.id === platformLicenseCheck.id);
   if (license !== undefined) {
     lines.push(`License: ${license.detail ?? `unknown, because the check ${license.id} failed`}`);

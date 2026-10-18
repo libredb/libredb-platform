@@ -5,7 +5,7 @@ export type EnvRequirement = "always" | "oidc" | "governance" | "self-hosted" | 
 export type EnvProducer = "installer" | "config" | "default" | "operator";
 
 /** When the installer writes a variable. */
-export type EnvWriteCondition = "always" | "httpsProxy" | "keycloakAdminUrl" | "logoutHintVerified" | "volumeSize" | "authSecretPrevious" | "license";
+export type EnvWriteCondition = "always" | "httpsProxy" | "keycloakAdminUrl" | "logoutHintVerified" | "volumeSize" | "authSecretPrevious";
 
 export interface EnvDescriptor {
   /** When the app requires the variable. */
@@ -244,11 +244,11 @@ export const PLATFORM_ENV: Readonly<Record<PlatformEnvKey, EnvDescriptor>> = {
     when: "always",
   },
   PLATFORM_LICENSE: {
-    required: "optional",
+    required: "self-hosted",
     secret: true,
     producer: "config",
     value: "{{license}}",
-    when: "license",
+    when: "always",
   },
 };
 

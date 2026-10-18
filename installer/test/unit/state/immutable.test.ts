@@ -10,7 +10,7 @@ function fieldsOf(overrides: Record<string, unknown> = {}) {
       metadata: { name: "acme" },
       mode: "docker",
       endpoints: { hosts: { platform: "platform.corp", studio: "studio.corp", auth: "auth.corp" } },
-      platform: { organizationName: "Acme" },
+      platform: { organizationName: "Acme", licenseFile: "/etc/libredb/platform.license" },
       ...overrides,
     }),
   );
@@ -70,7 +70,7 @@ describe("immutable fields", () => {
       endpoints: { hosts: { platform: "p.corp", studio: "s.corp", auth: "a.corp" } },
       tls: { mode: "external", caBundleFile: "/etc/pki/corp-ca.pem", external: { trustedProxies: ["192.0.2.10/32"] } },
       keycloak: { adminPort: 28080, firstAdmin: { username: "dba" } },
-      platform: { organizationName: "Acme Corp" },
+      platform: { organizationName: "Acme Corp", licenseFile: "/etc/libredb/platform.license" },
       docker: { systemdUnit: true },
     });
     expect(() => checkImmutable(fieldsOf(), changed)).not.toThrow();

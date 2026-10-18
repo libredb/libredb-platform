@@ -6,26 +6,27 @@
  * Server code only, because it reads the runtime configuration; index.ts exports the part of the module that reads
  * none.
  */
+import { ConfigError } from '../errors'
 import { logger } from '../logger'
 import { getRuntimeConfig, type RuntimeConfig } from '../runtime-config'
 import { LICENSE_KEYS } from './keys'
 import { licenseStatus, type LicenseState, type LicenseStatus } from './state'
 import { licenseKeyring, verifyLicenseToken, type LicenseVerification } from './token'
 
-/** The outcome of verifying PLATFORM_LICENSE in this process: null without a token, undefined before the first read. */
-let installVerification: LicenseVerification | null | undefined
+/** The outcome of verifying PLATFORM_LICENSE in this process, or undefined before the first read. */
+let installVerification: LicenseVerification | undefined
 
-function verifyInstallLicense(config: Pick<RuntimeConfig, 'PLATFORM_LICENSE' | 'AUTH_URL'>): LicenseVerification | null {
+function verifyInstallLicense(config: Pick<RuntimeConfig, 'PLATFORM_LICENSE' | 'AUTH_URL'>): LicenseVerification {
   if (installVerification === undefined) {
-    installVerification =
-      config.PLATFORM_LICENSE === undefined
-        ? null
-        : verifyLicenseToken(config.PLATFORM_LICENSE, {
-            keyring: licenseKeyring(LICENSE_KEYS),
-            // The runtime configuration accepts only an absolute AUTH_URL, and URL#hostname gives its host in lowercase
-            // and without port.
-            host: config.AUTH_URL === undefined ? null : new URL(config.AUTH_URL).hostname,
-          })
+    // readRuntimeConfig requires PLATFORM_LICENSE in self-hosted mode; this guards any other caller, so that an install
+    // without a token never reads as a state.
+    if (config.PLATFORM_LICENSE === undefined) throw new ConfigError('PLATFORM_LICENSE is required in self-hosted mode')
+    installVerification = verifyLicenseToken(config.PLATFORM_LICENSE, {
+      keyring: licenseKeyring(LICENSE_KEYS),
+      // The runtime configuration accepts only an absolute AUTH_URL, and URL#hostname gives its host in lowercase and
+      // without port.
+      host: config.AUTH_URL === undefined ? null : new URL(config.AUTH_URL).hostname,
+    })
   }
   return installVerification
 }
@@ -34,8 +35,9 @@ function verifyInstallLicense(config: Pick<RuntimeConfig, 'PLATFORM_LICENSE' | '
  * The license status of this install at `now`, or null in cloud mode, where licensing does not apply. The token is
  * verified on first use and the outcome kept for the life of the process, while the state follows `now` on every read.
  * Whatever the token, it does not throw: only a key list that licenseKeyring refuses, a defect of the build, an invalid
- * runtime configuration, through the ConfigError of getRuntimeConfig, and in self-hosted mode a `now` that is not a
- * valid date, through the RangeError of licenseStatus, make it throw.
+ * runtime configuration, such as a self-hosted one without PLATFORM_LICENSE, through the ConfigError of
+ * getRuntimeConfig, and in self-hosted mode a `now` that is not a valid date, through the RangeError of licenseStatus,
+ * make it throw.
  */
 export function getLicenseStatus(now: Date = new Date()): LicenseStatus | null {
   const config = getRuntimeConfig()
@@ -45,8 +47,7 @@ export function getLicenseStatus(now: Date = new Date()): LicenseStatus | null {
 
 /** The line logged at start in each state: at info when nobody needs to act, at warn when an admin should. */
 const START_LINES: Record<LicenseState, { readonly level: 'info' | 'warn'; readonly message: string }> = {
-  free: { level: 'info', message: 'No license, running on the free tier' },
-  invalid: { level: 'warn', message: 'License invalid, running on the free tier' },
+  invalid: { level: 'warn', message: 'License invalid, no seat can be added' },
   active: { level: 'info', message: 'License active' },
   expiring: { level: 'warn', message: 'License expiring within 30 days' },
   grace: { level: 'warn', message: 'License expired, in its 14-day grace period' },
@@ -55,7 +56,6 @@ const START_LINES: Record<LicenseState, { readonly level: 'info' | 'warn'; reado
 
 /** The fields of the start line: the state, with the failure code of an invalid token or the license of a valid one. */
 function startFields(status: LicenseStatus): Record<string, string> {
-  if (status.state === 'free') return { state: status.state }
   if (status.state === 'invalid') return { state: status.state, code: status.code }
   return {
     state: status.state,
@@ -67,8 +67,9 @@ function startFields(status: LicenseStatus): Record<string, string> {
 
 /**
  * Logs the license status of this install in one line, as register() does once at start, and nothing in cloud mode.
- * It never throws and never logs the token, so no license problem can stop Platform from starting: a failure to read
- * the license, which at start only a defective key list can cause, is logged as an error instead.
+ * It never throws and never logs the token, so no token, valid or not, stops Platform from starting: a failure to read
+ * the license, which at start only a defective key list can cause, because register() has checked the runtime
+ * configuration first, is logged as an error instead.
  */
 export function logLicenseStatus(): void {
   let status: LicenseStatus | null

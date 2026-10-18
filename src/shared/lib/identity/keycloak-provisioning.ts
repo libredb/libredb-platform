@@ -81,9 +81,9 @@ export async function admitKeycloakAdmin(
   if (license === null) return
   // The tenant comes first, so that an install without exactly one tenant fails before Keycloak is asked.
   const tenant = await admission.getInstallTenant()
-  // An expired license refuses every new admin whatever the seats, so Keycloak is not asked.
+  // An invalid or expired license refuses every new admin whatever the seats, so Keycloak is not asked.
   const withoutSeat =
-    license.state === 'expired'
+    license.state === 'invalid' || license.state === 'expired'
       ? new Set<string>()
       : await identitiesWithoutAdminSeat(
           admission.directory(),

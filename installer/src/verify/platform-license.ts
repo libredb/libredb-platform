@@ -1,16 +1,12 @@
 // The license check of `verify`. Platform verifies PLATFORM_LICENSE as it starts and logs the outcome in one JSON line
 // (logLicenseStatus in src/shared/lib/license/install-license.ts of Platform): the state, with the code of a token that
-// fails verification or the id, customer and expiry of a valid license, and never the token. With platform.licenseFile
-// set, the check reads that line from what Platform's container printed in the first minutes of its current run, and
-// the state of a valid license from its expiry and the installer clock, as Platform computes it on every read.
-// Without platform.licenseFile Platform runs on the free tier, which the check reports without reading the log.
+// fails verification or the id, customer and expiry of a valid license, and never the token. The check reads that line
+// from what Platform's container printed in the first minutes of its current run, and the state of a valid license
+// from its expiry and the installer clock, as Platform computes it on every read.
 import { z } from "zod";
 import { COMPOSE_PROJECT, PLATFORM_SERVICE } from "../render/compose";
 import { parseResult } from "../sql/runner";
 import type { Check, CheckOutcome } from "./catalogue";
-
-/** The seats of Platform's FREE_TIER_LIMITS (src/shared/lib/license/state.ts), without a license or with an invalid one. */
-const FREE_TIER = "the free tier of 1 admin and 3 users";
 
 /** How long after its start Platform has logged its license line, which it logs before it serves a request. */
 export const LICENSE_LOG_WINDOW_MS = 5 * 60_000;
@@ -23,8 +19,8 @@ export interface PlatformStartLog {
 }
 
 export interface PlatformLicenseContext {
-  /** platform.licenseFile, or undefined when Platform runs on the free tier. */
-  licenseFile: string | undefined;
+  /** platform.licenseFile, which every configuration names. */
+  licenseFile: string;
   /** Platform's public base URL, AUTH_URL, whose host a license that lists hosts must name. */
   platformUrl: string;
   /** What Platform printed after the start of its current run. */
@@ -45,11 +41,19 @@ export function startLogWindow(startedAt: string): { since: string; until: strin
 const VALID_STATES = ["active", "expiring", "grace", "expired"] as const;
 
 // The fields of the license line that the check reads; Platform also logs the level, the message and the time.
-const startLine = z.discriminatedUnion("state", [
-  z.object({ state: z.literal("free") }),
-  z.object({ state: z.literal("invalid"), code: z.string() }),
-  z.object({ state: z.enum(VALID_STATES), licenseId: z.string(), customer: z.string(), expiresAt: z.iso.datetime() }),
-]);
+const startLine = z.discriminatedUnion(
+  "state",
+  [
+    z.object({ state: z.literal("invalid"), code: z.string() }),
+    z.object({ state: z.enum(VALID_STATES), licenseId: z.string(), customer: z.string(), expiresAt: z.iso.datetime() }),
+  ],
+  {
+    error: (issue) =>
+      issue.code === "invalid_union"
+        ? `Invalid option: expected one of ${["invalid", ...VALID_STATES].map((state) => `"${state}"`).join("|")}`
+        : undefined,
+  },
+);
 
 export type LicenseStartLine = z.output<typeof startLine>;
 
@@ -141,16 +145,15 @@ function validOutcome(line: Extract<LicenseStartLine, { licenseId: string }>, fi
 const PLATFORM_LOG_HINT = `the Platform log has the full output: docker compose -p ${COMPOSE_PROJECT} logs ${PLATFORM_SERVICE}`;
 
 /**
- * platform-license: without platform.licenseFile, passes and reports the free tier. With it, Platform's license line
- * names a valid license, which passes while it is active, warns while it expires within 30 days or is in its grace
- * period, and fails once the grace period ended; a token Platform refuses fails naming its code, and so does a Platform
- * that started without the license. A log that no longer reaches Platform's start warns that the check did not run.
+ * platform-license: Platform's license line names a valid license, which passes while it is active, warns while it
+ * expires within 30 days or is in its grace period, and fails once the grace period ended; a token Platform refuses
+ * fails naming its code, because Platform then adds no seat. A log that no longer reaches Platform's start warns that
+ * the check did not run.
  */
 export const platformLicenseCheck: Check<PlatformLicenseChecks> = {
   id: "platform-license",
   async run({ license }) {
     const file = license.licenseFile;
-    if (file === undefined) return { passed: true, detail: `none, so Platform runs on ${FREE_TIER}` };
     const log = await license.startLog();
     const line = licenseStartLine(log.text);
     if (line === undefined) {
@@ -171,23 +174,15 @@ export const platformLicenseCheck: Check<PlatformLicenseChecks> = {
           `${log.startedAt}, so its license state is unknown; ${PLATFORM_LOG_HINT}`,
       };
     }
-    if (line.state === "free") {
-      return {
-        passed: false,
-        cause:
-          `platform.licenseFile names ${file}, and Platform started at ${log.startedAt} without a license, so it runs ` +
-          `on ${FREE_TIER}: apply installs the license and recreates Platform`,
-        detail: `none, Platform started without the license of platform.licenseFile and runs on ${FREE_TIER}`,
-      };
-    }
     if (line.state === "invalid") {
       const meaning = codeMeaning(line.code, license.platformUrl);
       return {
         passed: false,
         cause:
           `the license token in ${file} fails Platform's verification with ${line.code}` +
-          `${meaning === undefined ? "" : `, because ${meaning}`}, so Platform runs on ${FREE_TIER}`,
-        detail: `invalid, ${line.code}, so Platform runs on ${FREE_TIER}`,
+          `${meaning === undefined ? "" : `, because ${meaning}`}` +
+          ", so Platform adds no user, connection or admin until a valid license is installed",
+        detail: `invalid, ${line.code}, no seat can be added`,
       };
     }
     return validOutcome(line, file, license.now());

@@ -120,10 +120,12 @@ It takes a Studio release tag as Studio publishes it, bare semver such as `1.2.3
 
 ## Licensing
 
-A self-hosted install reads its license key from `PLATFORM_LICENSE`, and `docs/deploy/platform-runtime.md` describes the license states, how seats are counted and what each gate refuses.
+Every self-hosted install needs a license key, which it reads from `PLATFORM_LICENSE`: the runtime configuration refuses self-hosted mode without it, and `docs/deploy/platform-runtime.md` describes the license states, how seats are counted and what each gate refuses.
 The license module lives in `src/shared/lib/license/`: the token format and its verification, the license state, the seat counts and the gates.
+A token that fails verification puts the install in state `invalid`, which grants no seat: every gate refuses an addition with `LICENSE_INVALID`, and existing access keeps working.
 `keys.ts` holds only the public keys that verify a license, and no real private key belongs anywhere in this repository.
 Tests sign their tokens with the keys of `tests/license/test-keys.ts`, which derive from published labels marked test only, and `keys.test.ts` fails when one of them joins `keys.ts`.
+A test that only needs a working install takes the active license of 1 admin seat and 3 user seats from `tests/license/statuses.ts`.
 The gates run only in self-hosted mode: in cloud mode `getLicenseStatus()` returns null, and no gate locks or counts.
 Never print a license token, a private key or a key seed, in a log line, an error, a test name or any other output: the logger redacts context fields by name, such as `PLATFORM_LICENSE`, and never a token inside a message.
 
@@ -160,6 +162,7 @@ Next.js also compiles `src/instrumentation.ts` for the Edge runtime, so Node.js-
 - `AUTH_SECRET`: required, at least 32 characters.
 - `AUTH_URL`: the absolute http(s) URL of Platform, required when `NODE_ENV` is `production`, which `npm start` and the Docker image set.
 - `STUDIO_PUBLIC_URL`: the absolute http(s) URL of Studio, required in self-hosted mode; in cloud mode, leaving it unset hides the sidebar's Studio link.
+- `PLATFORM_LICENSE`: the license token, required in self-hosted mode; a token that fails verification never stops the start, and cloud mode ignores the variable.
 - `SEED_MODE`: `production` or `development`, read by the seed only.
 - `BOOTSTRAP_ADMIN_EMAIL` and `BOOTSTRAP_ADMIN_PASSWORD`: read by the production seed only, which creates the first platform admin of a cloud install once when both are set and stops with a `ConfigError` when only one is.
   No default password exists anywhere, and a later seed run never changes that admin or its password hash.
@@ -182,6 +185,8 @@ Next.js also compiles `src/instrumentation.ts` for the Edge runtime, so Node.js-
   Get real tokens with `tests/keycloak/helpers/code-login.ts`, which signs in through Keycloak's login form with PKCE.
 - E2E tests: `e2e/*.spec.ts` (Playwright)
   The cloud specs read `E2E_ADMIN_EMAIL` and `E2E_ADMIN_PASSWORD` (the bootstrap admin) and `E2E_USER_PASSWORD` (the development seed's `SEED_USER_PASSWORD`) through `e2e/credentials.ts`.
+  The self-hosted specs need `PLATFORM_LICENSE` in the environment of the server and of the Playwright run: a license whose hosts include `localhost`, with 1 admin seat and 3 user seats.
+  `e2e/self-hosted/platform.env` holds no license, and CI takes it from the repository secret `LIBREDB_E2E_LICENSE`.
 - Login credentials (dev): the bootstrap admin and the development seed's users, see `.env.example`
 
 ## Installer

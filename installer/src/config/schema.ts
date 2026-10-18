@@ -535,11 +535,20 @@ const keycloak = z
     return z.NEVER;
   });
 
+// Every install needs a license, which LibreDB issues on request; the free license is one of them.
+const LICENSE_FILE_REQUIRED =
+  "every install needs a license file from LibreDB, the free license included, so request one at info@libredb.org " +
+  "as docs/deploy/install-docker.md#request-a-license describes and name its path here";
+
 // The file that holds the license token. A value of the token's own shape is refused without being repeated, because
-// validate prints the configuration and apply names a missing file, either of which would print the token.
-const licenseFile = filePath.refine((value) => !LICENSE_TOKEN.test(value), {
-  message: "expected the path of the file that holds the license token, not the token itself",
-});
+// validate prints the configuration and apply names a missing file, either of which would print the token. An absent
+// key, an empty YAML value, which is null, and the empty string all leave the install without a license.
+const licenseFile = z
+  .string({ error: (issue) => (issue.input === undefined || issue.input === null ? LICENSE_FILE_REQUIRED : undefined) })
+  .min(1, LICENSE_FILE_REQUIRED)
+  .refine((value) => !LICENSE_TOKEN.test(value), {
+    message: "expected the path of the file that holds the license token, not the token itself",
+  });
 
 const platform = z
   .object({
@@ -548,8 +557,8 @@ const platform = z
     queryLogRetentionDays: z.number().int().min(1).max(36500).optional(),
     // The previous AUTH_SECRET during a rotation, written as AUTH_SECRET_PREVIOUS for one session lifetime.
     authSecretPreviousFile: filePath.optional(),
-    // Written as PLATFORM_LICENSE; without it Platform runs on its free tier.
-    licenseFile: licenseFile.optional(),
+    // Written as PLATFORM_LICENSE, which Platform requires in a self-hosted install.
+    licenseFile,
   })
   .strict();
 

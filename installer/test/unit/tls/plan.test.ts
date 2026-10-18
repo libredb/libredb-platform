@@ -34,7 +34,7 @@ function config(overrides: Record<string, unknown> = {}) {
     metadata: { name: "acme" },
     mode: "docker",
     endpoints: { hosts: { platform: "platform.corp", studio: "studio.corp", auth: "auth.corp" } },
-    platform: { organizationName: "Acme" },
+    platform: { organizationName: "Acme", licenseFile: "/etc/libredb/platform.license" },
     ...overrides,
   });
 }

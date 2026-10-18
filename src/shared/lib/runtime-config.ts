@@ -124,9 +124,9 @@ function runtimeSchema(mode: DeploymentMode | undefined, production: boolean) {
     QUERY_LOG_RETENTION_DAYS: positiveInteger(DEFAULT_QUERY_LOG_RETENTION_DAYS, MAX_QUERY_LOG_RETENTION_DAYS),
     // How often directory sync lists the members of PLATFORM_ADMIN_ROLE and STUDIO_USER_ROLE in self-hosted mode.
     DIRECTORY_SYNC_INTERVAL_SEC: positiveInteger(DEFAULT_DIRECTORY_SYNC_INTERVAL_SEC, MAX_DIRECTORY_SYNC_INTERVAL_SEC),
-    // The license token of a self-hosted install, with no rule here: license/install-license.ts verifies it, and a token
-    // that fails verification runs the install on the free tier, so no license problem stops the start.
-    PLATFORM_LICENSE: z.string().optional(),
+    // The license token that every self-hosted install needs, with no rule of its form here: license/install-license.ts
+    // verifies it, and a token that fails verification adds no seat but never stops the start.
+    PLATFORM_LICENSE: selfHosted ? z.string({ error: REQUIRED_SELF_HOSTED }) : z.string().optional(),
   }).refine(config => config.AUTH_SECRET_PREVIOUS !== config.AUTH_SECRET, {
     path: ['AUTH_SECRET_PREVIOUS'],
     message: 'must differ from AUTH_SECRET',

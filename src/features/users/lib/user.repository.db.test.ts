@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { connectSuperuser, fixtureUrl } from '../../../../tests/db/connect'
 import { createFreshDatabase } from '../../../../tests/db/fresh-database'
 import { fakeAdminDirectory } from '../../../../tests/license/admin-directory'
-import { licenseStatus } from '@/shared/lib/license'
+import { SMALL_LICENSE_ACTIVE } from '../../../../tests/license/statuses'
 
 // A self-hosted install starts from an empty database, so this file reads one of its own that no other test writes to.
 const DATABASE = 'libredb_self_hosted_users'
@@ -36,9 +36,9 @@ describe('UserRepository.findAll on a self-hosted install', () => {
     const { buildAuthCallbacks } = await import('@/shared/lib/identity/auth-callbacks')
     const { admitKeycloakAdmin, provisionKeycloakUser } = await import('@/shared/lib/identity/keycloak-provisioning')
     const { getInstallTenant } = await import('@/shared/lib/identity/install-tenant')
-    // The first admin of an install without a license takes the free tier's one admin seat.
+    // The first admin takes the one admin seat of the install's license.
     const admission = {
-      getLicenseStatus: () => licenseStatus(null, new Date()),
+      getLicenseStatus: () => SMALL_LICENSE_ACTIVE,
       getInstallTenant,
       directory: () => fakeAdminDirectory({ 'kc-alice': { enabled: true, roles: ['admin'] } }),
       adminRole: 'admin',

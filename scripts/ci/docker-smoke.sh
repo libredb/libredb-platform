@@ -11,9 +11,11 @@
 #   1. starts PostgreSQL with docker/postgres/bootstrap.psql and a server certificate from a throwaway CA, accepting
 #      remote clients over TLS only, and Keycloak with the fixture realm, which `maintain` reads as directory sync;
 #   2. runs `migrate` twice, with a Prisma-syntax MIGRATE_DATABASE_URL that carries sslcert and sslaccept=strict;
-#   3. runs `serve`, the default, until GET /api/health/live and GET /api/health/ready answer 200, and checks that
-#      GET /_next/image of a PNG answers 404, because the image optimizer is off;
-#   4. runs `maintain` and `migrate-status`, which must exit 0;
+#   3. runs `serve` without PLATFORM_LICENSE, which must stop with the ConfigError that names it, then `serve`, the
+#      default, with a well-formed license token that no key signed, until GET /api/health/live and GET
+#      /api/health/ready answer 200 and it has logged the license state invalid, and checks that GET /_next/image of a
+#      PNG answers 404, because the image optimizer is off;
+#   4. runs `maintain` with the same token, and `migrate-status`, which must exit 0;
 #   5. marks the newest migration failed, after which `migrate` must stop with P3009, then runs
 #      `migrate-resolve --rolled-back` and `migrate-resolve --applied` on it and `migrate-status`, which must exit 0;
 #   6. runs an unknown argument, which must exit 64.
@@ -39,6 +41,7 @@ NETWORK=$NAME-net
 POSTGRES=$NAME-postgres
 KEYCLOAK=$NAME-keycloak
 SERVE=$NAME-serve
+UNLICENSED=$NAME-serve-unlicensed
 CA_DIR=/etc/libredb/ca
 
 WORK=$(mktemp -d)
@@ -55,7 +58,7 @@ fail() {
 
 cleanup() {
   if [ "$failed" -ne 0 ]; then
-    for container in "$POSTGRES" "$KEYCLOAK" "$SERVE"; do
+    for container in "$POSTGRES" "$KEYCLOAK" "$SERVE" "$UNLICENSED"; do
       if docker container inspect "$container" > /dev/null 2>&1; then
         log "logs of $container:"
         docker logs --tail 200 "$container" >&2 2>&1 || true
@@ -69,7 +72,7 @@ cleanup() {
       " || true
     fi
   fi
-  docker rm -f "$SERVE" "$KEYCLOAK" "$POSTGRES" > /dev/null 2>&1 || true
+  docker rm -f "$UNLICENSED" "$SERVE" "$KEYCLOAK" "$POSTGRES" > /dev/null 2>&1 || true
   docker network rm "$NETWORK" > /dev/null 2>&1 || true
   rm -rf "$WORK"
 }
@@ -208,7 +211,7 @@ sed -i 's/^host /hostssl /' "$PGDATA/pg_hba.conf"
 TLS_ONLY
 chmod 0755 "$WORK/initdb/02-tls-only.sh"
 
-docker rm -f "$SERVE" "$KEYCLOAK" "$POSTGRES" > /dev/null 2>&1 || true
+docker rm -f "$UNLICENSED" "$SERVE" "$KEYCLOAK" "$POSTGRES" > /dev/null 2>&1 || true
 docker network rm "$NETWORK" > /dev/null 2>&1 || true
 docker network create "$NETWORK" > /dev/null
 
@@ -253,6 +256,12 @@ SERVE_ENV=(
   -e STUDIO_PUBLIC_URL=http://localhost:3200
   -e BRIDGE_SEAL_PUBLIC_KEY=WULR-dfqAG93r5aNvR9xqMm_AkNbdbimJmSD1YzobyY
 )
+# Self-hosted mode needs a license token. This one has the form of one, a kid of 16 hex digits, a payload and a
+# signature of 64 zero bytes, but no key signed it, so Platform starts with it in state invalid, which is all a smoke
+# test needs.
+LICENSE_ENV=(
+  -e "PLATFORM_LICENSE=ldl1.0000000000000000.e30.$(head -c 64 /dev/zero | base64 -w0 | tr -d '=')"
+)
 
 for attempt in 1 2; do
   log "migrate, run $attempt"
@@ -262,12 +271,33 @@ done
 
 wait_for 'Keycloak is ready' "$KEYCLOAK" keycloak_ready
 
+# Every self-hosted install needs a license, so serve stops at start without one, before it opens any connection.
+log 'serve without PLATFORM_LICENSE'
+status=0
+output=$(timeout "$TIMEOUT" docker run --rm --name "$UNLICENSED" --network "$NETWORK" -v "$WORK/ca:$CA_DIR:ro" \
+  "${RUNTIME_ENV[@]}" "${SERVE_ENV[@]}" "$IMAGE" 2>&1) || status=$?
+if [ "$status" -eq 0 ] || [ "$status" -eq 124 ] \
+  || ! grep -qF 'Invalid runtime configuration: PLATFORM_LICENSE is required in self-hosted mode' <<< "$output"; then
+  fail "serve without PLATFORM_LICENSE exited $status without the ConfigError that names it:"$'\n'"$output"
+fi
+
 log 'serve'
 docker run -d --name "$SERVE" --network "$NETWORK" -v "$WORK/ca:$CA_DIR:ro" \
   -v "$WORK/probe.png:/app/.next/static/media/docker-smoke-probe.png:ro" \
-  "${RUNTIME_ENV[@]}" "${SERVE_ENV[@]}" "$IMAGE" > /dev/null
+  "${RUNTIME_ENV[@]}" "${SERVE_ENV[@]}" "${LICENSE_ENV[@]}" "$IMAGE" > /dev/null
 wait_for 'serve is live' "$SERVE" probe /api/health/live
 wait_for 'serve is ready' "$SERVE" probe /api/health/ready
+
+# The start line names the state and the code of the token, and never the token.
+log 'serve logged the license state invalid with LICENSE_UNKNOWN_KID'
+logs=$(docker logs "$SERVE" 2>&1)
+if ! grep -qF '"message":"License invalid, no seat can be added"' <<< "$logs" \
+  || ! grep -qF '"state":"invalid","code":"LICENSE_UNKNOWN_KID"' <<< "$logs"; then
+  fail 'serve did not log the license state invalid with the code LICENSE_UNKNOWN_KID'
+fi
+if grep -qF 'ldl1.0000000000000000' <<< "$logs"; then
+  fail 'serve logged the license token'
+fi
 
 log 'GET /_next/image answers 404, because the image optimizer is off'
 docker exec "$SERVE" node -e "
@@ -279,7 +309,7 @@ docker exec "$SERVE" node -e "
 " || fail '/_next/image served the probe, so the image optimizer is on'
 
 log 'maintain'
-run_image "${RUNTIME_ENV[@]}" "${SERVE_ENV[@]}" "$IMAGE" maintain || fail "maintain exited $?"
+run_image "${RUNTIME_ENV[@]}" "${SERVE_ENV[@]}" "${LICENSE_ENV[@]}" "$IMAGE" maintain || fail "maintain exited $?"
 
 log 'migrate-status'
 run_image "${MIGRATE_ENV[@]}" "$IMAGE" migrate-status || fail "migrate-status exited $?"

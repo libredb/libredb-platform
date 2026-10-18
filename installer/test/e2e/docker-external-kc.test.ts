@@ -29,6 +29,7 @@ import { parseCertificates } from "../../src/tls/inspect";
 import { issueLeaf } from "../../src/tls/leaf";
 import { CATALOGUE } from "../../src/verify/catalogue";
 import { applyExport, grantsServiceAccountRoles } from "../fixtures/keycloak/apply-export";
+import { LICENSE_ARGS } from "./support/install";
 
 const packageRoot = join(import.meta.dir, "..", "..");
 const INSTALLER = process.env.LIBREDB_INSTALLER_BIN ?? join(packageRoot, "dist", "libredb-installer-linux-x64");
@@ -58,6 +59,7 @@ const CONFIG_ARGS = [
   "--set",
   `keycloak.external.caBundleFile=${corpCaFile}`,
   ...(registry === undefined ? [] : ["--set", `images.registry=${registry}`]),
+  ...LICENSE_ARGS,
 ];
 const studioSecretFile = join(scratch, "site-studio-client-secret");
 const platformSecretFile = join(scratch, "site-platform-client-secret");
@@ -73,6 +75,7 @@ const MANUAL_ARGS = [
   "--set",
   `keycloak.external.platformClientSecretFile=${platformSecretFile}`,
   ...(registry === undefined ? [] : ["--set", `images.registry=${registry}`]),
+  ...LICENSE_ARGS,
 ];
 // The customer's secrets: the stand-in's bootstrap administrator, and the provisioning client the installer uses.
 const bootstrapPassword = generateSecret();

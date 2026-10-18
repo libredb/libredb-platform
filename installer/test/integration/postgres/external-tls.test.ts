@@ -88,7 +88,7 @@ function config(withCaBundleFile: boolean): LibreDBInstallation {
         ...(withCaBundleFile ? { caBundleFile: CORP_CA_FILE } : {}),
       },
     },
-    platform: { organizationName: "Acme" },
+    platform: { organizationName: "Acme", licenseFile: "/etc/libredb/platform.license" },
   });
 }
 
