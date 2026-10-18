@@ -30,7 +30,7 @@ LibreDB Platform replaces distributing connection strings with a managed web int
 
 ## Install
 
-Platform 1.0.0 is the first release, published as the image `ghcr.io/libredb/libredb-platform`, and pairs with LibreDB Studio 1.0.0.
+Platform 1.0.1 is the current release, published as the image `ghcr.io/libredb/libredb-platform`, and pairs with LibreDB Studio 1.0.0.
 It installs with Docker on one x86_64 Linux host: the installer deploys PostgreSQL, Keycloak, Platform, Studio and a Caddy edge, and can use an existing PostgreSQL server or Keycloak instead.
 Kubernetes support follows in the next release.
 Cloud mode serves development and the hosted service of a later release, and it is not a supported way to install LibreDB.
