@@ -32,11 +32,15 @@ describe("renderCompose platform", () => {
   test("only platform-migrate receives the env file that holds MIGRATE_DATABASE_URL", () => {
     const services = compose().services;
     const withMigrateEnv = Object.entries(services)
-      .filter(([, definition]) => ((definition.env_file as string[] | undefined) ?? []).includes(PLATFORM_MIGRATE_ENV_FILE))
+      .filter(([, definition]) =>
+        ((definition.env_file as { path: string }[] | undefined) ?? []).some(
+          (entry) => entry.path === PLATFORM_MIGRATE_ENV_FILE,
+        ),
+      )
       .map(([name]) => name);
     expect(withMigrateEnv).toEqual([PLATFORM_MIGRATE_SERVICE]);
     expect(PLATFORM_MIGRATE_ENV_FILE).toBe("/opt/libredb/env/platform-migrate.env");
-    expect(services[PLATFORM_SERVICE]?.env_file).toEqual([PLATFORM_ENV_FILE]);
+    expect(services[PLATFORM_SERVICE]?.env_file).toEqual([{ path: PLATFORM_ENV_FILE, required: false }]);
     expect(PLATFORM_ENV_FILE).toBe("/opt/libredb/env/platform.env");
     // No service carries a variable of its own, so the env files alone decide what each container receives.
     for (const name of [PLATFORM_SERVICE, PLATFORM_MIGRATE_SERVICE]) expect(services[name]?.environment).toBeUndefined();

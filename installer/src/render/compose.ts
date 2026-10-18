@@ -100,6 +100,13 @@ const POSTGRES_CONFIG_MOUNT = "/etc/libredb/postgres";
 const LOGGING = { driver: "json-file", options: { "max-size": "10m", "max-file": "5" } };
 
 /**
+ * A service's env file, which Compose may find missing: each deploy step writes its own just before it starts its
+ * service, and Compose before 5.0 reads the env file of every service in compose.yaml for any command, ps and logs
+ * included, so a file that a later step writes would otherwise stop the commands of the steps before it.
+ */
+const envFile = (path: string) => [{ path, required: false }];
+
+/**
  * The label with the SHA-256 of the CA bundle, on every long-running service that trusts it: Node reads
  * NODE_EXTRA_CA_CERTS and Keycloak its truststore only at start, so a changed bundle must recreate them.
  */
@@ -172,7 +179,7 @@ function keycloakService(desired: DesiredInstallation, trust: ComposeTrust) {
     image: desired.images.keycloak,
     restart: "unless-stopped",
     command: ["start"],
-    env_file: [KEYCLOAK_ENV_FILE],
+    env_file: envFile(KEYCLOAK_ENV_FILE),
     environment: {
       KC_DB: "postgres",
       KC_DB_URL: jdbc,
@@ -235,7 +242,7 @@ function platformMigrateService(desired: DesiredInstallation) {
     ...platformBase(desired),
     profiles: [JOBS_PROFILE],
     command: ["migrate"],
-    env_file: [PLATFORM_MIGRATE_ENV_FILE],
+    env_file: envFile(PLATFORM_MIGRATE_ENV_FILE),
     read_only: true,
     tmpfs: ["/tmp"],
     volumes: [CA_VOLUME],
@@ -251,7 +258,7 @@ function platformService(desired: DesiredInstallation, trust: ComposeTrust) {
     ...platformBase(desired),
     restart: "unless-stopped",
     command: ["serve"],
-    env_file: [PLATFORM_ENV_FILE],
+    env_file: envFile(PLATFORM_ENV_FILE),
     read_only: true,
     tmpfs: ["/tmp", "/app/.next/cache"],
     volumes: ["platform-uploads:/app/uploads", CA_VOLUME],
@@ -288,7 +295,7 @@ function studioService(desired: DesiredInstallation, trust: ComposeTrust) {
     user: APP_USER,
     cap_drop: ["ALL"],
     security_opt: ["no-new-privileges:true"],
-    env_file: [STUDIO_ENV_FILE],
+    env_file: envFile(STUDIO_ENV_FILE),
     read_only: true,
     tmpfs: ["/tmp", "/app/.next/cache"],
     volumes: [
@@ -414,7 +421,7 @@ function postgresService(desired: DesiredInstallation) {
       "-c",
       "password_encryption=scram-sha-256",
     ],
-    env_file: [POSTGRES_ENV_FILE],
+    env_file: envFile(POSTGRES_ENV_FILE),
     environment: { POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256" },
     volumes: [
       "postgres-data:/var/lib/postgresql",

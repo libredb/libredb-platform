@@ -166,12 +166,14 @@ describe("renderCompose studio", () => {
 
   test("studio alone reads studio.env, a root-only file with the governance values of contracts/env-inventory.yaml", () => {
     const service = studio();
-    expect(service.env_file).toEqual([STUDIO_ENV_FILE]);
+    expect(service.env_file).toEqual([{ path: STUDIO_ENV_FILE, required: false }]);
     expect(STUDIO_ENV_FILE).toBe("/opt/libredb/env/studio.env");
     expect(service.environment).toBeUndefined();
     // Platform and Studio never share an env file, because STORAGE_PROVIDER means different things in each.
     const readers = Object.entries(services())
-      .filter(([, definition]) => ((definition.env_file as string[] | undefined) ?? []).includes(STUDIO_ENV_FILE))
+      .filter(([, definition]) =>
+        ((definition.env_file as { path: string }[] | undefined) ?? []).some((entry) => entry.path === STUDIO_ENV_FILE),
+      )
       .map(([name]) => name);
     expect(readers).toEqual([STUDIO_SERVICE]);
     const { content: _content, ...file } = studioEnvFile(desired(), INPUTS);
