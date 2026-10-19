@@ -4,6 +4,13 @@
 
 LibreDB Platform replaces distributing connection strings with a managed web interface where admins control who can access which databases, every query is logged, and teams collaborate securely.
 
+<p align="center">
+  <img src="docs/assets/platform-tour.gif" alt="LibreDB Platform: an admin grants an analyst read-only access to a database, the analyst sees only that database in Studio, a write is refused, access is revoked, and every query appears in the audit log" width="100%" />
+</p>
+
+The license is free for 1 admin and 3 users for 12 months, and more seats are paid.
+Write to [info@libredb.org](mailto:info@libredb.org) or join the waiting list at [libredb.org/platform](https://libredb.org/platform/).
+
 ## Features
 
 - **Self-hosted**: One organization per install with Keycloak single sign-on; cloud mode, for development and a later hosted service, runs several tenants with isolated data and password sign-in
