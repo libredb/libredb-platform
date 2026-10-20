@@ -23,7 +23,7 @@
 ### Q2
 
 - [ ] Multitenant SaaS Product(LibreDB Cloud Platform)
-
+- [ ] LibreDB Mobile App - it can work with platform and studio
 
 ### Q3
 
