@@ -1,0 +1,20 @@
+# The values of the end-to-end test: the three hosts under .libredb.test, which CoreDNS resolves to Traefik in the
+# cluster and the browser maps to 127.0.0.1. The license comes from run-e2e.sh (--set-file platform.license.value).
+hosts:
+  platform: platform.libredb.test
+  studio: studio.libredb.test
+  auth: auth.libredb.test
+platform:
+  organizationName: Acme Test
+studio:
+  config:
+    oidcIssuer: https://auth.libredb.test/realms/libredb
+  ingress:
+    hosts:
+      - host: studio.libredb.test
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: libredb-tls-studio
+        hosts: [studio.libredb.test]

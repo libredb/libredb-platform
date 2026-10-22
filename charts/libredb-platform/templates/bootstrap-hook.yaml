@@ -1,0 +1,269 @@
+{{- include "libredb-platform.guards" . }}
+{{- /*
+The bootstrap job (installer/src/kubernetes/bootstrap.ts), a pre-install and pre-upgrade hook: it generates the
+secrets, the seal keys and the internal CA once, and writes every Secret and ConfigMap the workloads mount, before any
+of them starts. Its ServiceAccount, Role and inputs exist only while it runs. The Secrets it writes carry no Helm
+ownership, so they outlive `helm uninstall`: losing the seal keys loses every sealed database credential.
+*/}}
+{{- /* Also before a rollback, whose bootstrap refuses an older release than the installation ran (checkRelease). */}}
+{{- $hook := dict "helm.sh/hook" "pre-install,pre-upgrade,pre-rollback" "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded" }}
+{{- $managedPg := include "libredb-platform.managedPostgres" . }}
+{{- $managedKc := include "libredb-platform.managedKeycloak" . }}
+{{- $secrets := list "libredb-secrets" "libredb-installer-state" "libredb-tls" "libredb-platform-env" "libredb-platform-migrate-env" "libredb-keycloak-config" "libredb-studio-network-env" .Values.studio.secrets.existingSecret }}
+{{- if $managedPg }}{{ $secrets = concat $secrets (list "libredb-postgres-superuser" "libredb-postgres-tls" "libredb-postgres-provision") }}{{ end }}
+{{- if not $managedPg }}{{ $secrets = append $secrets "libredb-postgres-dba-script" }}{{ end }}
+{{- if $managedKc }}{{ $secrets = append $secrets "libredb-keycloak-env" }}{{ end }}
+{{- if eq .Values.tls.mode "generated" }}{{ $secrets = concat $secrets (list "libredb-tls-platform" "libredb-tls-studio") }}{{ if $managedKc }}{{ $secrets = append $secrets "libredb-tls-auth" }}{{ end }}{{ end }}
+{{- $configMaps := list "libredb-ca" "libredb-jobs" }}
+{{- if $managedPg }}{{ $configMaps = append $configMaps "libredb-postgres-config" }}{{ end }}
+{{- if $managedKc }}{{ $configMaps = append $configMaps "libredb-keycloak-edge" }}{{ end }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: libredb-bootstrap
+  labels:
+    {{- include "libredb-platform.labels" . | nindent 4 }}
+  annotations:
+    {{- toYaml $hook | nindent 4 }}
+    helm.sh/hook-weight: "-30"
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: libredb-bootstrap
+  labels:
+    {{- include "libredb-platform.labels" . | nindent 4 }}
+  annotations:
+    {{- toYaml $hook | nindent 4 }}
+    helm.sh/hook-weight: "-30"
+rules:
+  # create cannot be limited by name; reads and replaces are limited to the job's own objects.
+  - apiGroups: [""]
+    resources: ["secrets", "configmaps"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: {{ toJson $secrets }}
+    verbs: ["get", "update"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: {{ toJson $configMaps }}
+    verbs: ["get", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: libredb-bootstrap
+  labels:
+    {{- include "libredb-platform.labels" . | nindent 4 }}
+  annotations:
+    {{- toYaml $hook | nindent 4 }}
+    helm.sh/hook-weight: "-30"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: libredb-bootstrap
+subjects:
+  - kind: ServiceAccount
+    name: libredb-bootstrap
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: libredb-bootstrap-chart
+  labels:
+    {{- include "libredb-platform.labels" . | nindent 4 }}
+  annotations:
+    {{- toYaml $hook | nindent 4 }}
+    helm.sh/hook-weight: "-20"
+data:
+  installation.json: |
+    {{- include "libredb-platform.installation" . | nindent 4 }}
+  chart.json: |
+    {{- include "libredb-platform.chartSettings" . | nindent 4 }}
+  {{- if .Values.platform.sealKeys.retire }}
+  seal-envelopes.sql: |
+    {{- include "libredb-platform.sealEnvelopesSql" . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.tls.caBundle }}
+  tls-ca.crt: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.postgresql.external.caBundle }}
+  postgres-ca.crt: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.keycloak.external.caBundle }}
+  keycloak-ca.crt: {{ . | quote }}
+  {{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: libredb-bootstrap-jobs
+  labels:
+    {{- include "libredb-platform.labels" . | nindent 4 }}
+  annotations:
+    {{- toYaml $hook | nindent 4 }}
+    helm.sh/hook-weight: "-20"
+binaryData:
+  libredb-jobs.cjs.gz: {{ .Files.Get "files/libredb-jobs.cjs.gz" | b64enc }}
+{{- if .Values.platform.license.value }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: libredb-bootstrap-license
+  labels:
+    {{- include "libredb-platform.labels" . | nindent 4 }}
+  annotations:
+    {{- toYaml $hook | nindent 4 }}
+    helm.sh/hook-weight: "-20"
+type: Opaque
+stringData:
+  license: {{ trim .Values.platform.license.value | quote }}
+{{- end }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: libredb-bootstrap
+  labels:
+    {{- include "libredb-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: bootstrap
+  annotations:
+    {{- toYaml $hook | nindent 4 }}
+    helm.sh/hook-weight: "-10"
+spec:
+  # A refusal a retry cannot change (exit 2 invalid installation, 3 failed precondition, 6 unsafe change, as the
+  # installer's exit codes) fails the Job at once, so Helm reports it instead of waiting out the retries.
+  podFailurePolicy:
+    rules:
+      - action: FailJob
+        onExitCodes:
+          containerName: bootstrap
+          operator: In
+          values: [2, 3, 6]
+  backoffLimit: {{ .Values.jobs.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.jobs.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "libredb-platform.selectorLabels" (dict "root" . "component" "bootstrap") | nindent 8 }}
+    spec:
+      serviceAccountName: libredb-bootstrap
+      automountServiceAccountToken: true
+      restartPolicy: Never
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "libredb-platform.podSecurity" (dict "root" $ "uid" 1001) | nindent 8 }}
+      {{- include "libredb-platform.platformScheduling" $ | nindent 6 }}
+      {{- if .Values.platform.sealKeys.retire }}
+      # A retirement needs the connections each retired kid still seals, which the bootstrap job reads from /tmp.
+      initContainers:
+        {{- include "libredb-platform.platformSqlContainer" (dict "root" . "name" "seal-envelopes" "file" "/etc/libredb/chart/seal-envelopes.sql" "output" "/tmp/seal-envelopes.out") | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: bootstrap
+          image: {{ include "libredb-platform.image" .Values.platform.image }}
+          imagePullPolicy: {{ .Values.platform.image.pullPolicy }}
+          command:
+            {{- include "libredb-platform.jobCommand" (dict "command" "bootstrap" "withBundle" false) | nindent 12 }}
+          securityContext:
+            {{- include "libredb-platform.containerSecurity" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.jobs.resources | nindent 12 }}
+          volumeMounts:
+            - name: chart
+              mountPath: /etc/libredb/chart
+              readOnly: true
+            - name: jobs
+              mountPath: /etc/libredb/jobs
+              readOnly: true
+            - name: inputs-ca
+              mountPath: {{ include "libredb-platform.inputDir" . }}/ca
+              readOnly: true
+            - name: license
+              mountPath: {{ include "libredb-platform.inputDir" . }}/license
+              readOnly: true
+            {{- if .Values.platform.authSecretPrevious.existingSecret }}
+            - name: auth-secret-previous
+              mountPath: {{ include "libredb-platform.inputDir" . }}/auth-secret-previous
+              readOnly: true
+            {{- end }}
+            {{- if and (eq .Values.keycloak.mode "external") (eq .Values.keycloak.external.provisioning "manual") }}
+            - name: keycloak-clients
+              mountPath: {{ include "libredb-platform.inputDir" . }}/keycloak-clients
+              readOnly: true
+            {{- end }}
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: chart
+          configMap:
+            name: libredb-bootstrap-chart
+            items:
+              - key: installation.json
+                path: installation.json
+              - key: chart.json
+                path: chart.json
+              {{- if .Values.platform.sealKeys.retire }}
+              - key: seal-envelopes.sql
+                path: seal-envelopes.sql
+              {{- end }}
+        - name: jobs
+          configMap:
+            name: libredb-bootstrap-jobs
+        - name: inputs-ca
+          configMap:
+            name: libredb-bootstrap-chart
+            optional: true
+            items:
+              {{- if .Values.tls.caBundle }}
+              - key: tls-ca.crt
+                path: tls-ca.crt
+              {{- end }}
+              {{- if .Values.postgresql.external.caBundle }}
+              - key: postgres-ca.crt
+                path: postgres-ca.crt
+              {{- end }}
+              {{- if .Values.keycloak.external.caBundle }}
+              - key: keycloak-ca.crt
+                path: keycloak-ca.crt
+              {{- end }}
+              - key: chart.json
+                path: .chart.json
+        - name: license
+          secret:
+            secretName: {{ .Values.platform.license.existingSecret | default "libredb-bootstrap-license" }}
+            items:
+              - key: {{ if .Values.platform.license.existingSecret }}{{ .Values.platform.license.key }}{{ else }}license{{ end }}
+                path: license
+        {{- with .Values.platform.authSecretPrevious.existingSecret }}
+        - name: auth-secret-previous
+          secret:
+            secretName: {{ . }}
+            items:
+              - key: {{ $.Values.platform.authSecretPrevious.key }}
+                path: auth-secret-previous
+        {{- end }}
+        {{- if .Values.platform.sealKeys.retire }}
+        - name: installation-ca
+          configMap:
+            name: libredb-ca
+        {{- end }}
+        {{- if and (eq .Values.keycloak.mode "external") (eq .Values.keycloak.external.provisioning "manual") }}
+        - name: keycloak-clients
+          secret:
+            secretName: {{ .Values.keycloak.external.clientSecretsSecret }}
+            items:
+              - key: studio-client-secret
+                path: studio-client-secret
+              - key: platform-client-secret
+                path: platform-client-secret
+        {{- end }}
+        - name: tmp
+          emptyDir: {}

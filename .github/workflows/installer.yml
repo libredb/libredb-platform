@@ -5,11 +5,13 @@ on:
     branches: [main]
     paths:
       - 'installer/**'
+      - 'charts/**'
       - 'tests/fixtures/governance/STUDIO_TAG'
       - '.github/workflows/installer.yml'
   pull_request:
     paths:
       - 'installer/**'
+      - 'charts/**'
       - 'tests/fixtures/governance/STUDIO_TAG'
       - '.github/workflows/installer.yml'
 
@@ -40,6 +42,18 @@ jobs:
         run: bun run embed
         env:
           LIBREDB_STUDIO_REPO: ${{ github.workspace }}/studio-src
+      # The Helm chart's tests (test/unit/kubernetes/chart.test.ts) render the chart with a pinned Helm; its Studio
+      # dependency is the chart that embed just downloaded and checked against the release manifest's sha256.
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v3.21.3
+      - name: Lint the Helm chart
+        working-directory: .
+        run: |
+          mkdir -p charts/libredb-platform/charts
+          cp installer/generated/libredb-studio-*.tgz charts/libredb-platform/charts/
+          helm lint charts/libredb-platform --strict -f charts/libredb-platform/tests/e2e/values-kind.yaml \
+            --set platform.license.value=ldl1.0123456789abcdef.eyJpZCI6IkxJTlQifQ.c2lnbmF0dXJl
       - run: bun run typecheck
       - run: bun run coverage:check
       - run: bun run build

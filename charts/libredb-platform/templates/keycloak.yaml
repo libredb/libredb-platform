@@ -1,0 +1,220 @@
+{{- if include "libredb-platform.managedKeycloak" . }}
+{{- /*
+The managed Keycloak, with the environment of the installer's compose service (installer/src/render/compose.ts), and
+the installer's edge as a sidecar: the ingress reaches only the edge, which forwards /realms/<realm>/ and /resources/
+alone. Service keycloak serves the Admin API in-cluster at http://keycloak:8080, Platform's KEYCLOAK_ADMIN_URL; the
+admin console opens through `kubectl port-forward svc/keycloak 18080:8080` at http://127.0.0.1:18080, the URL
+KC_HOSTNAME_ADMIN names, as on a Docker install.
+*/}}
+{{- $kc := .Values.keycloak.managed }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  labels:
+    {{- include "libredb-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keycloak
+spec:
+  selector:
+    {{- include "libredb-platform.selectorLabels" (dict "root" . "component" "keycloak") | nindent 4 }}
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak-edge
+  labels:
+    {{- include "libredb-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keycloak
+spec:
+  selector:
+    {{- include "libredb-platform.selectorLabels" (dict "root" . "component" "keycloak") | nindent 4 }}
+  ports:
+    - name: edge
+      port: 8081
+      targetPort: edge
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  labels:
+    {{- include "libredb-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keycloak
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "libredb-platform.selectorLabels" (dict "root" . "component" "keycloak") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "libredb-platform.selectorLabels" (dict "root" . "component" "keycloak") | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "libredb-platform.podSecurity" (dict "root" $ "uid" 1000) | nindent 8 }}
+      containers:
+        - name: keycloak
+          image: {{ include "libredb-platform.image" $kc.image }}
+          imagePullPolicy: {{ $kc.image.pullPolicy }}
+          args: ["start"]
+          env:
+            - name: KC_DB
+              value: postgres
+            - name: KC_DB_URL
+              value: "jdbc:postgresql://{{ if include "libredb-platform.managedPostgres" . }}libredb-postgres:5432{{ else }}{{ .Values.postgresql.external.host }}:{{ .Values.postgresql.external.port }}{{ end }}/keycloak?sslmode=verify-full&sslrootcert=/etc/libredb/ca/ca.crt"
+            - name: KC_DB_USERNAME
+              value: libredb_keycloak
+            - name: KC_DB_POOL_MAX_SIZE
+              value: "20"
+            - name: KC_HOSTNAME
+              value: "https://{{ .Values.hosts.auth }}"
+            - name: KC_HOSTNAME_ADMIN
+              value: "http://127.0.0.1:18080"
+            - name: KC_PROXY_HEADERS
+              value: xforwarded
+            - name: KC_HTTP_ENABLED
+              value: "true"
+            - name: KC_HEALTH_ENABLED
+              value: "true"
+            - name: KC_TRUSTSTORE_PATHS
+              value: /etc/libredb/ca/ca.crt
+            - name: LIQUIBASE_ANALYTICS_ENABLED
+              value: "false"
+          envFrom:
+            - secretRef:
+                name: libredb-keycloak-env
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: management
+              containerPort: 9000
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          startupProbe:
+            httpGet:
+              path: /health/started
+              port: management
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: management
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: management
+            periodSeconds: 20
+          resources:
+            {{- toYaml $kc.resources | nindent 12 }}
+          volumeMounts:
+            - name: ca
+              mountPath: /etc/libredb/ca
+              readOnly: true
+        - name: edge
+          image: {{ include "libredb-platform.image" $kc.edge.image }}
+          imagePullPolicy: {{ $kc.edge.image.pullPolicy }}
+          args: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+          env:
+            - name: XDG_DATA_HOME
+              value: /tmp/caddy/data
+            - name: XDG_CONFIG_HOME
+              value: /tmp/caddy/config
+          ports:
+            - name: edge
+              containerPort: 8081
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+              # The image's caddy binary carries the file capability cap_net_bind_service, and the kernel refuses to
+              # exec it when that capability is outside the bounding set; the edge itself listens on 8081.
+              add: ["NET_BIND_SERVICE"]
+            seccompProfile:
+              type: RuntimeDefault
+          readinessProbe:
+            tcpSocket:
+              port: edge
+            periodSeconds: 10
+          resources:
+            {{- toYaml $kc.edge.resources | nindent 12 }}
+          volumeMounts:
+            - name: edge-config
+              mountPath: /etc/caddy
+              readOnly: true
+            - name: edge-tmp
+              mountPath: /tmp
+      volumes:
+        - name: ca
+          configMap:
+            name: libredb-ca
+        - name: edge-config
+          configMap:
+            name: libredb-keycloak-edge
+        - name: edge-tmp
+          emptyDir: {}
+      {{- with $kc.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $kc.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $kc.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- if .Values.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: keycloak
+  labels:
+    {{- include "libredb-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keycloak
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  tls:
+    - hosts:
+        - {{ .Values.hosts.auth | quote }}
+      secretName: {{ if eq .Values.tls.mode "generated" }}libredb-tls-auth{{ else }}{{ .Values.tls.secrets.auth }}{{ end }}
+  rules:
+    - host: {{ .Values.hosts.auth | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: keycloak-edge
+                port:
+                  name: edge
+{{- end }}
+{{- end }}

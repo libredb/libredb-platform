@@ -1,0 +1,31 @@
+apiVersion: v2
+name: libredb-platform
+description: >-
+  LibreDB Platform, database access governance, with LibreDB Studio, on Kubernetes: Platform, its migrate job,
+  Studio under governance, and optionally a managed PostgreSQL and Keycloak. Source-available under the
+  Elastic License 2.0; every install needs a license from LibreDB.
+type: application
+# The chart version; appVersion is the Platform release whose images and Studio chart it pins
+# (installer/release/release.config.json, which installer/test/unit/kubernetes/chart.test.ts compares).
+version: 0.1.0
+appVersion: "1.0.1"
+kubeVersion: ">=1.28.0-0"
+home: https://libredb.org/platform/
+sources:
+  - https://github.com/libredb/libredb-platform
+license: Elastic-2.0
+keywords:
+  - database
+  - governance
+  - audit
+  - keycloak
+  - libredb
+maintainers:
+  - name: LibreDB
+    url: https://libredb.org
+dependencies:
+  - name: libredb-studio
+    alias: studio
+    version: 0.1.100
+    repository: https://libredb.org/libredb-studio/
+    condition: studio.enabled

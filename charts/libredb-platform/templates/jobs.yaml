@@ -1,0 +1,377 @@
+{{- /*
+The jobs that run after the bootstrap hook: Platform's migrate job and the keycloak-configure job. Each is named by a
+hash of the release revision and what it runs, so every install and upgrade runs it again, as every installer apply
+does, which is safe because both converge, and a job that failed is retried by the next upgrade; Helm removes the
+previous revision's Job. Each retries until what it needs is up: the migrate job until PostgreSQL is provisioned, the keycloak
+job until Keycloak answers. Platform's readiness (/api/health/ready) stays 503 until the migration ran.
+*/}}
+{{- $migrate := dict "revision" .Release.Revision "image" (include "libredb-platform.image" .Values.platform.image) "installation" (include "libredb-platform.installation" .) }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: libredb-platform-migrate-{{ include "libredb-platform.hash" (toJson $migrate) }}
+  labels:
+    {{- include "libredb-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: platform-migrate
+  annotations:
+    # Argo CD renders with helm template, where every revision is 1: as a Sync hook replaced on each sync, the job
+    # runs again on every sync as on every helm upgrade. Helm ignores these annotations.
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  # The job retries until what it needs is up, so it gets more attempts than the bootstrap hook.
+  backoffLimit: {{ add .Values.jobs.backoffLimit 4 }}
+  activeDeadlineSeconds: {{ .Values.jobs.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "libredb-platform.selectorLabels" (dict "root" . "component" "platform-migrate") | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "libredb-platform.podSecurity" (dict "root" $ "uid" 1001) | nindent 8 }}
+      {{- include "libredb-platform.platformScheduling" $ | nindent 6 }}
+      initContainers:
+        # Waits until libredb_platform can sign in over verified TLS, which happens once the server is provisioned:
+        # by the provisioning job of a managed server, by the DBA's script on an external one.
+        - name: wait-for-provisioning
+          image: {{ include "libredb-platform.image" .Values.postgresql.managed.image }}
+          imagePullPolicy: {{ .Values.postgresql.managed.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              # The password goes to libpq in PGPASSWORD, never on a command line; the bootstrap job generates it in
+              # base64url, which a URL carries unescaped.
+              rest="${DATABASE_URL#postgresql://libredb_platform:}"
+              export PGPASSWORD="${rest%%@*}"
+              address="${rest#*@}"
+              address="${address%%/*}"
+              conninfo="host=${address%:*} port=${address##*:} dbname=libredb user=libredb_platform sslmode=verify-full sslrootcert=/etc/libredb/ca/ca.crt connect_timeout=5"
+              until psql "$conninfo" -X -A -t -q -c 'SELECT 1' >/dev/null 2>&1; do echo "waiting until PostgreSQL is provisioned for libredb_platform"; sleep 3; done
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: libredb-platform-migrate-env
+                  key: DATABASE_URL
+          securityContext:
+            {{- include "libredb-platform.containerSecurity" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.jobs.resources | nindent 12 }}
+          volumeMounts:
+            - name: ca
+              mountPath: /etc/libredb/ca
+              readOnly: true
+      containers:
+        - name: migrate
+          image: {{ include "libredb-platform.image" .Values.platform.image }}
+          imagePullPolicy: {{ .Values.platform.image.pullPolicy }}
+          args: ["migrate"]
+          envFrom:
+            # The only place MIGRATE_DATABASE_URL, the owner role's URL, lives.
+            - secretRef:
+                name: libredb-platform-migrate-env
+          securityContext:
+            {{- include "libredb-platform.containerSecurity" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.jobs.resources | nindent 12 }}
+          volumeMounts:
+            - name: ca
+              mountPath: /etc/libredb/ca
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: ca
+          configMap:
+            name: libredb-ca
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: libredb-chart
+  labels:
+    {{- include "libredb-platform.labels" . | nindent 4 }}
+data:
+  installation.json: |
+    {{- include "libredb-platform.installation" . | nindent 4 }}
+  chart.json: |
+    {{- include "libredb-platform.chartSettings" . | nindent 4 }}
+  {{- if .Values.platform.sealKeys.retire }}
+  seal-canary.sql: |
+    {{- include "libredb-platform.sealCanarySql" . | nindent 4 }}
+  {{- end }}
+---
+{{- /*
+The restart job, a post-install, post-upgrade and post-rollback hook (Argo CD: PostSync): it restarts each workload
+whose Secret or ConfigMap the bootstrap job changed, once Helm applied the release's pod templates, unless its pods
+already started after the change. Its ServiceAccount and Role are regular objects, which exist by then.
+*/}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: libredb-restart
+  labels:
+    {{- include "libredb-platform.labels" . | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: libredb-restart
+  labels:
+    {{- include "libredb-platform.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["libredb-installer-state"]
+    verbs: ["get", "update"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["libredb-platform", "libredb-studio", "keycloak"]
+    verbs: ["get", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["statefulsets"]
+    resourceNames: ["libredb-postgres"]
+    verbs: ["get", "patch"]
+  # Whether a workload's pods already started after the change.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: libredb-restart
+  labels:
+    {{- include "libredb-platform.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: libredb-restart
+subjects:
+  - kind: ServiceAccount
+    name: libredb-restart
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: libredb-restart
+  labels:
+    {{- include "libredb-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: restart
+  annotations:
+    helm.sh/hook: post-install,post-upgrade,post-rollback
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.jobs.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.jobs.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "libredb-platform.selectorLabels" (dict "root" . "component" "restart") | nindent 8 }}
+    spec:
+      serviceAccountName: libredb-restart
+      automountServiceAccountToken: true
+      restartPolicy: Never
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "libredb-platform.podSecurity" (dict "root" $ "uid" 1001) | nindent 8 }}
+      {{- include "libredb-platform.platformScheduling" $ | nindent 6 }}
+      {{- if .Values.platform.sealKeys.retire }}
+      # A retired kid's canary row would make every Studio heartbeat report UNKNOWN_KID for good, and Platform only
+      # inserts canaries; it goes before the restarts, so Studio starts without the kid and without its canary.
+      initContainers:
+        {{- include "libredb-platform.platformSqlContainer" (dict "root" . "name" "seal-canary" "file" "/etc/libredb/chart/seal-canary.sql") | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: restart
+          image: {{ include "libredb-platform.image" .Values.platform.image }}
+          imagePullPolicy: {{ .Values.platform.image.pullPolicy }}
+          command:
+            {{- include "libredb-platform.jobCommand" (dict "command" "restart" "withBundle" false) | nindent 12 }}
+          securityContext:
+            {{- include "libredb-platform.containerSecurity" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.jobs.resources | nindent 12 }}
+          volumeMounts:
+            - name: chart
+              mountPath: /etc/libredb/chart
+              readOnly: true
+            - name: jobs
+              mountPath: /etc/libredb/jobs
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: chart
+          configMap:
+            name: libredb-chart
+            items:
+              - key: chart.json
+                path: chart.json
+              {{- if .Values.platform.sealKeys.retire }}
+              - key: seal-canary.sql
+                path: seal-canary.sql
+              {{- end }}
+        - name: jobs
+          configMap:
+            name: libredb-jobs
+        - name: tmp
+          emptyDir: {}
+        {{- if .Values.platform.sealKeys.retire }}
+        - name: installation-ca
+          configMap:
+            name: libredb-ca
+        {{- end }}
+{{- if include "libredb-platform.keycloakJob" . }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: libredb-keycloak-configure
+  labels:
+    {{- include "libredb-platform.labels" . | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: libredb-keycloak-configure
+  labels:
+    {{- include "libredb-platform.labels" . | nindent 4 }}
+rules:
+  # The installer state, which records the Keycloak accounts the job created.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["libredb-installer-state"]
+    verbs: ["get", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: libredb-keycloak-configure
+  labels:
+    {{- include "libredb-platform.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: libredb-keycloak-configure
+subjects:
+  - kind: ServiceAccount
+    name: libredb-keycloak-configure
+    namespace: {{ .Release.Namespace }}
+---
+{{- $keycloak := dict "revision" .Release.Revision "image" (include "libredb-platform.image" .Values.platform.image) "installation" (include "libredb-platform.installation" .) "jobs" (.Files.Get "files/libredb-jobs.cjs.gz" | sha256sum) }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: libredb-keycloak-configure-{{ include "libredb-platform.hash" (toJson $keycloak) }}
+  labels:
+    {{- include "libredb-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keycloak-configure
+  annotations:
+    # Argo CD renders with helm template, where every revision is 1: as a Sync hook replaced on each sync, the job
+    # runs again on every sync as on every helm upgrade. Helm ignores these annotations.
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  # A refusal a retry cannot change (exit 2 invalid installation, 3 failed precondition, 6 unsafe change, as the
+  # installer's exit codes) fails the Job at once, so Helm reports it instead of waiting out the retries.
+  podFailurePolicy:
+    rules:
+      - action: FailJob
+        onExitCodes:
+          containerName: keycloak-configure
+          operator: In
+          values: [2, 3, 6]
+  # The job retries until what it needs is up, so it gets more attempts than the bootstrap hook.
+  backoffLimit: {{ add .Values.jobs.backoffLimit 4 }}
+  activeDeadlineSeconds: {{ .Values.jobs.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "libredb-platform.selectorLabels" (dict "root" . "component" "keycloak-configure") | nindent 8 }}
+    spec:
+      serviceAccountName: libredb-keycloak-configure
+      automountServiceAccountToken: true
+      restartPolicy: Never
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "libredb-platform.podSecurity" (dict "root" $ "uid" 1001) | nindent 8 }}
+      {{- include "libredb-platform.platformScheduling" $ | nindent 6 }}
+      containers:
+        - name: keycloak-configure
+          image: {{ include "libredb-platform.image" .Values.platform.image }}
+          imagePullPolicy: {{ .Values.platform.image.pullPolicy }}
+          command:
+            {{- include "libredb-platform.jobCommand" (dict "command" "keycloak" "withBundle" true) | nindent 12 }}
+          securityContext:
+            {{- include "libredb-platform.containerSecurity" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.jobs.resources | nindent 12 }}
+          volumeMounts:
+            - name: chart
+              mountPath: /etc/libredb/chart
+              readOnly: true
+            - name: jobs
+              mountPath: /etc/libredb/jobs
+              readOnly: true
+            - name: keycloak-config
+              mountPath: /etc/libredb/keycloak-config
+              readOnly: true
+            - name: ca
+              mountPath: /etc/libredb/ca
+              readOnly: true
+            {{- if eq .Values.keycloak.mode "external" }}
+            - name: keycloak-admin
+              mountPath: {{ include "libredb-platform.inputDir" . }}/keycloak-admin
+              readOnly: true
+            {{- end }}
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: chart
+          configMap:
+            name: libredb-chart
+        # Written by the bootstrap job from its hook ConfigMap, so the release carries the bundle once.
+        - name: jobs
+          configMap:
+            name: libredb-jobs
+        - name: keycloak-config
+          secret:
+            secretName: libredb-keycloak-config
+        - name: ca
+          configMap:
+            name: libredb-ca
+        {{- if eq .Values.keycloak.mode "external" }}
+        - name: keycloak-admin
+          secret:
+            secretName: {{ .Values.keycloak.external.adminSecret }}
+            items:
+              {{- if .Values.keycloak.external.adminClientId }}
+              - key: admin-client-secret
+                path: admin-client-secret
+              {{- else }}
+              - key: admin-password
+                path: admin-password
+              {{- end }}
+        {{- end }}
+        - name: tmp
+          emptyDir: {}
+{{- end }}

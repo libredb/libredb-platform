@@ -1,0 +1,223 @@
+{{- if include "libredb-platform.managedPostgres" . }}
+{{- /*
+The managed PostgreSQL server, as the installer's compose service: TLS with the internal CA's leaf, a pg_hba.conf that
+accepts only hostssl with SCRAM, and the superuser password from the bootstrap job. The provisioning job then runs the
+installer's provisioning script (installer/src/sql/provision.ts), which sends SCRAM verifiers only.
+*/}}
+{{- $pg := .Values.postgresql.managed }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: libredb-postgres
+  labels:
+    {{- include "libredb-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  selector:
+    {{- include "libredb-platform.selectorLabels" (dict "root" . "component" "postgres") | nindent 4 }}
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: libredb-postgres
+  labels:
+    {{- include "libredb-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  serviceName: libredb-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "libredb-platform.selectorLabels" (dict "root" . "component" "postgres") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "libredb-platform.selectorLabels" (dict "root" . "component" "postgres") | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "libredb-platform.podSecurity" (dict "root" $ "uid" 999) | nindent 8 }}
+      containers:
+        - name: postgres
+          image: {{ include "libredb-platform.image" $pg.image }}
+          imagePullPolicy: {{ $pg.image.pullPolicy }}
+          args:
+            - postgres
+            - -c
+            - ssl=on
+            - -c
+            - ssl_cert_file=/etc/libredb/tls/server.crt
+            - -c
+            - ssl_key_file=/etc/libredb/tls/server.key
+            - -c
+            - hba_file=/etc/libredb/postgres/pg_hba.conf
+            - -c
+            - password_encryption=scram-sha-256
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: libredb-postgres-superuser
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_INITDB_ARGS
+              value: --auth-host=scram-sha-256 --auth-local=scram-sha-256
+          ports:
+            - name: postgres
+              containerPort: 5432
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "postgres"]
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "postgres"]
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            timeoutSeconds: 5
+          resources:
+            {{- toYaml $pg.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql
+            - name: tls
+              mountPath: /etc/libredb/tls
+              readOnly: true
+            - name: config
+              mountPath: /etc/libredb/postgres
+              readOnly: true
+            - name: run
+              mountPath: /var/run/postgresql
+      volumes:
+        - name: tls
+          secret:
+            secretName: libredb-postgres-tls
+            # PostgreSQL accepts a key owned by root only with mode 0640 or stricter.
+            defaultMode: 0640
+        - name: config
+          configMap:
+            name: libredb-postgres-config
+        - name: run
+          emptyDir: {}
+      {{- with $pg.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $pg.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $pg.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  volumeClaimTemplates:
+    # A StatefulSet's volume claims outlive the StatefulSet, and helm uninstall, by Kubernetes' own rule.
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- with $pg.persistence.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $pg.persistence.size }}
+---
+{{- $provision := dict "revision" .Release.Revision "image" (include "libredb-platform.image" $pg.image) "installation" (include "libredb-platform.installation" .) }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: libredb-postgres-provision-{{ include "libredb-platform.hash" (toJson $provision) }}
+  labels:
+    {{- include "libredb-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres-provision
+  annotations:
+    # Argo CD renders with helm template, where every revision is 1: as a Sync hook replaced on each sync, the job
+    # runs again on every sync as on every helm upgrade. Helm ignores these annotations.
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  # The job retries until what it needs is up, so it gets more attempts than the bootstrap hook.
+  backoffLimit: {{ add .Values.jobs.backoffLimit 4 }}
+  activeDeadlineSeconds: {{ .Values.jobs.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "libredb-platform.selectorLabels" (dict "root" . "component" "postgres-provision") | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "libredb-platform.podSecurity" (dict "root" $ "uid" 999) | nindent 8 }}
+      initContainers:
+        {{- include "libredb-platform.waitForPostgres" . | nindent 8 }}
+      containers:
+        - name: provision
+          image: {{ include "libredb-platform.image" $pg.image }}
+          imagePullPolicy: {{ $pg.image.pullPolicy }}
+          # The installer's provisioning script as the superuser, over verified TLS; it converges an existing server.
+          # A renewed leaf restarts the server instead: the bootstrap job restarts it when its leaf Secret changed.
+          command: ["psql", "-X", "-v", "ON_ERROR_STOP=1", "-f", "/etc/libredb/provision/provision.sql"]
+          env:
+            - name: PGHOST
+              value: libredb-postgres
+            - name: PGPORT
+              value: "5432"
+            - name: PGUSER
+              value: postgres
+            - name: PGDATABASE
+              value: postgres
+            - name: PGSSLMODE
+              value: verify-full
+            - name: PGSSLROOTCERT
+              value: /etc/libredb/ca/ca.crt
+            - name: PGCONNECT_TIMEOUT
+              value: "10"
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: libredb-postgres-superuser
+                  key: POSTGRES_PASSWORD
+          securityContext:
+            {{- include "libredb-platform.containerSecurity" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.jobs.resources | nindent 12 }}
+          volumeMounts:
+            - name: provision
+              mountPath: /etc/libredb/provision
+              readOnly: true
+            - name: ca
+              mountPath: /etc/libredb/ca
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: provision
+          secret:
+            secretName: libredb-postgres-provision
+        - name: ca
+          configMap:
+            name: libredb-ca
+        - name: tmp
+          emptyDir: {}
+{{- end }}

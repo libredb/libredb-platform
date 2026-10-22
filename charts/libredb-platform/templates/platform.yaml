@@ -1,0 +1,172 @@
+{{- /*
+Platform's `serve` (docs/deploy/platform-runtime.md), with the environment the bootstrap job rendered with the
+installer's renderPlatformEnv. It never receives MIGRATE_DATABASE_URL: that lives only in the migrate job's Secret.
+This release runs one replica.
+*/}}
+{{- $p := .Values.platform }}
+{{- if and $p.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: libredb-platform-uploads
+  labels:
+    {{- include "libredb-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: platform
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+    {{- toYaml $p.persistence.accessModes | nindent 4 }}
+  {{- with $p.persistence.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $p.persistence.size }}
+---
+{{- end }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: libredb-platform
+  labels:
+    {{- include "libredb-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: platform
+spec:
+  selector:
+    {{- include "libredb-platform.selectorLabels" (dict "root" . "component" "platform") | nindent 4 }}
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: libredb-platform
+  labels:
+    {{- include "libredb-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: platform
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "libredb-platform.selectorLabels" (dict "root" . "component" "platform") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "libredb-platform.selectorLabels" (dict "root" . "component" "platform") | nindent 8 }}
+        {{- with $p.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- /* The bootstrap job restarts Platform when its environment or CA bundle changed. */}}
+      {{- with $p.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "libredb-platform.podSecurity" (dict "root" $ "uid" 1001) | nindent 8 }}
+      containers:
+        - name: platform
+          image: {{ include "libredb-platform.image" $p.image }}
+          imagePullPolicy: {{ $p.image.pullPolicy }}
+          args: ["serve"]
+          envFrom:
+            - secretRef:
+                name: libredb-platform-env
+          ports:
+            - name: http
+              containerPort: 3000
+          securityContext:
+            {{- include "libredb-platform.containerSecurity" . | nindent 12 }}
+          startupProbe:
+            httpGet:
+              path: /api/health/live
+              port: http
+            periodSeconds: 5
+            failureThreshold: 60
+          livenessProbe:
+            httpGet:
+              path: /api/health/live
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /api/health/ready
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            {{- toYaml $p.resources | nindent 12 }}
+          volumeMounts:
+            - name: ca
+              mountPath: /etc/libredb/ca
+              readOnly: true
+            - name: uploads
+              mountPath: /app/uploads
+            - name: tmp
+              mountPath: /tmp
+            - name: next-cache
+              mountPath: /app/.next/cache
+      volumes:
+        - name: ca
+          configMap:
+            name: libredb-ca
+        - name: uploads
+          {{- if $p.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: libredb-platform-uploads
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: tmp
+          emptyDir: {}
+        - name: next-cache
+          emptyDir: {}
+      {{- include "libredb-platform.platformScheduling" . | nindent 6 }}
+      {{- with $p.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- if .Values.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: libredb-platform
+  labels:
+    {{- include "libredb-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: platform
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  tls:
+    - hosts:
+        - {{ .Values.hosts.platform | quote }}
+      secretName: {{ if eq .Values.tls.mode "generated" }}libredb-tls-platform{{ else }}{{ .Values.tls.secrets.platform }}{{ end }}
+  rules:
+    - host: {{ .Values.hosts.platform | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: libredb-platform
+                port:
+                  name: http
+{{- end }}

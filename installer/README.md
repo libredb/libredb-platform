@@ -67,7 +67,7 @@ The Docker Engine minimum and that refused range keep the ports published to `12
 The refused range lives in the preflight module instead of the release manifest, because a minimum cannot exclude it and still admit 28.0.x and 28.1.x, and its message names the advisory GHSA-x4rx-4gw3-53p4 and asks for 28.3.3 or newer, which fixes it.
 The [Docker install guide](../docs/deploy/install-docker.md) lists every prerequisite of the host.
 Run every command below as root.
-This build applies only `mode: docker`: `preflight`, `plan`, `apply`, `verify` and `db-script` refuse any other mode with exit 2, and Kubernetes mode follows in the next release.
+This build applies only `mode: docker`: `preflight`, `plan`, `apply`, `verify` and `db-script` refuse any other mode with exit 2. On Kubernetes, the Helm chart `charts/libredb-platform` runs the installer's Kubernetes-mode logic in its jobs (`src/kubernetes/`, bundled by `bun run build:helm-jobs`), as [install-kubernetes.md](../docs/deploy/install-kubernetes.md) describes.
 This build applies every `tls.mode` (`generated`, `provided` and `external`) and `postgres.mode` `managed` or `external`.
 Keycloak is either managed, or the customer's own Keycloak with a realm the installer reuses (see External Keycloak below).
 
