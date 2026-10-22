@@ -5,7 +5,7 @@ export type EnvRequirement = "always" | "oidc" | "governance" | "self-hosted" | 
 export type EnvProducer = "installer" | "config" | "default" | "operator";
 
 /** When the installer writes a variable. */
-export type EnvWriteCondition = "always" | "httpsProxy" | "keycloakAdminUrl" | "logoutHintVerified" | "volumeSize" | "authSecretPrevious";
+export type EnvWriteCondition = "always" | "httpsProxy" | "keycloakAdminUrl" | "logoutHintVerified" | "mobileClient" | "volumeSize" | "authSecretPrevious";
 
 export interface EnvDescriptor {
   /** When the app requires the variable. */

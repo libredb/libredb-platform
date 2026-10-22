@@ -5,7 +5,7 @@ export type EnvRequirement = "always" | "oidc" | "governance" | "self-hosted" | 
 export type EnvProducer = "installer" | "config" | "default" | "operator";
 
 /** When the installer writes a variable. */
-export type EnvWriteCondition = "always" | "httpsProxy" | "keycloakAdminUrl" | "logoutHintVerified" | "volumeSize" | "authSecretPrevious";
+export type EnvWriteCondition = "always" | "httpsProxy" | "keycloakAdminUrl" | "logoutHintVerified" | "mobileClient" | "volumeSize" | "authSecretPrevious";
 
 export interface EnvDescriptor {
   /** When the app requires the variable. */
@@ -31,6 +31,8 @@ export const STUDIO_ENV_KEYS = [
   "OIDC_PROMPT",
   "OIDC_AUTO_REDIRECT",
   "OIDC_LOGOUT_HINT",
+  "OIDC_BEARER_AUDIENCE",
+  "OIDC_BEARER_CLIENT_IDS",
   "AUTH_SESSION_TTL_SECONDS",
   "JWT_SECRET",
   "AUTH_BOOTSTRAP",
@@ -134,6 +136,20 @@ export const STUDIO_ENV: Readonly<Record<StudioEnvKey, EnvDescriptor>> = {
     producer: "installer",
     value: "true",
     when: "logoutHintVerified",
+  },
+  OIDC_BEARER_AUDIENCE: {
+    required: "optional",
+    secret: false,
+    producer: "installer",
+    value: "libredb-studio-api",
+    when: "mobileClient",
+  },
+  OIDC_BEARER_CLIENT_IDS: {
+    required: "optional",
+    secret: false,
+    producer: "installer",
+    value: "libredb-mobile",
+    when: "mobileClient",
   },
   AUTH_SESSION_TTL_SECONDS: {
     required: "optional",

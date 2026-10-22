@@ -5,9 +5,16 @@
 // libredb-platform, and with that token what the realm-management roles view-users and view-clients let it read. Every
 // finding is collected, so one run names everything the identity team has to fix, and a refusal exits 3.
 import { ExitCode } from "../cli/exit-codes";
-import { APP_CLIENT_IDS, ROLE_CLIENT_ID, type DesiredClient, type DesiredKeycloak } from "../keycloak/desired";
+import {
+  APP_CLIENT_IDS,
+  ROLE_CLIENT_ID,
+  ROLES_CLAIM,
+  ROLES_SCOPE,
+  type DesiredClient,
+  type DesiredKeycloak,
+} from "../keycloak/desired";
 import { PAIRWISE_CONSEQUENCE, pairwiseFindings } from "../keycloak/planner";
-import type { ClientRepresentation } from "../keycloak/representations";
+import type { ClientRepresentation, ProtocolMapperRepresentation } from "../keycloak/representations";
 
 /** An HTTP request the check sent: the status Keycloak answered with and its body, or why there was no answer. */
 export type HttpAnswer<T = undefined> = { status: number; body?: T } | { error: string };
@@ -43,7 +50,7 @@ export interface ManualKeycloakExpectations {
   issuer: string;
   /** The client roles of the role holder libredb. */
   roles: string[];
-  /** libredb-studio and libredb-platform as the export creates them. */
+  /** libredb-studio and libredb-platform as the export creates them, and libredb-mobile when the mobile app is enabled. */
   appClients: DesiredClient[];
   /** The configuration key of each app client's secret reference, without its Env or File suffix. */
   secretKeys: Record<string, string>;
@@ -141,6 +148,42 @@ function adminReadFinding(what: string, answer: HttpAnswer<unknown>, realm: stri
 const sameSet = (left: readonly string[], right: readonly string[]) =>
   left.length === right.length && [...left].sort().every((value, index) => value === [...right].sort()[index]);
 
+/** The claim each default client scope an app client needs carries into its tokens. */
+const SCOPE_CLAIMS: Record<string, string> = {
+  [ROLES_SCOPE]: ROLES_CLAIM,
+  basic: "sub",
+  profile: "preferred_username",
+  email: "email",
+};
+
+/** Whether a live mapper is of the wanted type and holds every config value of the wanted one, whatever its name. */
+function holdsMapper(live: readonly ProtocolMapperRepresentation[], wanted: ProtocolMapperRepresentation): boolean {
+  return live.some(
+    (mapper) =>
+      mapper.protocolMapper === wanted.protocolMapper &&
+      Object.entries(wanted.config).every(([key, value]) => mapper.config?.[key] === value),
+  );
+}
+
+/** How the flows of the mobile app's public client differ from the export: no secret, no implicit flow, no password. */
+function publicClientFindings(clientId: string, live: ClientRepresentation): string[] {
+  const findings: string[] = [];
+  if (live.publicClient !== true) {
+    findings.push(
+      `client ${clientId} is confidential, and the export needs Client authentication off, because the mobile app keeps no secret`,
+    );
+  }
+  if (live.standardFlowEnabled !== true) findings.push(`client ${clientId} has the standard flow off, and the mobile app signs in with it`);
+  if (live.implicitFlowEnabled === true) findings.push(`client ${clientId} has the implicit flow on, and the export needs it off`);
+  if (live.directAccessGrantsEnabled === true) {
+    findings.push(
+      `client ${clientId} has Direct access grants on, and the export needs them off, so that no app signs in with a ` +
+        "password in place of the browser",
+    );
+  }
+  return findings;
+}
+
 /** How a configured app client differs from the one the export creates, as far as view-clients reads it. */
 function appClientFindings(desired: DesiredClient, live: ClientRepresentation): string[] {
   const wanted = desired.representation;
@@ -162,13 +205,25 @@ function appClientFindings(desired: DesiredClient, live: ClientRepresentation): 
   if (pkce !== "S256") {
     findings.push(`client ${clientId} has the PKCE method ${pkce === undefined || pkce === "" ? "(none)" : pkce}, and the export needs S256`);
   }
-  if (live.publicClient === true) findings.push(`client ${clientId} is public, and the export needs Client authentication on`);
-  if (live.standardFlowEnabled !== true) findings.push(`client ${clientId} has the standard flow off, and both apps sign in with it`);
+  if (wanted.publicClient === true) {
+    findings.push(...publicClientFindings(clientId, live));
+  } else {
+    if (live.publicClient === true) findings.push(`client ${clientId} is public, and the export needs Client authentication on`);
+    if (live.standardFlowEnabled !== true) findings.push(`client ${clientId} has the standard flow off, and both apps sign in with it`);
+  }
   const defaults = live.defaultClientScopes ?? [];
   for (const scope of desired.defaultClientScopes ?? []) {
     if (!defaults.includes(scope)) {
-      findings.push(`client ${clientId} lacks the default client scope ${scope}, which carries the claim libredb_roles`);
+      findings.push(`client ${clientId} lacks the default client scope ${scope}, which carries the claim ${SCOPE_CLAIMS[scope]}`);
     }
+  }
+  for (const mapper of desired.protocolMappers.filter((candidate) => !holdsMapper(live.protocolMappers ?? [], candidate))) {
+    const entries = Object.entries(mapper.config).map(([key, value]) => `${key} ${value}`);
+    const config = entries.length < 2 ? entries.join("") : `${entries.slice(0, -1).join(", ")} and ${entries.at(-1)}`;
+    findings.push(
+      `client ${clientId} lacks a protocol mapper of type ${mapper.protocolMapper} with ${config}, which puts the ` +
+        "audience that Studio's bearer channel checks into the access token",
+    );
   }
   if (wanted.attributes?.["use.refresh.tokens"] === "true" && live.attributes?.["use.refresh.tokens"] === "false") {
     findings.push(

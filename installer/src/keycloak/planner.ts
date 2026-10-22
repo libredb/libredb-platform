@@ -44,6 +44,9 @@ export type KeycloakAction = Action &
     | { kind: "create-mapper"; scope: string; mapper: ProtocolMapperRepresentation }
     | { kind: "update-mapper"; scope: string; id: string; mapper: ProtocolMapperRepresentation }
     | { kind: "delete-mapper"; scope: string; id: string; name: string }
+    | { kind: "create-client-mapper"; clientId: string; mapper: ProtocolMapperRepresentation }
+    | { kind: "update-client-mapper"; clientId: string; id: string; mapper: ProtocolMapperRepresentation }
+    | { kind: "delete-client-mapper"; clientId: string; id: string; name: string }
     | { kind: "add-scope-roles"; target: ScopeTarget; roleClientId: string; roles: string[] }
     | { kind: "remove-optional-scope"; clientId: string; scope: string }
     | { kind: "add-default-scope"; clientId: string; scope: string }
@@ -229,8 +232,10 @@ function defaultScopeActions(
   live: ObservedClient | undefined,
   realmDefaults: readonly string[],
 ): KeycloakAction[] {
-  // Keycloak gives a client it creates the realm's default client scopes, so a new client needs only the extra ones.
-  const wanted = live === undefined ? extra : [...new Set([...realmDefaults, ...extra])];
+  // Keycloak gives a client it creates the realm's default client scopes, so a new client needs only the extra ones
+  // that are not among them.
+  const wanted =
+    live === undefined ? extra.filter((name) => !realmDefaults.includes(name)) : [...new Set([...realmDefaults, ...extra])];
   const defaults = live?.representation.defaultClientScopes ?? [];
   const optional = live?.representation.optionalClientScopes ?? [];
   const actions: KeycloakAction[] = [];
@@ -269,6 +274,7 @@ function clientActions(desired: DesiredClient, observed: ObservedKeycloak): Keyc
   if (desired.defaultClientScopes !== undefined) {
     actions.push(...defaultScopeActions(clientId, desired.defaultClientScopes, live, observed.defaultClientScopes));
   }
+  actions.push(...clientMapperActions(clientId, desired.protocolMappers, live?.representation.protocolMappers ?? []));
   actions.push(...scopeMappingActions({ type: "client", clientId }, desired.scopeMappings, live?.scopeMappings ?? {}));
   if (desired.serviceAccountRoles !== undefined) {
     const held = live?.serviceAccount?.clientRoles ?? {};
@@ -277,11 +283,72 @@ function clientActions(desired: DesiredClient, observed: ObservedKeycloak): Keyc
   return actions;
 }
 
-function mapperId(scope: string, mapper: ProtocolMapperRepresentation): string {
+/** How the mapper actions of one owner, a client scope or a client, are built and named. */
+interface MapperOwner {
+  /** The owner as a message names it, such as `client scope libredb-roles`. */
+  label: string;
+  create(mapper: ProtocolMapperRepresentation): KeycloakAction;
+  update(id: string, mapper: ProtocolMapperRepresentation, drift: readonly string[]): KeycloakAction;
+  remove(id: string, mapper: ProtocolMapperRepresentation): KeycloakAction;
+}
+
+function mapperId(owner: MapperOwner, mapper: ProtocolMapperRepresentation): string {
   if (mapper.id === undefined) {
-    throw new Error(`Keycloak returned the protocol mapper ${mapper.name} of client scope ${scope} without an id`);
+    throw new Error(`Keycloak returned the protocol mapper ${mapper.name} of ${owner.label} without an id`);
   }
   return mapper.id;
+}
+
+/** The actions that give the owner each wanted mapper by name, leaving the owner's other mappers alone. */
+function wantedMapperActions(
+  owner: MapperOwner,
+  wanted: readonly ProtocolMapperRepresentation[],
+  live: readonly ProtocolMapperRepresentation[],
+): KeycloakAction[] {
+  const actions: KeycloakAction[] = [];
+  for (const mapper of wanted) {
+    const found = live.find((candidate) => candidate.name === mapper.name);
+    if (found === undefined) {
+      actions.push(owner.create(mapper));
+    } else if (found.protocolMapper !== mapper.protocolMapper || found.protocol !== mapper.protocol) {
+      actions.push(owner.remove(mapperId(owner, found), found), owner.create(mapper));
+    } else {
+      const drift = Object.entries(mapper.config)
+        .filter(([key, value]) => found.config[key] !== value)
+        .map(([key]) => key);
+      if (drift.length > 0) {
+        const id = mapperId(owner, found);
+        actions.push(owner.update(id, { ...found, ...mapper, id, config: { ...found.config, ...mapper.config } }, drift));
+      }
+    }
+  }
+  return actions;
+}
+
+function scopeMapperOwner(scope: string): MapperOwner {
+  return {
+    label: `client scope ${scope}`,
+    create: (mapper) => ({
+      kind: "create-mapper",
+      scope,
+      mapper,
+      summary: `create protocol mapper ${mapper.name} in client scope ${scope}`,
+    }),
+    update: (id, mapper, drift) => ({
+      kind: "update-mapper",
+      scope,
+      id,
+      mapper,
+      summary: `update protocol mapper ${mapper.name} in client scope ${scope} (${drift.join(", ")})`,
+    }),
+    remove: (id, mapper) => ({
+      kind: "delete-mapper",
+      scope,
+      id,
+      name: mapper.name,
+      summary: `delete protocol mapper ${mapper.name} from client scope ${scope}`,
+    }),
+  };
 }
 
 function mapperActions(
@@ -289,47 +356,48 @@ function mapperActions(
   wanted: readonly ProtocolMapperRepresentation[],
   live: readonly ProtocolMapperRepresentation[],
 ): KeycloakAction[] {
-  const create = (mapper: ProtocolMapperRepresentation): KeycloakAction => ({
-    kind: "create-mapper",
-    scope,
-    mapper,
-    summary: `create protocol mapper ${mapper.name} in client scope ${scope}`,
-  });
-  const remove = (mapper: ProtocolMapperRepresentation): KeycloakAction => ({
-    kind: "delete-mapper",
-    scope,
-    id: mapperId(scope, mapper),
-    name: mapper.name,
-    summary: `delete protocol mapper ${mapper.name} from client scope ${scope}`,
-  });
-  const actions: KeycloakAction[] = [];
-  for (const mapper of wanted) {
-    const found = live.find((candidate) => candidate.name === mapper.name);
-    if (found === undefined) {
-      actions.push(create(mapper));
-    } else if (found.protocolMapper !== mapper.protocolMapper || found.protocol !== mapper.protocol) {
-      actions.push(remove(found), create(mapper));
-    } else {
-      const drift = Object.entries(mapper.config)
-        .filter(([key, value]) => found.config[key] !== value)
-        .map(([key]) => key);
-      if (drift.length > 0) {
-        const id = mapperId(scope, found);
-        actions.push({
-          kind: "update-mapper",
-          scope,
-          id,
-          mapper: { ...found, ...mapper, id, config: { ...found.config, ...mapper.config } },
-          summary: `update protocol mapper ${mapper.name} in client scope ${scope} (${drift.join(", ")})`,
-        });
-      }
-    }
-  }
+  const owner = scopeMapperOwner(scope);
+  const actions = wantedMapperActions(owner, wanted, live);
   // The scope carries exactly the installer's mappers, so no other claim reaches both apps through it.
   for (const other of live.filter((candidate) => !wanted.some((mapper) => mapper.name === candidate.name))) {
-    actions.push(remove(other));
+    actions.push(owner.remove(mapperId(owner, other), other));
   }
   return actions;
+}
+
+/**
+ * The actions that give a client the installer's own mappers. A mapper the site added to the client stays, since it
+ * reaches that client's tokens alone; a pairwise subject mapper is refused before any plan.
+ */
+function clientMapperActions(
+  clientId: string,
+  wanted: readonly ProtocolMapperRepresentation[],
+  live: readonly ProtocolMapperRepresentation[],
+): KeycloakAction[] {
+  const owner: MapperOwner = {
+    label: `client ${clientId}`,
+    create: (mapper) => ({
+      kind: "create-client-mapper",
+      clientId,
+      mapper,
+      summary: `create protocol mapper ${mapper.name} on client ${clientId}`,
+    }),
+    update: (id, mapper, drift) => ({
+      kind: "update-client-mapper",
+      clientId,
+      id,
+      mapper,
+      summary: `update protocol mapper ${mapper.name} on client ${clientId} (${drift.join(", ")})`,
+    }),
+    remove: (id, mapper) => ({
+      kind: "delete-client-mapper",
+      clientId,
+      id,
+      name: mapper.name,
+      summary: `delete protocol mapper ${mapper.name} from client ${clientId}`,
+    }),
+  };
+  return wantedMapperActions(owner, wanted, live);
 }
 
 function clientScopeActions(desired: DesiredClientScope, observed: ObservedKeycloak): KeycloakAction[] {

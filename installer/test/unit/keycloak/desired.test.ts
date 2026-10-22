@@ -1,6 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { parseInstallation } from "../../../src/config/schema";
-import { CLIENT_SECRET_NAMES, desiredKeycloak, managedRealm } from "../../../src/keycloak/desired";
+import {
+  APP_CLIENT_IDS,
+  CLIENT_SECRET_NAMES,
+  desiredKeycloak,
+  managedRealm,
+  MOBILE_CLIENT_ID,
+  STUDIO_API_AUDIENCE,
+} from "../../../src/keycloak/desired";
 import type { RealmRepresentation } from "../../../src/keycloak/representations";
 import { computeDesired } from "../../../src/model/desired";
 import { generateSecret } from "../../../src/secrets/generate";
@@ -33,7 +40,7 @@ const EXTERNAL = {
   external: { baseUrl: "https://auth.example.com", adminUser: "admin", adminPasswordEnv: "CORP_KEYCLOAK_ADMIN_PASSWORD" },
 };
 
-function desiredFor(keycloak: Record<string, unknown>) {
+function desiredFor(keycloak: Record<string, unknown>, overrides: Record<string, unknown> = {}) {
   const config = parseInstallation({
     apiVersion: "install.libredb.org/v1",
     kind: "LibreDBInstallation",
@@ -42,6 +49,7 @@ function desiredFor(keycloak: Record<string, unknown>) {
     endpoints: { hosts: { platform: "platform.example.com", studio: "studio.example.com", auth: "auth.example.com" } },
     platform: { organizationName: "Acme", licenseFile: "/etc/libredb/platform.license" },
     keycloak,
+    ...overrides,
   });
   return desiredKeycloak({
     installation: computeDesired(config, manifestFixture()),
@@ -153,6 +161,63 @@ describe("desiredKeycloak", () => {
   test("libredb-platform alone keeps Use refresh tokens on", () => {
     const attributes = desiredFor({}).appClients.map((client) => client.representation.attributes?.["use.refresh.tokens"]);
     expect(attributes).toEqual([undefined, "true"]);
+  });
+
+  test("the mobile app's public client joins the app clients only while mobile.enabled is true", () => {
+    expect(desiredFor({}, { mobile: { enabled: false } })).toEqual(desiredFor({}));
+    expect(desiredFor({}).appClients.map((client) => client.protocolMappers)).toEqual([[], []]);
+    const appClients = desiredFor({}, { mobile: { enabled: true } }).appClients;
+    expect(appClients.map((client) => client.representation.clientId)).toEqual([
+      "libredb-studio",
+      "libredb-platform",
+      "libredb-mobile",
+    ]);
+    expect(appClients[2]).toEqual({
+      representation: {
+        clientId: "libredb-mobile",
+        name: "LibreDB Mobile",
+        protocol: "openid-connect",
+        enabled: true,
+        publicClient: true,
+        standardFlowEnabled: true,
+        implicitFlowEnabled: false,
+        directAccessGrantsEnabled: false,
+        serviceAccountsEnabled: false,
+        redirectUris: ["org.libredb.mobile:/oauth2redirect"],
+        attributes: {
+          "libredb.managed": "true",
+          "pkce.code.challenge.method": "S256",
+          "post.logout.redirect.uris": "org.libredb.mobile:/oauth2redirect",
+          "oauth2.device.authorization.grant.enabled": "false",
+          "oidc.ciba.grant.enabled": "false",
+          "standard.token.exchange.enabled": "false",
+        },
+      },
+      roles: [],
+      defaultClientScopes: ["basic", "profile", "email", "libredb-roles"],
+      protocolMappers: [
+        {
+          name: "libredb studio api audience",
+          protocol: "openid-connect",
+          protocolMapper: "oidc-audience-mapper",
+          consentRequired: false,
+          config: {
+            "included.custom.audience": "libredb-studio-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true",
+          },
+        },
+      ],
+      scopeMappings: {},
+      serviceAccountRoles: undefined,
+    });
+  });
+
+  test("the audience of Studio's bearer channel is not the client id of Studio's web sign-in, which Studio refuses", () => {
+    expect(STUDIO_API_AUDIENCE).toBe("libredb-studio-api");
+    expect(STUDIO_API_AUDIENCE).not.toBe(APP_CLIENT_IDS.studio);
+    expect(MOBILE_CLIENT_ID).toBe("libredb-mobile");
   });
 
   test("the app client secrets live in the secret store under fixed names", () => {

@@ -54,6 +54,7 @@ export function envConditions(desired: DesiredInstallation, caller: CallerCondit
     httpsProxy: desired.httpsProxy !== undefined,
     keycloakAdminUrl: desired.keycloak.platformAdminUrl !== undefined,
     logoutHintVerified: desired.logoutHintVerified,
+    mobileClient: desired.clients.mobile !== undefined,
     volumeSize: caller.volumeSize,
     authSecretPrevious: caller.authSecretPrevious,
   };
