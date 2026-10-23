@@ -35,7 +35,8 @@ export interface DesiredInstallation {
   realm: string;
   /** `https://<auth>/realms/<realm>`, the issuer both apps trust. */
   issuer: string;
-  clients: { studio: ClientUris; platform: ClientUris };
+  /** The app clients, and the mobile app's public client only while `mobile.enabled` is true. */
+  clients: { studio: ClientUris; platform: ClientUris; mobile?: ClientUris };
   /**
    * The edge: its sites in endpoint order, the auth endpoint only for a managed Keycloak. It terminates TLS on the
    * distinct ports of its sites with every distinct site host as a network alias, or in `tls.mode: external` serves
@@ -160,6 +161,14 @@ export function computeDesired(config: LibreDBInstallation, manifest: ReleaseMan
         redirectUri: `${urls.platform}/api/auth/callback/keycloak`,
         postLogoutRedirectUri: `${urls.platform}/login`,
       },
+      ...(config.mobile?.enabled === true
+        ? {
+            mobile: {
+              redirectUri: config.mobile.redirectUri,
+              postLogoutRedirectUri: config.mobile.postLogoutRedirectUri,
+            },
+          }
+        : {}),
     },
     edge: edgeOf(config, sites),
     images,

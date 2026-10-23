@@ -2,6 +2,7 @@
 
 LibreDB reads two client roles, `admin` and `user`, of the role-holder client `libredb`, which reach both apps as the flat ID-token claim `libredb_roles` through the client scope `libredb-roles`, as the [Keycloak contract](../../../docs/deploy/platform-runtime.md#keycloak-contract) of Platform's runtime page lists.
 `admin` signs in to Platform and to Studio as an admin, and `user` signs in to Studio only.
+With the [mobile app](../../README.md#mobile-app) enabled, the same claim also reaches the ID token of client `libredb-mobile` and the access token that the app sends to Studio, so a role change reaches the app at its next token refresh.
 The realm's user manager, or the site's own identity team for an external Keycloak, assigns them.
 The first LibreDB admin holds no Keycloak management role, because an account that can manage users can give `libredb:admin` to anyone.
 

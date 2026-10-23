@@ -416,6 +416,8 @@ export interface ManualProbe {
   /** Where the installer reaches the Admin API, keycloak.external.adminUrl or the base URL. */
   adminUrl: string;
   clientSecrets: { studio: string; platform: string };
+  /** The clients the check reads: libredb, both app clients, and libredb-mobile when the mobile app is enabled. */
+  clientIds: readonly string[];
   /** A fetch that trusts the system roots and keycloak.external.caBundleFile. */
   fetch: typeof fetch;
   /** Receives one line per Keycloak request, never a token or a secret. */
@@ -501,7 +503,7 @@ export async function observeManualKeycloak(probe: ManualProbe): Promise<ManualK
   const users = await adminRead(admin, `${base}/users?first=0&max=1&briefRepresentation=true`);
   const clients: { clientId: string; answer: HttpAnswer<ClientRepresentation[]> }[] = [];
   let roles: HttpAnswer<string[]> | undefined;
-  for (const clientId of [ROLE_CLIENT_ID, APP_CLIENT_IDS.studio, APP_CLIENT_IDS.platform]) {
+  for (const clientId of probe.clientIds) {
     const answer = await adminRead<(ClientRepresentation & { id: string })[]>(
       admin,
       `${base}/clients?clientId=${segment(clientId)}&first=0&max=2`,
@@ -529,19 +531,20 @@ async function manualObservation(
   }
   const secrets = await context.secrets.get(names);
   const { desired } = context;
-  const manual = await observeManualKeycloak({
-    issuer: desired.issuer,
-    realm: desired.realm,
-    adminUrl: desired.keycloak.adminUrl,
-    clientSecrets: { studio: secrets[CLIENT_SECRET_NAMES.studio], platform: secrets[CLIENT_SECRET_NAMES.platform] },
-    fetch: externalKeycloakFetch(external),
-    log: context.info,
-  });
   const expectedObjects = desiredKeycloak({
     installation: desired,
     keycloak: context.config.keycloak,
     clientSecrets: undefined,
     passwordLocations: { firstAdmin: PASSWORD_FILES["first-admin"], userManager: PASSWORD_FILES["user-manager"] },
+  });
+  const manual = await observeManualKeycloak({
+    issuer: desired.issuer,
+    realm: desired.realm,
+    adminUrl: desired.keycloak.adminUrl,
+    clientSecrets: { studio: secrets[CLIENT_SECRET_NAMES.studio], platform: secrets[CLIENT_SECRET_NAMES.platform] },
+    clientIds: [ROLE_CLIENT_ID, ...expectedObjects.appClients.map((client) => client.representation.clientId)],
+    fetch: externalKeycloakFetch(external),
+    log: context.info,
   });
   return { manual, expected: manualExpectations(expectedObjects, desired.issuer) };
 }

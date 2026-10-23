@@ -68,6 +68,21 @@ export async function adminRequest(realm: string, action: KeycloakAction, contex
         path: `${await scope(action.scope)}/protocol-mappers/models/${segment(action.id)}`,
         expected: [204],
       };
+    case "create-client-mapper":
+      return { method: "POST", path: `${await client(action.clientId)}/protocol-mappers/models`, body: action.mapper, expected: [201] };
+    case "update-client-mapper":
+      return {
+        method: "PUT",
+        path: `${await client(action.clientId)}/protocol-mappers/models/${segment(action.id)}`,
+        body: action.mapper,
+        expected: [204],
+      };
+    case "delete-client-mapper":
+      return {
+        method: "DELETE",
+        path: `${await client(action.clientId)}/protocol-mappers/models/${segment(action.id)}`,
+        expected: [204],
+      };
     case "add-scope-roles": {
       const owner = action.target.type === "client" ? await client(action.target.clientId) : await scope(action.target.name);
       return {

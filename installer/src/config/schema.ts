@@ -562,6 +562,35 @@ const platform = z
   })
   .strict();
 
+/** The redirect and post-logout redirect URI of the LibreDB mobile app. */
+export const DEFAULT_MOBILE_REDIRECT_URI = "org.libredb.mobile:/oauth2redirect";
+
+// A redirect URI of a native app, as RFC 8252 section 7 allows it: a private-use scheme in reverse domain name form,
+// which a scheme without a dot such as libredb: is not, or a claimed https URL. Keycloak compares it exactly, so it
+// holds no wildcard, and a fragment is never part of a redirect URI.
+const mobileRedirectUri = z.string().refine(
+  (value) => {
+    const url = URL.parse(value);
+    if (url === null || value.includes("*") || value.includes("#")) return false;
+    const scheme = url.protocol.slice(0, -1);
+    return scheme === "https" || /^[a-z][a-z0-9+-]*(?:\.[a-z0-9+-]+)+$/.test(scheme);
+  },
+  {
+    message:
+      "expected a private-use URI scheme in reverse domain name form, such as org.libredb.mobile:/oauth2redirect, or " +
+      "an https:// URL, without a wildcard or a fragment",
+  },
+);
+
+// The LibreDB mobile app, a public client that signs in with PKCE and calls Studio with its access token.
+const mobile = z
+  .object({
+    enabled: z.boolean(),
+    redirectUri: mobileRedirectUri.default(DEFAULT_MOBILE_REDIRECT_URI),
+    postLogoutRedirectUri: mobileRedirectUri.default(DEFAULT_MOBILE_REDIRECT_URI),
+  })
+  .strict();
+
 // A seal key id: the lowercase hex of the first 8 bytes of SHA-256 of the raw public key.
 const sealKid = z.string().regex(/^[0-9a-f]{16}$/, "expected a seal key id of 16 lowercase hex digits");
 
@@ -644,6 +673,8 @@ const tail = {
     userManager: { enabled: true, username: "libredb-user-manager" },
   }),
   platform,
+  // Absent unless set, so the normalized configuration of an install without the mobile app stays as it was.
+  mobile: mobile.optional(),
   images: images.optional(),
   network: network.optional(),
   backups: backups.default({ enabled: true }),
