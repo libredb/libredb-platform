@@ -8,6 +8,13 @@ import { createHash, randomBytes } from 'node:crypto'
 export const TEST_REALM = 'libredb'
 export const TEST_PASSWORD = 'libredb-test-password'
 
+// A client without clientSecret is public, such as the mobile app's, and redeems its code with its client_id alone.
+export interface TestClient {
+  clientId: string
+  clientSecret?: string
+  redirectUri: string
+}
+
 export const TEST_CLIENTS = {
   platform: {
     clientId: 'libredb-platform',
@@ -19,9 +26,11 @@ export const TEST_CLIENTS = {
     clientSecret: 'libredb-studio-test-secret',
     redirectUri: 'http://localhost:3200/api/auth/oidc/callback',
   },
-} as const
-
-export type TestClient = (typeof TEST_CLIENTS)[keyof typeof TEST_CLIENTS]
+  mobile: {
+    clientId: 'libredb-mobile',
+    redirectUri: 'org.libredb.mobile:/oauth2redirect',
+  },
+} as const satisfies Record<string, TestClient>
 
 // The ports default to the ones docker-compose.test.yml publishes.
 export const KEYCLOAK_URL = `http://localhost:${process.env.TEST_KEYCLOAK_PORT ?? '58080'}`
@@ -41,6 +50,10 @@ export interface CodeLoginOptions {
   client?: TestClient
   username: string
   password?: string
+}
+
+function basicAuthorization(client: TestClient & { clientSecret: string }): string {
+  return `Basic ${Buffer.from(`${client.clientId}:${client.clientSecret}`).toString('base64')}`
 }
 
 function base64Url(buffer: Buffer): string {
@@ -137,17 +150,19 @@ export async function codeLogin(options: CodeLoginOptions): Promise<TokenSet> {
   const code = callback.searchParams.get('code')
   if (!code) throw new Error('Callback carries no code')
 
+  const { clientSecret } = client
   const tokenResponse = await fetch(`${oidc}/token`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
-      Authorization: `Basic ${Buffer.from(`${client.clientId}:${client.clientSecret}`).toString('base64')}`,
+      ...(clientSecret === undefined ? {} : { Authorization: basicAuthorization({ ...client, clientSecret }) }),
     },
     body: new URLSearchParams({
       grant_type: 'authorization_code',
       code,
       redirect_uri: client.redirectUri,
       code_verifier: verifier,
+      ...(clientSecret === undefined ? { client_id: client.clientId } : {}),
     }),
   })
   if (!tokenResponse.ok) {
@@ -160,14 +175,14 @@ export async function codeLogin(options: CodeLoginOptions): Promise<TokenSet> {
 
 export async function clientCredentialsToken(
   baseUrl: string,
-  client: TestClient = TEST_CLIENTS.platform,
+  client: TestClient & { clientSecret: string } = TEST_CLIENTS.platform,
   realm: string = TEST_REALM,
 ): Promise<string> {
   const response = await fetch(`${baseUrl}/realms/${realm}/protocol/openid-connect/token`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
-      Authorization: `Basic ${Buffer.from(`${client.clientId}:${client.clientSecret}`).toString('base64')}`,
+      Authorization: basicAuthorization(client),
     },
     body: new URLSearchParams({ grant_type: 'client_credentials' }),
   })
