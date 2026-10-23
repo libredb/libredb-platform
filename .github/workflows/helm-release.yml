@@ -103,7 +103,7 @@ jobs:
           echo "::notice::${tag} is already published with ${asset}; bump version in charts/libredb-platform/Chart.yaml to publish chart changes."
 
   verify:
-    name: Lint and test the chart
+    name: Lint, test and package the chart
     needs: preflight
     if: needs.preflight.outputs.proceed == 'true' && needs.preflight.outputs.chart_published != 'true'
     runs-on: ubuntu-24.04
@@ -142,23 +142,21 @@ jobs:
           cp installer/generated/libredb-studio-*.tgz charts/libredb-platform/charts/
           helm lint charts/libredb-platform --strict -f charts/libredb-platform/tests/e2e/values-kind.yaml \
             --set platform.license.value=ldl1.0123456789abcdef.eyJpZCI6IkxJTlQifQ.c2lnbmF0dXJl
-
-  package:
-    name: Package the chart
-    needs: [preflight, verify]
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
-        with:
-          version: v3.21.3
-      # Chart.lock pins the Studio chart and its digest; dependency build takes it only from a repository Helm knows.
-      - name: Build the chart dependencies
+      # The archive packages the Studio chart that embed downloaded and the tests above ran against, never a second
+      # download, and only while it still has the sha256 of the release manifest.
+      - name: Package the chart with the verified Studio chart
+        working-directory: .
         run: |
-          helm repo add libredb-studio https://libredb.org/libredb-studio/
-          helm dependency build charts/libredb-platform --skip-refresh
-      - name: Package
-        run: helm package charts/libredb-platform -d dist
+          set -euo pipefail
+          version=$(jq -r '.studioChart.version' installer/release/release.config.json)
+          expected=$(jq -r '.studioChart.sha256' installer/release/release.config.json)
+          archive="charts/libredb-platform/charts/libredb-studio-${version}.tgz"
+          actual=$(sha256sum "$archive" | cut -d' ' -f1)
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::${archive} has sha256 ${actual}, but the release manifest pins ${expected}"
+            exit 1
+          fi
+          helm package charts/libredb-platform -d dist
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: chart
@@ -167,7 +165,7 @@ jobs:
 
   release-github-pages:
     name: GitHub release and Helm repository index
-    needs: [preflight, package]
+    needs: [preflight, verify]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -275,7 +273,7 @@ jobs:
 
   release-oci:
     name: OCI registry
-    needs: [preflight, package]
+    needs: [preflight, verify]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
