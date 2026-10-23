@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { AppError, LicenseLimitError, NotFoundError, ValidationError } from '../errors'
+import { AppError, ConfigError, LicenseLimitError, NotFoundError, ValidationError } from '../errors'
+import { KeycloakUnavailableError } from '../keycloak/errors'
 import { logger } from '../logger'
 import { apiV1ErrorResponse } from './api-v1-response'
 import {
@@ -26,7 +27,6 @@ describe('apiV1ErrorResponse', () => {
   it.each([
     [new AdminRoleRequiredError(), 403, 'ADMIN_ROLE_REQUIRED'],
     [new LicenseLimitError('LICENSE_ADMIN_SEATS'), 403, 'LICENSE_ADMIN_SEATS'],
-    [new IdentityProviderUnavailableError(), 503, 'IDENTITY_PROVIDER_UNAVAILABLE'],
     [new ApiDisabledError(), 404, 'API_DISABLED'],
     [new NotFoundError('Connection'), 404, 'NOT_FOUND'],
     [new AppError('Conflict', 'GRANT_CONFLICT', 409), 409, 'GRANT_CONFLICT'],
@@ -55,6 +55,36 @@ describe('apiV1ErrorResponse', () => {
     expect(status).toBe(500)
     expect(body).toEqual({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } })
     expect(logged).toHaveBeenCalledTimes(1)
+    logged.mockRestore()
+  })
+
+  it.each([
+    [new IdentityProviderUnavailableError(new Error('unable to verify the first certificate')), 'IDENTITY_PROVIDER_UNAVAILABLE'],
+    [
+      new KeycloakUnavailableError('GET http://keycloak:8080/admin/realms/libredb/users could not be reached', new Error('ECONNREFUSED')),
+      'KEYCLOAK_UNAVAILABLE',
+    ],
+  ])('answers %s with 503, its code and a generic message, and logs it with its cause', async (error, code) => {
+    const logged = vi.spyOn(logger, 'error').mockImplementation(() => {})
+
+    const { status, body } = await answer(error)
+
+    expect(status).toBe(503)
+    expect(body).toEqual({ error: { code, message: 'The service is temporarily unavailable' } })
+    expect(logged).toHaveBeenCalledTimes(1)
+    expect(logged).toHaveBeenCalledWith(expect.any(String), error.cause, { code, status: 503, message: error.message })
+    logged.mockRestore()
+  })
+
+  it('answers 500 INTERNAL_ERROR for a ConfigError, logged with its message and never answered with it', async () => {
+    const logged = vi.spyOn(logger, 'error').mockImplementation(() => {})
+    const error = new ConfigError('a self-hosted install needs exactly one tenant, and the database holds none')
+
+    const { status, body } = await answer(error)
+
+    expect(status).toBe(500)
+    expect(body).toEqual({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } })
+    expect(logged).toHaveBeenCalledWith(expect.any(String), error, { code: 'CONFIG_ERROR', status: 500, message: error.message })
     logged.mockRestore()
   })
 })

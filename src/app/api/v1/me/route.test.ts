@@ -12,6 +12,7 @@ const keys = vi.hoisted(() => ({ current: undefined as unknown }))
 const admitInstallAdmin = vi.hoisted(() => vi.fn())
 const provisionKeycloakUser = vi.hoisted(() => vi.fn())
 const getInstallTenant = vi.hoisted(() => vi.fn())
+const findUser = vi.hoisted(() => vi.fn())
 
 vi.mock('@/shared/lib/runtime-config', () => ({ getRuntimeConfig: () => config.current }))
 vi.mock('@/shared/lib/bearer/issuer-keys', () => ({
@@ -20,7 +21,7 @@ vi.mock('@/shared/lib/bearer/issuer-keys', () => ({
     return keys.current
   },
 }))
-vi.mock('@/shared/lib/db', () => ({ db: {} }))
+vi.mock('@/shared/lib/db', () => ({ db: { user: { findUnique: findUser } } }))
 vi.mock('@/shared/lib/identity/install-admin', () => ({ admitInstallAdmin }))
 vi.mock('@/shared/lib/identity/install-tenant', () => ({ getInstallTenant }))
 vi.mock('@/shared/lib/identity/keycloak-provisioning', () => ({ provisionKeycloakUser }))
@@ -51,6 +52,8 @@ beforeEach(() => {
   admitInstallAdmin.mockReset().mockResolvedValue(undefined)
   getInstallTenant.mockReset().mockResolvedValue({ id: 'tenant-install', name: 'Acme', slug: 'default', planConfig: {} })
   provisionKeycloakUser.mockReset().mockResolvedValue({ id: 'user-alice', email: 'alice@libredb.test', name: 'Alice Admin' })
+  // The first call of an account: it has no Platform user yet.
+  findUser.mockReset().mockResolvedValue(null)
 })
 
 function token(roles: string[] = ['admin']): Promise<string> {
@@ -93,8 +96,19 @@ describe('GET /api/v1/me', () => {
     })
     // The first call of an account takes its admin seat before its user is provisioned, as the web sign-in does.
     expect(admitInstallAdmin).toHaveBeenCalledWith(expect.objectContaining({ sub: 'kc-alice', email: 'alice@libredb.test' }))
-    expect(provisionKeycloakUser).toHaveBeenCalledWith({}, expect.objectContaining({ sub: 'kc-alice' }))
+    expect(provisionKeycloakUser).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ sub: 'kc-alice' }))
     expect(admitInstallAdmin.mock.invocationCallOrder[0]).toBeLessThan(provisionKeycloakUser.mock.invocationCallOrder[0])
+  })
+
+  it('reads the Platform user of a later call without writing it, so a call never moves its last sign-in', async () => {
+    findUser.mockResolvedValue({ id: 'user-alice', email: 'alice@old.test', name: 'Alice' })
+
+    const { status, body } = await get(`Bearer ${await token()}`)
+
+    expect(status).toBe(200)
+    expect(body).toMatchObject({ id: 'user-alice', email: 'alice@old.test', name: 'Alice' })
+    expect(findUser).toHaveBeenCalledWith({ where: { keycloakId: 'kc-alice' }, select: { id: true, email: true, name: true } })
+    expect(provisionKeycloakUser).not.toHaveBeenCalled()
   })
 
   it('answers 401 BEARER_INVALID with the invalid_token challenge, as JSON, for a request without a token', async () => {

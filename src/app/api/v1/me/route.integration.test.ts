@@ -25,7 +25,7 @@ vi.mock('@/shared/lib/runtime-config', () => ({
     PLATFORM_API_CLIENT_IDS: ['libredb-mobile'],
   }),
 }))
-vi.mock('@/shared/lib/db', () => ({ db: {} }))
+vi.mock('@/shared/lib/db', () => ({ db: { user: { findUnique: async () => null } } }))
 vi.mock('@/shared/lib/identity/install-admin', () => ({ admitInstallAdmin }))
 vi.mock('@/shared/lib/identity/install-tenant', () => ({
   getInstallTenant: async () => ({ id: 'tenant-install', name: 'LibreDB Test', slug: 'default' }),

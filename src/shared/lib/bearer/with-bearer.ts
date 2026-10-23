@@ -56,7 +56,11 @@ export async function authenticateBearer(request: Request): Promise<CurrentUser>
   )
   await admitInstallAdmin(identity)
   const tenant = await getInstallTenant()
-  const user = await provisionKeycloakUser(db, identity)
+  // Only a call of an account without a Platform user writes it; a later call reads it, so an API call never moves the
+  // last sign-in (lastLoginAt) or the profile, which the web sign-in refreshes.
+  const user =
+    (await db.user.findUnique({ where: { keycloakId: identity.sub }, select: { id: true, email: true, name: true } })) ??
+    (await provisionKeycloakUser(db, identity))
   return {
     id: user.id,
     email: user.email,
@@ -84,7 +88,8 @@ export function withBearer<Context>(
       const user = await authenticateBearer(request)
       return await handler(user, request, context)
     } catch (error) {
-      if (error instanceof AppError) logger.warn('Bearer API request refused', { code: error.code, status: error.statusCode })
+      // A server-side AppError is logged with its cause by apiV1ErrorResponse.
+      if (error instanceof AppError && error.statusCode < 500) logger.warn('Bearer API request refused', { code: error.code, status: error.statusCode })
       return apiV1ErrorResponse(error)
     }
   }
