@@ -831,6 +831,60 @@
         "microprofile-jwt",
         "organization"
       ]
+    },
+    {
+      "clientId": "libredb-mobile",
+      "name": "LibreDB Mobile",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "org.libredb.mobile:/oauth2redirect"
+      ],
+      "attributes": {
+        "libredb.managed": "true",
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "org.libredb.mobile:/oauth2redirect",
+        "oauth2.device.authorization.grant.enabled": "false",
+        "oidc.ciba.grant.enabled": "false",
+        "standard.token.exchange.enabled": "false"
+      },
+      "defaultClientScopes": [
+        "basic",
+        "profile",
+        "email",
+        "libredb-roles"
+      ],
+      "protocolMappers": [
+        {
+          "name": "libredb studio api audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "libredb-studio-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "libredb platform api audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "libredb-platform-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
     }
   ],
   "groups": [

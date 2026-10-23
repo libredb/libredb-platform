@@ -362,6 +362,42 @@ describe('readRuntimeConfig', () => {
   })
 })
 
+describe('readRuntimeConfig: the bearer API', () => {
+  it('leaves PLATFORM_API_AUDIENCE and PLATFORM_API_CLIENT_IDS unset by default, which turns the bearer API off', () => {
+    for (const env of [CLOUD, SELF_HOSTED]) {
+      const config = readRuntimeConfig({ ...env, PLATFORM_API_AUDIENCE: '', PLATFORM_API_CLIENT_IDS: '' })
+      expect(config.PLATFORM_API_AUDIENCE).toBeUndefined()
+      expect(config.PLATFORM_API_CLIENT_IDS).toBeUndefined()
+    }
+  })
+
+  it('reads PLATFORM_API_CLIENT_IDS as a comma-separated list of client ids', () => {
+    const config = readRuntimeConfig({
+      ...SELF_HOSTED,
+      PLATFORM_API_AUDIENCE: 'libredb-platform-api',
+      PLATFORM_API_CLIENT_IDS: 'libredb-mobile, libredb-cli',
+    })
+    expect(config.PLATFORM_API_AUDIENCE).toBe('libredb-platform-api')
+    expect(config.PLATFORM_API_CLIENT_IDS).toEqual(['libredb-mobile', 'libredb-cli'])
+  })
+
+  it('requires PLATFORM_API_CLIENT_IDS when PLATFORM_API_AUDIENCE is set', () => {
+    for (const value of [undefined, '']) {
+      expect(configError({ ...SELF_HOSTED, PLATFORM_API_AUDIENCE: 'libredb-platform-api', PLATFORM_API_CLIENT_IDS: value }).message)
+        .toBe('Invalid runtime configuration: PLATFORM_API_CLIENT_IDS is required when PLATFORM_API_AUDIENCE is set')
+    }
+  })
+
+  it('refuses a PLATFORM_API_CLIENT_IDS with an empty entry and a PLATFORM_API_AUDIENCE with surrounding spaces', () => {
+    for (const value of [',', 'libredb-mobile,', 'libredb-mobile,,libredb-cli']) {
+      expect(configError({ ...SELF_HOSTED, PLATFORM_API_AUDIENCE: 'libredb-platform-api', PLATFORM_API_CLIENT_IDS: value }).message)
+        .toContain('PLATFORM_API_CLIENT_IDS must be a comma-separated list of client ids')
+    }
+    expect(configError({ ...SELF_HOSTED, PLATFORM_API_AUDIENCE: ' libredb-platform-api', PLATFORM_API_CLIENT_IDS: 'libredb-mobile' }).message)
+      .toContain('PLATFORM_API_AUDIENCE must not start or end with a space')
+  })
+})
+
 describe('getRuntimeConfig', () => {
   function stubEnv(env: RuntimeEnv) {
     for (const name of [
