@@ -6,12 +6,12 @@ import { getRuntimeConfig } from './runtime-config'
 import { authorizeCredentials } from './identity/authorize-credentials'
 import { buildAuthCallbacks } from './identity/auth-callbacks'
 import { loadCredentialsAccess } from './identity/credentials-session'
+import { admitInstallAdmin } from './identity/install-admin'
 import { getInstallTenant } from './identity/install-tenant'
-import { admitKeycloakAdmin, provisionKeycloakUser } from './identity/keycloak-provisioning'
+import { provisionKeycloakUser } from './identity/keycloak-provisioning'
 import { buildProviders } from './identity/providers'
 import { getKeycloakDirectory } from './keycloak/directory'
 import { refreshKeycloakSession } from './keycloak/token-refresh'
-import { getLicenseStatus } from './license/install-license'
 
 // The configuration is built on each use rather than at import, because `next build` imports this module without the
 // runtime variables; getRuntimeConfig() then reads the validated variables once and caches them.
@@ -27,15 +27,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
       deploymentMode: config.DEPLOYMENT_MODE,
       roleClaim: config.PLATFORM_ROLE_CLAIM,
       adminRole: config.PLATFORM_ADMIN_ROLE,
-      // The first sign-in of an admin takes an admin seat of the license, which Keycloak's report of the other admins
-      // decides before the transaction that creates the user.
-      admitKeycloakAdmin: identity =>
-        admitKeycloakAdmin(db, identity, {
-          getLicenseStatus,
-          getInstallTenant,
-          directory: getKeycloakDirectory,
-          adminRole: config.PLATFORM_ADMIN_ROLE,
-        }),
+      // The first sign-in of an admin takes an admin seat of the license, as the first call of the bearer API does.
+      admitKeycloakAdmin: admitInstallAdmin,
       provisionKeycloakUser: identity => provisionKeycloakUser(db, identity),
       getInstallTenant,
       loadCredentialsAccess: (userId, tenantId) => loadCredentialsAccess(db, userId, tenantId),
