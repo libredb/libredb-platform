@@ -142,17 +142,23 @@ export const ConnectionGrantRepository = {
 
   /**
    * Deletes a grant on a connection of the tenant that is not deleted, with its admin action in one transaction.
-   * NotFound for a grant of another tenant and for one that another admin revoked first.
+   * NotFound for a grant of another tenant, for one that another admin revoked first, and, when `connectionId` is
+   * given, for a grant of any other connection.
    */
   revoke(
     tenantId: string,
     grantId: string,
     actorId: string,
     channel: AdminActionChannel,
+    connectionId?: string,
   ): Promise<{ connectionId: string }> {
     return db.$transaction(async (tx) => {
       const grant = await tx.connectionGrant.findFirst({
-        where: { id: grantId, connection: { tenantId, deletedAt: null } },
+        where: {
+          id: grantId,
+          ...(connectionId === undefined ? {} : { connectionId }),
+          connection: { tenantId, deletedAt: null },
+        },
       })
       if (!grant) throw new NotFoundError('Grant')
       const { count } = await tx.connectionGrant.deleteMany({ where: { id: grant.id } })
