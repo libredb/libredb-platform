@@ -155,6 +155,11 @@ describe("keycloakExport", () => {
         method: "POST",
         path: `${base}/clients/(client.libredb-mobile)/protocol-mappers/models`,
       },
+      {
+        summary: "create protocol mapper libredb platform api audience on client libredb-mobile",
+        method: "POST",
+        path: `${base}/clients/(client.libredb-mobile)/protocol-mappers/models`,
+      },
     ]);
     expect(mobile[0]?.body).toMatchObject({
       clientId: "libredb-mobile",
@@ -171,6 +176,10 @@ describe("keycloakExport", () => {
     expect(mobile[5]?.body).toMatchObject({
       protocolMapper: "oidc-audience-mapper",
       config: { "included.custom.audience": "libredb-studio-api", "access.token.claim": "true" },
+    });
+    expect(mobile[6]?.body).toMatchObject({
+      protocolMapper: "oidc-audience-mapper",
+      config: { "included.custom.audience": "libredb-platform-api", "access.token.claim": "true" },
     });
   });
 });

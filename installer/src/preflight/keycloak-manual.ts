@@ -7,9 +7,11 @@
 import { ExitCode } from "../cli/exit-codes";
 import {
   APP_CLIENT_IDS,
+  PLATFORM_API_AUDIENCE,
   ROLE_CLIENT_ID,
   ROLES_CLAIM,
   ROLES_SCOPE,
+  STUDIO_API_AUDIENCE,
   type DesiredClient,
   type DesiredKeycloak,
 } from "../keycloak/desired";
@@ -156,6 +158,12 @@ const SCOPE_CLAIMS: Record<string, string> = {
   email: "email",
 };
 
+/** The bearer check that reads each audience an audience mapper of the export adds. */
+const AUDIENCE_READERS: Record<string, string> = {
+  [STUDIO_API_AUDIENCE]: "Studio's bearer channel",
+  [PLATFORM_API_AUDIENCE]: "Platform's bearer API",
+};
+
 /** Whether a live mapper is of the wanted type and holds every config value of the wanted one, whatever its name. */
 function holdsMapper(live: readonly ProtocolMapperRepresentation[], wanted: ProtocolMapperRepresentation): boolean {
   return live.some(
@@ -222,7 +230,7 @@ function appClientFindings(desired: DesiredClient, live: ClientRepresentation): 
     const config = entries.length < 2 ? entries.join("") : `${entries.slice(0, -1).join(", ")} and ${entries.at(-1)}`;
     findings.push(
       `client ${clientId} lacks a protocol mapper of type ${mapper.protocolMapper} with ${config}, which puts the ` +
-        "audience that Studio's bearer channel checks into the access token",
+        `audience that ${AUDIENCE_READERS[mapper.config["included.custom.audience"] ?? ""]} checks into the access token`,
     );
   }
   if (wanted.attributes?.["use.refresh.tokens"] === "true" && live.attributes?.["use.refresh.tokens"] === "false") {

@@ -6,6 +6,7 @@ import {
   desiredKeycloak,
   managedRealm,
   MOBILE_CLIENT_ID,
+  PLATFORM_API_AUDIENCE,
   STUDIO_API_AUDIENCE,
 } from "../../../src/keycloak/desired";
 import type { RealmRepresentation } from "../../../src/keycloak/representations";
@@ -208,6 +209,18 @@ describe("desiredKeycloak", () => {
             "introspection.token.claim": "true",
           },
         },
+        {
+          name: "libredb platform api audience",
+          protocol: "openid-connect",
+          protocolMapper: "oidc-audience-mapper",
+          consentRequired: false,
+          config: {
+            "included.custom.audience": "libredb-platform-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true",
+          },
+        },
       ],
       scopeMappings: {},
       serviceAccountRoles: undefined,
@@ -218,6 +231,12 @@ describe("desiredKeycloak", () => {
     expect(STUDIO_API_AUDIENCE).toBe("libredb-studio-api");
     expect(STUDIO_API_AUDIENCE).not.toBe(APP_CLIENT_IDS.studio);
     expect(MOBILE_CLIENT_ID).toBe("libredb-mobile");
+  });
+
+  test("the audience of Platform's bearer API differs from Studio's and from every client id", () => {
+    expect(PLATFORM_API_AUDIENCE).toBe("libredb-platform-api");
+    expect(PLATFORM_API_AUDIENCE).not.toBe(STUDIO_API_AUDIENCE);
+    expect(PLATFORM_API_AUDIENCE).not.toBe(APP_CLIENT_IDS.platform);
   });
 
   test("the app client secrets live in the secret store under fixed names", () => {

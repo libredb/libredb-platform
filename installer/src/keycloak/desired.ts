@@ -31,6 +31,9 @@ export const MOBILE_CLIENT_ID = "libredb-mobile";
  */
 export const STUDIO_API_AUDIENCE = "libredb-studio-api";
 
+/** The audience Platform's PLATFORM_API_AUDIENCE names, which the mobile app's access tokens carry beside Studio's. */
+export const PLATFORM_API_AUDIENCE = "libredb-platform-api";
+
 /** The secret store names of the app client secrets, which the app environments read too. */
 export const CLIENT_SECRET_NAMES = {
   studio: "keycloak-client-libredb-studio",
@@ -232,10 +235,26 @@ function appClient(
 // client gets them back.
 const MOBILE_IDENTITY_SCOPES = ["basic", "profile", "email"];
 
+/** An audience mapper that adds one custom audience to the access token alone, since Keycloak's takes one per mapper. */
+function audienceMapper(name: string, audience: string): ProtocolMapperRepresentation {
+  return {
+    name,
+    protocol: "openid-connect",
+    protocolMapper: "oidc-audience-mapper",
+    consentRequired: false,
+    config: {
+      "included.custom.audience": audience,
+      "id.token.claim": "false",
+      "access.token.claim": "true",
+      "introspection.token.claim": "true",
+    },
+  };
+}
+
 /**
  * The mobile app's client: public, because an app on a phone cannot keep a secret, signing in with the standard flow
- * and PKCE S256 only, with the roles scope and an audience mapper that names the audience Studio's bearer channel
- * checks in the access token alone.
+ * and PKCE S256 only, with the roles scope and audience mappers that name the audiences Studio's bearer channel and
+ * Platform's bearer API check in the access token alone.
  */
 function mobileClient(uris: ClientUris): DesiredClient {
   return {
@@ -260,18 +279,8 @@ function mobileClient(uris: ClientUris): DesiredClient {
     roles: [],
     defaultClientScopes: [...MOBILE_IDENTITY_SCOPES, ROLES_SCOPE],
     protocolMappers: [
-      {
-        name: "libredb studio api audience",
-        protocol: "openid-connect",
-        protocolMapper: "oidc-audience-mapper",
-        consentRequired: false,
-        config: {
-          "included.custom.audience": STUDIO_API_AUDIENCE,
-          "id.token.claim": "false",
-          "access.token.claim": "true",
-          "introspection.token.claim": "true",
-        },
-      },
+      audienceMapper("libredb studio api audience", STUDIO_API_AUDIENCE),
+      audienceMapper("libredb platform api audience", PLATFORM_API_AUDIENCE),
     ],
     scopeMappings: {},
     serviceAccountRoles: undefined,
