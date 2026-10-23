@@ -53,6 +53,7 @@ export const setConnectionGrant = safeAction(
     const grant = await ConnectionGrantRepository.set(
       tenantId,
       user.id,
+      'web',
       {
         connectionId: connection.id,
         // The id as Keycloak reports it, which is the sub of the user's tokens that Studio matches grants with.

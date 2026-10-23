@@ -20,7 +20,7 @@ export const resetStudioSetting = safeAction(
     await requirePermission(user, PERMISSIONS.SETTINGS_EDIT)
 
     await requireAllowlistedKey(key)
-    await StudioSettingsRepository.reset(key, user.id)
+    await StudioSettingsRepository.reset(key, user.id, 'web')
     revalidatePath('/studio-settings')
     return { key }
   },

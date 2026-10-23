@@ -102,8 +102,8 @@ describe('the license gates of grants and connections on PostgreSQL', () => {
   /** A connection of the install, created and paused without a license, as cloud mode writes. */
   async function newConnection({ active = true } = {}): Promise<string> {
     const id = randomUUID()
-    await connections.create(TENANT, ACTOR, connectionInput(id), null)
-    if (!active) await connections.update(TENANT, id, ACTOR, { active: false }, [], null)
+    await connections.create(TENANT, ACTOR, 'web', connectionInput(id), null)
+    if (!active) await connections.update(TENANT, id, ACTOR, 'web', { active: false }, [], null)
     return id
   }
 
@@ -123,11 +123,11 @@ describe('the license gates of grants and connections on PostgreSQL', () => {
       expiresAt: null,
       ...overrides,
     }
-    return grants.set(TENANT, ACTOR, setting, new Date(), license)
+    return grants.set(TENANT, ACTOR, 'web', setting, new Date(), license)
   }
 
   function reactivate(connectionId: string, license: LicenseStatus | null) {
-    return connections.update(TENANT, connectionId, ACTOR, { active: true }, [], license)
+    return connections.update(TENANT, connectionId, ACTOR, 'web', { active: true }, [], license)
   }
 
   /** The subjects bridge.grants_v1 publishes, read as Studio reads them. */
@@ -334,7 +334,7 @@ describe('the license gates of grants and connections on PostgreSQL', () => {
 
     // Their grants count toward no limit: with 2 user seats in use, a license of 2 allows a new connection, and one of
     // 3 a grant to zoe, after which the next new subject is refused.
-    expect(await outcome(connections.create(TENANT, ACTOR, connectionInput(randomUUID()), valid('active', 2)))).toBe(
+    expect(await outcome(connections.create(TENANT, ACTOR, 'web', connectionInput(randomUUID()), valid('active', 2)))).toBe(
       'allowed',
     )
     expect(await outcome(grantTo(orders, 'zoe', valid('active', 3)))).toBe('allowed')
@@ -358,7 +358,7 @@ describe('the license gates of grants and connections on PostgreSQL', () => {
     const created: string[] = []
     for (const [name, license, expected] of statuses) {
       const id = randomUUID()
-      expect(await outcome(connections.create(TENANT, ACTOR, connectionInput(id), license)), name).toBe(expected)
+      expect(await outcome(connections.create(TENANT, ACTOR, 'web', connectionInput(id), license)), name).toBe(expected)
       if (expected === 'allowed') created.push(id)
     }
 
@@ -373,7 +373,7 @@ describe('the license gates of grants and connections on PostgreSQL', () => {
     await grantTo(orders, 'bob')
     const paused = await newConnection()
     for (const subject of ['bob', 'carol', 'dave']) await grantTo(paused, subject)
-    await connections.update(TENANT, paused, ACTOR, { active: false }, [], null)
+    await connections.update(TENANT, paused, ACTOR, 'web', { active: false }, [], null)
     // erin's grant on the paused connection has expired, so it publishes nothing once the connection is active again.
     await superuser.query(
       `INSERT INTO platform.connection_grants (id, "connectionId", subject, "subjectUsername", level, "expiresAt", "grantedById", "grantedAt")
@@ -404,11 +404,11 @@ describe('the license gates of grants and connections on PostgreSQL', () => {
     const paused = await newConnection({ active: false })
     const writes: Array<[string, (license: LicenseStatus | null) => Promise<unknown>]> = [
       ['a grant', (license) => grantTo(orders, `subject-${randomUUID()}`, license)],
-      ['a new connection', (license) => connections.create(TENANT, ACTOR, connectionInput(randomUUID()), license)],
+      ['a new connection', (license) => connections.create(TENANT, ACTOR, 'web', connectionInput(randomUUID()), license)],
       [
         'a reactivation',
         async (license) => {
-          await connections.update(TENANT, paused, ACTOR, { active: false }, [], null)
+          await connections.update(TENANT, paused, ACTOR, 'web', { active: false }, [], null)
           return reactivate(paused, license)
         },
       ],
@@ -542,7 +542,7 @@ describe('the license gates of grants and connections on PostgreSQL', () => {
     await grantTo(orders, 'bob')
     await grantTo(reports, 'carol', null, { expiresAt: new Date(Date.now() + DAY_MS) })
     await grantTo(paused, 'dave')
-    await connections.update(TENANT, paused, ACTOR, { active: false }, [], null)
+    await connections.update(TENANT, paused, ACTOR, 'web', { active: false }, [], null)
     const snapshot = async () => ({
       published: (await studio.query('SELECT * FROM bridge.grants_v1 ORDER BY subject, connection_id')).rows,
       grants: (await superuser.query('SELECT * FROM platform.connection_grants ORDER BY id')).rows,
@@ -557,7 +557,7 @@ describe('the license gates of grants and connections on PostgreSQL', () => {
       [expired, 'LICENSE_EXPIRED'],
     ] as const) {
       expect(await outcome(grantTo(orders, 'zoe', license)), code).toBe(code)
-      expect(await outcome(connections.create(TENANT, ACTOR, connectionInput(randomUUID()), license)), code).toBe(code)
+      expect(await outcome(connections.create(TENANT, ACTOR, 'web', connectionInput(randomUUID()), license)), code).toBe(code)
       expect(await outcome(reactivate(paused, license)), code).toBe(code)
     }
 

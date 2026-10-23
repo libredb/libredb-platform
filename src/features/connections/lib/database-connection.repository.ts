@@ -1,4 +1,4 @@
-import type { DatabaseConnection, Prisma } from '@prisma/client'
+import type { AdminActionChannel, DatabaseConnection, Prisma } from '@prisma/client'
 import { db } from '@/shared/lib/db'
 import { recordAdminAction } from '@/shared/lib/admin-actions'
 import { NotFoundError } from '@/shared/lib/errors'
@@ -143,6 +143,7 @@ export const DatabaseConnectionRepository = {
   create(
     tenantId: string,
     actorId: string,
+    channel: AdminActionChannel,
     connection: NewDatabaseConnection,
     license: LicenseStatus | null,
   ): Promise<{ id: string }> {
@@ -158,7 +159,7 @@ export const DatabaseConnectionRepository = {
       })
       await recordAdminAction(tx, {
         actorId,
-        channel: 'web',
+        channel,
         action: 'connection.create',
         targetType: TARGET_TYPE,
         targetId: row.id,
@@ -179,6 +180,7 @@ export const DatabaseConnectionRepository = {
     tenantId: string,
     id: string,
     actorId: string,
+    channel: AdminActionChannel,
     changes: DatabaseConnectionChanges,
     resealed: readonly ResealedLevel[],
     license: LicenseStatus | null,
@@ -197,7 +199,7 @@ export const DatabaseConnectionRepository = {
       })
       await recordAdminAction(tx, {
         actorId,
-        channel: 'web',
+        channel,
         action: 'connection.update',
         targetType: TARGET_TYPE,
         targetId: id,
@@ -212,21 +214,21 @@ export const DatabaseConnectionRepository = {
    * bridge.connections_v1 stops publishing it. Its grants are deleted in the same transaction, each recorded as
    * revoked. NotFound for a connection of another tenant or one already deleted.
    */
-  async softDelete(tenantId: string, id: string, actorId: string): Promise<void> {
+  async softDelete(tenantId: string, id: string, actorId: string, channel: AdminActionChannel): Promise<void> {
     await db.$transaction(async (tx) => {
       const before = await findInTenant(tx, tenantId, id)
       if (!before) throw new NotFoundError('Connection')
       await tx.databaseConnection.update({ where: { id }, data: { deletedAt: new Date(), active: false } })
       await recordAdminAction(tx, {
         actorId,
-        channel: 'web',
+        channel,
         action: 'connection.delete',
         targetType: TARGET_TYPE,
         targetId: id,
         before: auditSnapshot(before),
         after: null,
       })
-      await deleteConnectionGrants(tx, id, actorId)
+      await deleteConnectionGrants(tx, id, actorId, channel)
     })
   },
 }
