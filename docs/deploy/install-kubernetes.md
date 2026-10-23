@@ -47,6 +47,21 @@ Set `ingress.className` and `studio.ingress.className` when the cluster has no d
 
 ## Install
 
+The chart is published in the Helm repository `https://libredb.org/libredb-platform/`, listed on Artifact Hub, and as an OCI artifact:
+
+```sh
+helm repo add libredb-platform https://libredb.org/libredb-platform/
+helm repo update
+helm install libredb libredb-platform/libredb-platform --version <version> -n libredb --create-namespace \
+  -f libredb-values.yaml --set-file platform.license.value=acme.license \
+  --wait --wait-for-jobs --timeout 10m
+```
+
+From the OCI registry, the same install names `oci://ghcr.io/libredb/charts/libredb-platform --version <version>` instead of `libredb-platform/libredb-platform`.
+A published chart already holds the Studio chart it pins, so neither form needs the Studio repository.
+
+From a checkout of this repository:
+
 ```sh
 helm repo add libredb-studio https://libredb.org/libredb-studio/
 helm dependency build charts/libredb-platform
@@ -55,7 +70,7 @@ helm install libredb charts/libredb-platform -n libredb --create-namespace \
   --wait --wait-for-jobs --timeout 10m
 ```
 
-`helm dependency build` takes the Studio chart that `Chart.lock` pins only from a repository Helm knows, so without the `helm repo add` it stops with `no repository definition for https://libredb.org/libredb-studio/`.
+In a checkout, `helm dependency build` takes the Studio chart that `Chart.lock` pins only from a repository Helm knows, so without the `helm repo add` it stops with `no repository definition for https://libredb.org/libredb-studio/`.
 Instead of `--set-file`, `platform.license.existingSecret` names a Secret that holds the token under the key `license`.
 The install runs in this order, and `--wait --wait-for-jobs` returns once every step is done:
 

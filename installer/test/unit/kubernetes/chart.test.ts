@@ -112,6 +112,19 @@ describe("the chart's pins", () => {
     const archive = readFileSync(join(CHART, "charts", `libredb-studio-${manifest.studioChart.version}.tgz`));
     expect(new Bun.CryptoHasher("sha256").update(archive).digest("hex")).toBe(manifest.studioChart.sha256);
   });
+
+  test("its Artifact Hub annotations list the manifest's images, and its changes parse", () => {
+    const chart = parse(readFileSync(join(CHART, "Chart.yaml"), "utf8"));
+    const images = parse(chart.annotations["artifacthub.io/images"]) as { name: string; image: string }[];
+    const pinned = (entry: { repository: string; version: string; digest: string }) => `${entry.repository}:${entry.version}@${entry.digest}`;
+    expect(images.map((entry) => entry.image).sort()).toEqual(
+      [manifest.images.platform, manifest.images.studio, manifest.images.postgres, manifest.images.keycloak, manifest.images.edge].map(pinned).sort(),
+    );
+    expect(chart.annotations["artifacthub.io/license"]).toBe("Elastic-2.0");
+    const changes = parse(chart.annotations["artifacthub.io/changes"]) as { kind: string; description: string }[];
+    expect(changes.length).toBeGreaterThan(0);
+    for (const change of changes) expect(typeof change.description).toBe("string");
+  });
 });
 
 describe("the chart's render guards", () => {

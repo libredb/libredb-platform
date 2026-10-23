@@ -1,0 +1,297 @@
+name: Helm Chart Release
+
+# Publishes charts/libredb-platform when a version of it that is not released yet reaches main: a GitHub release
+# libredb-platform-<version> with the packaged chart, the Helm repository index on gh-pages (served at
+# https://libredb.org/libredb-platform/, which Artifact Hub tracks), and the OCI copy at
+# oci://ghcr.io/libredb/charts/libredb-platform. The flow follows libredb-studio's helm-release.yml.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'charts/libredb-platform/**'
+  workflow_dispatch:
+    inputs:
+      force_republish:
+        description: >-
+          Republish this chart version although it is already released. Only for repairing a run whose release asset
+          was published but whose index or OCI push failed, with charts/libredb-platform unchanged since.
+        type: boolean
+        default: false
+
+# The index on gh-pages is shared state, so runs queue instead of racing.
+concurrency:
+  group: helm-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    name: Preflight gates
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      proceed: ${{ steps.gate.outputs.proceed }}
+      chart_published: ${{ steps.published.outputs.chart_published }}
+      version: ${{ steps.read.outputs.version }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Read the chart version and appVersion
+        id: read
+        run: |
+          set -euo pipefail
+          version=$(grep '^version:' charts/libredb-platform/Chart.yaml | awk '{print $2}' | tr -d '"')
+          app_version=$(grep '^appVersion:' charts/libredb-platform/Chart.yaml | awk '{print $2}' | tr -d '"')
+          if [ -z "$version" ] || [ -z "$app_version" ]; then
+            echo "::error::could not read version or appVersion from charts/libredb-platform/Chart.yaml"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "app_version=$app_version" >> "$GITHUB_OUTPUT"
+
+      # The chart deploys ghcr.io/libredb/libredb-platform:<appVersion>, so it is never published before that image.
+      # Only a missing tag defers the release; any other registry failure fails the run, so it cannot pass for a
+      # deferral that nothing ever re-runs.
+      - name: Check the appVersion image exists on GHCR
+        id: gate
+        env:
+          APP_VERSION: ${{ steps.read.outputs.app_version }}
+        run: |
+          set -euo pipefail
+          image="ghcr.io/libredb/libredb-platform:${APP_VERSION}"
+          if inspect_out=$(docker manifest inspect "$image" 2>&1); then
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+            echo "OK: ${image} is published."
+            exit 0
+          fi
+          if ! grep -qiE "manifest unknown|no such manifest|manifest for .+ not found" <<< "$inspect_out"; then
+            echo "::error::could not query GHCR for ${image}: ${inspect_out//$'\n'/ }"
+            exit 1
+          fi
+          echo "::error::${image} is not published, so the chart that deploys it cannot be released. Publish the Platform release first, then dispatch this workflow."
+          exit 1
+
+      # A released chart version is immutable: publishing chart changes means bumping version in Chart.yaml. Only a
+      # release that is published with its asset counts as done, so a leftover draft still publishes.
+      - name: Check whether this chart version is already published
+        id: published
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ steps.read.outputs.version }}
+          FORCE_REPUBLISH: ${{ github.event.inputs.force_republish }}
+        run: |
+          set -euo pipefail
+          tag="libredb-platform-${VERSION}"
+          asset="${tag}.tgz"
+          if [ "${FORCE_REPUBLISH:-}" = "true" ]; then
+            echo "chart_published=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::force_republish: publishing over ${tag} if it exists."
+            exit 0
+          fi
+          if ! is_draft=$(gh release view "$tag" --json isDraft --jq .isDraft 2>/dev/null); then
+            echo "chart_published=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$is_draft" = "true" ] || ! gh release view "$tag" --json assets --jq '.assets[].name' | grep -Fqx "$asset"; then
+            echo "chart_published=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "chart_published=true" >> "$GITHUB_OUTPUT"
+          echo "::notice::${tag} is already published with ${asset}; bump version in charts/libredb-platform/Chart.yaml to publish chart changes."
+
+  verify:
+    name: Lint and test the chart
+    needs: preflight
+    if: needs.preflight.outputs.proceed == 'true' && needs.preflight.outputs.chart_published != 'true'
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: installer
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.2'
+      - run: bun install --frozen-lockfile
+      - name: Read the pinned Studio chart commit
+        id: studio
+        run: echo "commit=$(jq -r '.studioChart.version | select(startswith("git:")) | ltrimstr("git:")' release/release.config.json)" >> "$GITHUB_OUTPUT"
+      - if: steps.studio.outputs.commit != ''
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: libredb/libredb-studio
+          ref: ${{ steps.studio.outputs.commit }}
+          path: studio-src
+      - name: Embed the release manifest and the pinned Studio chart
+        run: bun run embed
+        env:
+          LIBREDB_STUDIO_REPO: ${{ github.workspace }}/studio-src
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v3.21.3
+      # The jobs bundle must be the installer's current code, and the chart must render as its tests expect.
+      - name: Test the chart and its jobs bundle
+        run: bun test test/unit/kubernetes
+      - name: Lint the Helm chart
+        working-directory: .
+        run: |
+          mkdir -p charts/libredb-platform/charts
+          cp installer/generated/libredb-studio-*.tgz charts/libredb-platform/charts/
+          helm lint charts/libredb-platform --strict -f charts/libredb-platform/tests/e2e/values-kind.yaml \
+            --set platform.license.value=ldl1.0123456789abcdef.eyJpZCI6IkxJTlQifQ.c2lnbmF0dXJl
+
+  package:
+    name: Package the chart
+    needs: [preflight, verify]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v3.21.3
+      # Chart.lock pins the Studio chart and its digest; dependency build takes it only from a repository Helm knows.
+      - name: Build the chart dependencies
+        run: |
+          helm repo add libredb-studio https://libredb.org/libredb-studio/
+          helm dependency build charts/libredb-platform --skip-refresh
+      - name: Package
+        run: helm package charts/libredb-platform -d dist
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: chart
+          path: dist/libredb-platform-*.tgz
+          if-no-files-found: error
+
+  release-github-pages:
+    name: GitHub release and Helm repository index
+    needs: [preflight, package]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: chart
+          path: dist
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v3.21.3
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      # Immutable releases freeze assets at publish time, so the chart is attached to a draft that is published
+      # afterwards. A chart release never takes the Latest marker from the installer releases.
+      - name: Publish the chart release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          asset_path=$(ls dist/libredb-platform-*.tgz)
+          asset=$(basename "$asset_path")
+          tag="${asset%.tgz}"
+          version=$(grep '^version:' charts/libredb-platform/Chart.yaml | awk '{print $2}' | tr -d '"')
+          app_version=$(grep '^appVersion:' charts/libredb-platform/Chart.yaml | awk '{print $2}' | tr -d '"')
+          if is_draft=$(gh release view "$tag" --json isDraft --jq .isDraft 2>/dev/null); then
+            if [ "$is_draft" != "true" ]; then
+              if gh release view "$tag" --json assets --jq '.assets[].name' | grep -Fqx "$asset"; then
+                echo "Release ${tag} is already published with ${asset}."
+                exit 0
+              fi
+              echo "::error::Release ${tag} is published without ${asset}, and an immutable release cannot be amended: bump the chart version."
+              exit 1
+            fi
+          else
+            notes="${RUNNER_TEMP}/chart-release-notes.md"
+            cat > "$notes" <<'NOTES'
+          LibreDB Platform Helm chart `__CHART_VERSION__`, deploying LibreDB Platform `__APP_VERSION__` with LibreDB Studio under governance.
+
+          ```bash
+          helm repo add libredb-platform https://libredb.org/libredb-platform/
+          helm install libredb libredb-platform/libredb-platform --version __CHART_VERSION__ -n libredb --create-namespace \
+            -f libredb-values.yaml --set-file platform.license.value=libredb.license
+          ```
+
+          Or from the OCI registry: `helm install libredb oci://ghcr.io/libredb/charts/libredb-platform --version __CHART_VERSION__ ...`.
+
+          Every install needs a LibreDB license. The install guide is [docs/deploy/install-kubernetes.md](https://github.com/libredb/libredb-platform/blob/main/docs/deploy/install-kubernetes.md).
+          NOTES
+            sed -i "s|__CHART_VERSION__|${version}|g; s|__APP_VERSION__|${app_version}|g" "$notes"
+            gh release create "$tag" --draft --title "Helm chart ${version} (Platform ${app_version})" --notes-file "$notes"
+          fi
+          if ! git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
+            git tag "$tag"
+            git push origin "refs/tags/$tag"
+          fi
+          gh release upload "$tag" "$asset_path" --clobber
+          gh release edit "$tag" --draft=false --latest=false
+
+      # --merge keeps every earlier entry and its download URL; only the new version gets this release's URL.
+      - name: Update the Helm repository index on gh-pages
+        run: |
+          set -euo pipefail
+          asset_path=$(ls dist/libredb-platform-*.tgz)
+          tag=$(basename "$asset_path" .tgz)
+          pages_dir="${RUNNER_TEMP}/gh-pages"
+          git fetch origin "refs/heads/gh-pages:refs/remotes/origin/gh-pages"
+          git worktree add "$pages_dir" origin/gh-pages
+          helm repo index dist --url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}" \
+            --merge "$pages_dir/index.yaml"
+          if cmp -s dist/index.yaml "$pages_dir/index.yaml"; then
+            echo "The index already holds ${tag}."
+            exit 0
+          fi
+          cp dist/index.yaml "$pages_dir/index.yaml"
+          cd "$pages_dir"
+          git checkout -B gh-pages origin/gh-pages
+          git add index.yaml
+          git commit -m "Update index.yaml for ${tag}"
+          git push origin gh-pages
+
+      - name: Verify the release asset is published
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          asset=$(basename dist/libredb-platform-*.tgz)
+          tag="${asset%.tgz}"
+          for attempt in 1 2 3 4 5; do
+            if gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${tag}" --jq '.assets[].name' | grep -Fqx "$asset"; then
+              echo "OK: ${tag} has ${asset}."
+              exit 0
+            fi
+            sleep $((attempt * 10))
+          done
+          echo "::error::${tag} does not show ${asset}, so the index may point at a missing download."
+          exit 1
+
+  release-oci:
+    name: OCI registry
+    needs: [preflight, package]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: chart
+          path: dist
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v3.21.3
+      - name: Push to ghcr.io/libredb/charts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "$GH_TOKEN" | helm registry login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+          helm push dist/libredb-platform-*.tgz oci://ghcr.io/libredb/charts

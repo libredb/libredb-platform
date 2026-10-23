@@ -11,9 +11,9 @@ version: 0.1.0
 appVersion: "1.0.1"
 kubeVersion: ">=1.28.0-0"
 home: https://libredb.org/platform/
+icon: https://raw.githubusercontent.com/libredb/libredb-studio/main/public/logo.svg
 sources:
   - https://github.com/libredb/libredb-platform
-license: Elastic-2.0
 keywords:
   - database
   - governance
@@ -23,6 +23,31 @@ keywords:
 maintainers:
   - name: LibreDB
     url: https://libredb.org
+# Read by Artifact Hub; installer/test/unit/kubernetes/chart.test.ts keeps artifacthub.io/images equal to the images
+# of the release manifest. artifacthub.io/changes describes this chart version, so each version bump replaces it.
+annotations:
+  artifacthub.io/category: database
+  artifacthub.io/license: Elastic-2.0
+  artifacthub.io/containsSecurityUpdates: "false"
+  artifacthub.io/changes: |
+    - kind: added
+      description: "First release: LibreDB Platform 1.0.1 with LibreDB Studio under governance, a managed or external PostgreSQL and Keycloak"
+  artifacthub.io/images: |
+    - name: libredb-platform
+      image: ghcr.io/libredb/libredb-platform:1.0.1@sha256:b42e346756b4e39a1ed99eee4990092b139dcdc1e0c561069c12ee1bcc081268
+    - name: libredb-studio
+      image: ghcr.io/libredb/libredb-studio:1.0.0@sha256:0cb0177dd2789534f2dbfbc6673104ec0ce70ee82815f5fe9bec5efe3d329ce3
+    - name: postgres
+      image: docker.io/library/postgres:18.6@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336
+    - name: keycloak
+      image: quay.io/keycloak/keycloak:26.8.1@sha256:79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244
+    - name: caddy
+      image: docker.io/library/caddy:2.11.7@sha256:685ae3d7c34d9b5f8caeddc5d14051db7bbd88ff1f5a2fa0c16bd8ca328fb7af
+  artifacthub.io/links: |
+    - name: Install guide
+      url: https://github.com/libredb/libredb-platform/blob/main/docs/deploy/install-kubernetes.md
+    - name: Source
+      url: https://github.com/libredb/libredb-platform
 dependencies:
   - name: libredb-studio
     alias: studio
