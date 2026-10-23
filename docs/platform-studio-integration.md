@@ -231,8 +231,9 @@ The client scope `libredb-roles` writes the roles a user holds into the ID token
   Its client also has a service account with `view-users` and `view-clients`, which it uses to read the directory.
 - Studio admits an account that holds `admin` or `user`, and refuses an account with neither.
 - Both apps key a user by the Keycloak user id (`sub`), so the subject Platform writes into a grant is the `sub` of the user's Studio session.
-- With `mobile.enabled: true` in the installer's configuration, the realm also has the public client `libredb-mobile` of the mobile app, whose access token carries the audience `libredb-studio-api` and `libredb_roles`.
+- With `mobile.enabled: true` in the installer's configuration, the realm also has the public client `libredb-mobile` of the mobile app, whose access token carries the audiences `libredb-studio-api` and `libredb-platform-api` and `libredb_roles`.
   Studio accepts that token as a bearer session through `OIDC_BEARER_AUDIENCE` and `OIDC_BEARER_CLIENT_IDS`, under the same governance rule as a session cookie, and its `sub` is the same Keycloak user id.
+  Platform accepts the same token on its API under `/api/v1` through `PLATFORM_API_AUDIENCE` and `PLATFORM_API_CLIENT_IDS`, which the installer writes into `platform.env` with `mobile.enabled: true`, and only for an account with the role `admin`.
 
 ### The seal canary
 
