@@ -275,18 +275,27 @@ model ConnectionGrant {
   @@schema("platform")
 }
 
+// Where an admin change came from: the web console or the /api/v1 routes.
+enum AdminActionChannel {
+  web
+  api
+
+  @@schema("platform")
+}
+
 // Append-only log of admin changes. libredb_platform has INSERT and SELECT only,
 // and the migration adds a CHECK on action. Write it through recordAdminAction() in src/shared/lib/admin-actions.ts.
 model AdminAction {
-  id         String   @id @default(cuid())
+  id         String             @id @default(cuid())
   actorId    String
-  actor      User     @relation(fields: [actorId], references: [id])
+  actor      User               @relation(fields: [actorId], references: [id])
+  channel    AdminActionChannel @default(web)
   action     String
   targetType String
   targetId   String
   before     Json?
   after      Json?
-  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+  createdAt  DateTime           @default(now()) @db.Timestamptz(3)
 
   @@map("admin_actions")
   @@schema("platform")

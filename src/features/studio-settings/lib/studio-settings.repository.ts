@@ -30,6 +30,7 @@ export const StudioSettingsRepository = {
       })
       await recordAdminAction(tx, {
         actorId,
+        channel: 'web',
         action: 'settings.update',
         targetType: TARGET_TYPE,
         targetId: key,
@@ -47,6 +48,7 @@ export const StudioSettingsRepository = {
       await tx.studioSetting.deleteMany({ where: { key } })
       await recordAdminAction(tx, {
         actorId,
+        channel: 'web',
         action: 'settings.reset',
         targetType: TARGET_TYPE,
         targetId: key,

@@ -158,6 +158,7 @@ export const DatabaseConnectionRepository = {
       })
       await recordAdminAction(tx, {
         actorId,
+        channel: 'web',
         action: 'connection.create',
         targetType: TARGET_TYPE,
         targetId: row.id,
@@ -196,6 +197,7 @@ export const DatabaseConnectionRepository = {
       })
       await recordAdminAction(tx, {
         actorId,
+        channel: 'web',
         action: 'connection.update',
         targetType: TARGET_TYPE,
         targetId: id,
@@ -217,6 +219,7 @@ export const DatabaseConnectionRepository = {
       await tx.databaseConnection.update({ where: { id }, data: { deletedAt: new Date(), active: false } })
       await recordAdminAction(tx, {
         actorId,
+        channel: 'web',
         action: 'connection.delete',
         targetType: TARGET_TYPE,
         targetId: id,

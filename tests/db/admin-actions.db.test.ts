@@ -54,6 +54,49 @@ describe('admin action log privileges', () => {
     ])
   })
 
+  it('a row written without a channel reads as web, and an api row keeps api', async () => {
+    const webId = randomUUID()
+    const apiId = randomUUID()
+    await platform.query(
+      `INSERT INTO platform.admin_actions (id, "actorId", action, "targetType", "targetId")
+       VALUES ($1, $2, 'grant.create', 'grant', 'grant-2')`,
+      [webId, actorId],
+    )
+    await platform.query(
+      `INSERT INTO platform.admin_actions (id, "actorId", channel, action, "targetType", "targetId")
+       VALUES ($1, $2, 'api', 'grant.revoke', 'grant', 'grant-2')`,
+      [apiId, actorId],
+    )
+
+    const rows = await platform.query(
+      `SELECT id, channel::text AS channel FROM platform.admin_actions WHERE id = ANY($1) ORDER BY action`,
+      [[webId, apiId]],
+    )
+    expect(rows.rows).toEqual([
+      { id: webId, channel: 'web' },
+      { id: apiId, channel: 'api' },
+    ])
+  })
+
+  it('a channel outside web and api, or a null channel, is refused (22P02, 23502)', async () => {
+    await expectSqlState(
+      platform.query(
+        `INSERT INTO platform.admin_actions (id, "actorId", channel, action, "targetType", "targetId")
+         VALUES ($1, $2, 'cli', 'grant.create', 'grant', 'grant-3')`,
+        [randomUUID(), actorId],
+      ),
+      '22P02',
+    )
+    await expectSqlState(
+      platform.query(
+        `INSERT INTO platform.admin_actions (id, "actorId", channel, action, "targetType", "targetId")
+         VALUES ($1, $2, NULL, 'grant.create', 'grant', 'grant-3')`,
+        [randomUUID(), actorId],
+      ),
+      '23502',
+    )
+  })
+
   it('libredb_platform cannot UPDATE, DELETE or TRUNCATE admin_actions (42501)', async () => {
     await expectSqlState(
       platform.query(`UPDATE platform.admin_actions SET action = 'grant.delete' WHERE id = $1`, [actionId]),

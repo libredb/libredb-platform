@@ -366,6 +366,7 @@ describe('setConnectionGrant', () => {
     expect(tables.adminAction).toEqual([
       {
         actorId: 'user-alice',
+        channel: 'web',
         action: 'grant.create',
         targetType: 'grant',
         targetId: 'grant-1',
@@ -415,6 +416,7 @@ describe('setConnectionGrant', () => {
     expect(tables.adminAction.map((action) => action.action)).toEqual(['grant.create', 'grant.update'])
     expect(tables.adminAction[1]).toEqual({
       actorId: 'user-grace',
+      channel: 'web',
       action: 'grant.update',
       targetType: 'grant',
       targetId: 'grant-1',
@@ -447,6 +449,7 @@ describe('setConnectionGrant', () => {
     expect(tables.adminAction).toEqual([
       expect.objectContaining({
         actorId: 'user-alice',
+        channel: 'web',
         action: 'grant.create',
         after: expect.objectContaining({ subject: ALICE, subjectUsername: 'alice', selfGrant: true }),
       }),
@@ -457,6 +460,7 @@ describe('setConnectionGrant', () => {
     await grant({ subject: ALICE, level: 'read' })
     expect(tables.adminAction[1]).toMatchObject({
       actorId: 'user-grace',
+      channel: 'web',
       action: 'grant.update',
       after: { subject: ALICE, selfGrant: false },
     })

@@ -296,6 +296,7 @@ describe('createDatabaseConnection', () => {
     expect(tables.adminAction).toEqual([
       {
         actorId: 'user-alice',
+        channel: 'web',
         action: 'connection.create',
         targetType: 'connection',
         targetId: row.id,

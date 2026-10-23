@@ -186,6 +186,7 @@ describe('updateStudioSetting', () => {
     expect(tables.adminAction).toEqual([
       {
         actorId: 'user-alice',
+        channel: 'web',
         action: 'settings.update',
         targetType: 'studio_setting',
         targetId: 'query.timeoutMs',

@@ -157,6 +157,7 @@ describe('revokeConnectionGrant', () => {
     expect(tables.adminAction).toEqual([
       {
         actorId: 'user-alice',
+        channel: 'web',
         action: 'grant.revoke',
         targetType: 'grant',
         targetId: 'grant-erin',

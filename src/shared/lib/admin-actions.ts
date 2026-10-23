@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client'
+import { Prisma, type AdminActionChannel } from '@prisma/client'
 
 // Keys whose values never reach the admin action log, at any depth.
 // readSecret and writeSecret, the sealed connection credentials, match /secret/i.
@@ -10,6 +10,8 @@ export type AdminActionClient = Pick<Prisma.TransactionClient, 'adminAction'>
 
 export interface AdminActionEntry {
   actorId: string
+  // `web` for a change made in the web console, `api` for one made through /api/v1.
+  channel: AdminActionChannel
   // A lowercase dotted name such as `grant.create`; the database refuses any other form.
   action: string
   targetType: string
@@ -43,6 +45,7 @@ export function recordAdminAction(tx: AdminActionClient, entry: AdminActionEntry
   return tx.adminAction.create({
     data: {
       actorId: entry.actorId,
+      channel: entry.channel,
       action: entry.action,
       targetType: entry.targetType,
       targetId: entry.targetId,

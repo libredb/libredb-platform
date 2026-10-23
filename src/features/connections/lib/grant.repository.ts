@@ -59,6 +59,7 @@ export async function deleteConnectionGrants(
   for (const grant of grants) {
     await recordAdminAction(tx, {
       actorId,
+      channel: 'web',
       action: 'grant.revoke',
       targetType: TARGET_TYPE,
       targetId: grant.id,
@@ -126,6 +127,7 @@ export const ConnectionGrantRepository = {
       })
       await recordAdminAction(tx, {
         actorId,
+        channel: 'web',
         action: before === null ? 'grant.create' : 'grant.update',
         targetType: TARGET_TYPE,
         targetId: row.id,
@@ -150,6 +152,7 @@ export const ConnectionGrantRepository = {
       if (count === 0) throw new NotFoundError('Grant')
       await recordAdminAction(tx, {
         actorId,
+        channel: 'web',
         action: 'grant.revoke',
         targetType: TARGET_TYPE,
         targetId: grant.id,

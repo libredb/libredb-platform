@@ -284,6 +284,7 @@ describe('updateDatabaseConnection', () => {
     expect(tables.adminAction).toEqual([
       {
         actorId: 'user-alice',
+        channel: 'web',
         action: 'connection.update',
         targetType: 'connection',
         targetId: 'conn-orders',
