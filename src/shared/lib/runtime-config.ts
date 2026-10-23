@@ -71,6 +71,15 @@ function exactName(fallback: string) {
   return z.string().refine(value => value === value.trim(), 'must not start or end with a space').default(fallback)
 }
 
+const CLIENT_ID_LIST_RULE = 'must be a comma-separated list of client ids'
+
+// A list such as `libredb-mobile, libredb-cli`; an empty entry is a typo that would never match a token's azp.
+function clientIdList() {
+  return z.string()
+    .transform(value => value.split(',').map(id => id.trim()))
+    .refine(ids => ids.every(id => id !== ''), CLIENT_ID_LIST_RULE)
+}
+
 function httpUrl(whenMissing = REQUIRED) {
   return z.string({ error: whenMissing }).refine(isAbsoluteHttpUrl, 'must be an absolute http(s) URL')
 }
@@ -127,6 +136,10 @@ function runtimeSchema(mode: DeploymentMode | undefined, production: boolean) {
     // The license token that every self-hosted install needs, with no rule of its form here: license/install-license.ts
     // verifies it, and a token that fails verification adds no seat but never stops the start.
     PLATFORM_LICENSE: selfHosted ? z.string({ error: REQUIRED_SELF_HOSTED }) : z.string().optional(),
+    // The bearer API under /api/v1: the audience an access token must carry, and the clients whose tokens it accepts
+    // in azp. Unset, the API is off; cloud mode has no OIDC issuer, so the API is off there whatever the values.
+    PLATFORM_API_AUDIENCE: z.string().refine(value => value === value.trim(), 'must not start or end with a space').optional(),
+    PLATFORM_API_CLIENT_IDS: clientIdList().optional(),
   }).refine(config => config.AUTH_SECRET_PREVIOUS !== config.AUTH_SECRET, {
     path: ['AUTH_SECRET_PREVIOUS'],
     message: 'must differ from AUTH_SECRET',
@@ -134,6 +147,9 @@ function runtimeSchema(mode: DeploymentMode | undefined, production: boolean) {
     // One role for both would sign every Studio user in to Platform as an admin.
     path: ['PLATFORM_ADMIN_ROLE'],
     message: 'must differ from STUDIO_USER_ROLE',
+  }).refine(config => config.PLATFORM_API_AUDIENCE === undefined || config.PLATFORM_API_CLIENT_IDS !== undefined, {
+    path: ['PLATFORM_API_CLIENT_IDS'],
+    message: 'is required when PLATFORM_API_AUDIENCE is set',
   })
 }
 
