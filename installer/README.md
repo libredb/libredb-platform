@@ -39,6 +39,7 @@ A chart built from a Studio commit deploys the image of that commit, a build of 
 Run `bun run release:check` and then `bun run release:record` when a release is cut, and commit the file it writes, because `release:record` repeats only the history and contract checks.
 The Installer Release workflow stops before it builds unless its tag is `installer-v<version>` for the `version` of both `release/release.config.json` and `package.json`, and `release/history/<version>.json` equals `release/release.config.json` as JSON, so commit that file before you push the tag.
 The Docker install does not read the embedded Studio chart; the release tooling keeps it pinned and checked for the Kubernetes mode of the next release.
+The same workflow publishes the Helm chart `charts/libredb-platform`, whose `version` must equal the release, with the binary in the GitHub release, in the Helm repository index on the branch `gh-pages` (`https://libredb.org/libredb-platform/`) and at `oci://ghcr.io/libredb/charts/libredb-platform`, so bump the chart's `version` and its `artifacthub.io/changes` together with the release.
 
 ## Usage
 

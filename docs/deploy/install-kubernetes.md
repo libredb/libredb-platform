@@ -47,7 +47,8 @@ Set `ingress.className` and `studio.ingress.className` when the cluster has no d
 
 ## Install
 
-The chart is published in the Helm repository `https://libredb.org/libredb-platform/`, listed on Artifact Hub, and as an OCI artifact:
+Each installer release `installer-v<version>` publishes the chart under the same version: as `libredb-platform-<version>.tgz` of that GitHub release, in the Helm repository `https://libredb.org/libredb-platform/`, listed on Artifact Hub, and as an OCI artifact.
+The first release with the chart is the one after 1.0.1.
 
 ```sh
 helm repo add libredb-platform https://libredb.org/libredb-platform/

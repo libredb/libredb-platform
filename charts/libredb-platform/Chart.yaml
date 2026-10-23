@@ -5,9 +5,10 @@ description: >-
   Studio under governance, and optionally a managed PostgreSQL and Keycloak. Source-available under the
   Elastic License 2.0; every install needs a license from LibreDB.
 type: application
-# The chart version; appVersion is the Platform release whose images and Studio chart it pins
-# (installer/release/release.config.json, which installer/test/unit/kubernetes/chart.test.ts compares).
-version: 0.1.0
+# The chart ships in the installer's release, so version and appVersion are both that release, whose images and
+# Studio chart it pins (installer/release/release.config.json, which installer/test/unit/kubernetes/chart.test.ts
+# compares, together with installer/package.json).
+version: 1.0.1
 appVersion: "1.0.1"
 kubeVersion: ">=1.28.0-0"
 home: https://libredb.org/platform/
