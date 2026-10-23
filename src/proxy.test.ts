@@ -73,6 +73,16 @@ describe('proxy', () => {
     expect(readSession).not.toHaveBeenCalled()
   })
 
+  it('serves /api/v1 without a session and never redirects it, so the bearer routes answer for themselves', async () => {
+    readSession.mockResolvedValue(null)
+
+    const response = await request('/api/v1/me')
+
+    expect(passesThrough(response)).toBe(true)
+    expect(response.headers.get('location')).toBeNull()
+    expect(readSession).not.toHaveBeenCalled()
+  })
+
   it('sends a request without a session to /login with its path as callbackUrl', async () => {
     readSession.mockResolvedValue(null)
 
