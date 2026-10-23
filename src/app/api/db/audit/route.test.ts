@@ -73,6 +73,7 @@ describe('GET /api/db/audit', () => {
     const res = await GET(new Request('http://localhost/api/db/audit?limit=201'))
 
     expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: 'Invalid audit filters: limit' })
     expect(findAll).not.toHaveBeenCalled()
   })
 
@@ -89,6 +90,7 @@ describe('GET /api/db/audit', () => {
     const res = await GET(new Request('http://localhost/api/db/audit'))
 
     expect(res.status).toBe(403)
+    expect(await res.json()).toEqual({ error: 'Permission denied: audit.view required' })
     expect(findAll).not.toHaveBeenCalled()
   })
 
