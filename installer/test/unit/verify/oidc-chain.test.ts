@@ -126,6 +126,13 @@ describe("studio-oidc-chain", () => {
         `the authorization request sends redirect_uri https://localhost:3000/api/auth/oidc/callback, and Studio's callback is ${REDIRECT_URI}`,
       ],
       [
+        chain(authorize({ ...good, redirect_uri: "http://studio.example.com/api/auth/oidc/callback" })),
+        `the authorization request sends redirect_uri http://studio.example.com/api/auth/oidc/callback, and Studio's callback is ${REDIRECT_URI}: ` +
+          "Studio saw plain HTTP, so the edge did not pass X-Forwarded-Proto on; in tls.mode external, " +
+          "tls.external.trustedProxies must hold the address the upstream proxy arrives from, " +
+          "which for a proxy on the Docker host is the gateway of the network libredb_edge",
+      ],
+      [
         chain(authorize({ ...good, prompt: "login" }), { authStatus: 200 }),
         "the authorization request sends prompt=login, and OIDC_PROMPT=omit sends none",
       ],

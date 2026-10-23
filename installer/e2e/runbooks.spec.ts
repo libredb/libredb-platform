@@ -461,8 +461,11 @@ test("break-glass: the kill switch stops Studio, start brings it back, and statu
 
   expectSuccess(runBlock(runbook, 3, "stop studio"));
   expect(await ready()).toBe(502);
+  // A PaaS on the host, such as Dokploy or CapRover, may prune the stopped container; the start block brings Studio
+  // back all the same.
+  asRootOk("docker container prune --force --filter label=com.docker.compose.project=libredb --filter label=com.docker.compose.service=studio");
 
-  expectSuccess(runBlock(runbook, 4, "start studio"));
+  expectSuccess(runBlock(runbook, 4, "up -d studio"));
   await expect.poll(ready, { timeout: 120_000, intervals: [2_000] }).toBe(200);
 
   const status = expectSuccess(runBlock(runbook, 5, "status"));
