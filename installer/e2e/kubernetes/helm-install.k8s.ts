@@ -117,6 +117,12 @@ test("the first admin signs in to Platform for the first time with a new passwor
   await expect(platform).toHaveURL((url) => url.origin === PLATFORM_URL && url.pathname !== "/login");
   await platform.waitForLoadState("networkidle");
   await shot(platform, "01-platform-after-first-login");
+  // A callback that fails at the ingress, such as a 502 for its response headers, also leaves /login behind, so the
+  // session itself is the proof, asked from the page as the Docker suite asks it.
+  const session = await platform.evaluate(
+    async () => (await fetch("/api/auth/session")).json() as Promise<{ user?: { email?: string } } | null>,
+  );
+  expect(session?.user?.email).toBe(firstAdmin.email);
 });
 
 test("the license page shows the license the chart installed as active", async () => {

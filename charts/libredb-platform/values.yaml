@@ -93,7 +93,11 @@ ingress:
   # -- The Ingress of Platform and of a managed Keycloak. Studio's Ingress is studio.ingress.
   enabled: true
   className: ""
-  annotations: {}
+  annotations:
+    # Platform's sign-in callback sets its session cookie in chunks that hold the Keycloak ID and refresh tokens,
+    # more response header than ingress-nginx buffers by default (4k), which then answers the callback 502. Other
+    # controllers ignore the annotation; an nginx-based one of another vendor needs its own setting of 16k.
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
 
 postgresql:
   # -- managed: the chart runs PostgreSQL with verified TLS from the internal CA and provisions it, as the installer

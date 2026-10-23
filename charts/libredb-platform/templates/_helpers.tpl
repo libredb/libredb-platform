@@ -153,6 +153,11 @@ from Secret libredb-platform-migrate-env in PGPASSWORD, never on a command line:
       address="${rest#*@}"
       address="${address%%/*}"
       conninfo="host=${address%:*} port=${address##*:} dbname=libredb user=libredb_platform sslmode=verify-full sslrootcert=/etc/libredb/ca/ca.crt connect_timeout=10"
+      # A network policy controller such as k3s' kube-router may refuse a new pod's first connections until it holds
+      # the pod's address, so the container waits up to 30 s for one; the script itself runs once, and its failure
+      # is the job's.
+      tries=0
+      until psql "$conninfo" -X -q -A -t -c 'SELECT 1' >/dev/null 2>&1 || [ "$tries" -ge 30 ]; do tries=$((tries + 1)); sleep 1; done
       psql "$conninfo" -X -q -A -t -v ON_ERROR_STOP=1 -f {{ .file }}{{ with .output }} > {{ . }}{{ end }}
   env:
     - name: DATABASE_URL

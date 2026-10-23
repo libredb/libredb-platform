@@ -4,7 +4,8 @@
 // bootstrap Role against every object the bootstrap job writes, and the pod security of every workload.
 import { beforeAll, describe, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse, parseAllDocuments } from "yaml";
 import { parseInstallation } from "../../../src/config/schema";
@@ -209,6 +210,44 @@ describe("the seal key and AUTH_SECRET rotations", () => {
     }
   });
 
+  test("the retirement's SQL waits for a connection, which a new pod's network policy may refuse at first, and runs once", () => {
+    const docs = render([`platform.sealKeys.activeKid=${NEW}`, `platform.sealKeys.retire[0]=${OLD}`]);
+    const work = mkdtempSync(join(tmpdir(), "libredb-seal-sql-"));
+    // A psql that refuses the first two connections, as kube-router does until it has the pod's address, and records
+    // each script it runs; SCRIPT_EXIT is what the script run exits with.
+    writeFileSync(
+      join(work, "psql"),
+      [
+        "#!/bin/sh",
+        `n=$(cat "${work}/tries" 2>/dev/null || echo 0); echo $((n + 1)) > "${work}/tries"`,
+        '[ "$n" -ge 2 ] || exit 2',
+        `case " $* " in *" -f "*) echo run >> "${work}/runs"; exit "$SCRIPT_EXIT" ;; esac`,
+      ].join("\n"),
+      { mode: 0o755 },
+    );
+    const run = (pod: Doc, scriptExit: number) => {
+      rmSync(join(work, "tries"), { force: true });
+      rmSync(join(work, "runs"), { force: true });
+      const script = (podOf(pod).initContainers[0].command[2] as string).replaceAll(SEAL_ENVELOPES_FILE, join(work, "out"));
+      const result = Bun.spawnSync(["/bin/sh", "-c", script], {
+        env: { PATH: `${work}:/usr/bin:/bin`, SCRIPT_EXIT: String(scriptExit), DATABASE_URL: "postgresql://libredb_platform:pw@libredb-postgres:5432/libredb?schema=platform" },
+      });
+      const runs = existsSync(join(work, "runs")) ? readFileSync(join(work, "runs"), "utf8").trim().split("\n").length : 0;
+      return { code: result.exitCode, runs };
+    };
+    try {
+      for (const job of ["libredb-bootstrap", "libredb-restart"]) {
+        const pod = find(docs, "Job", job);
+        expect(run(pod, 0), job).toEqual({ code: 0, runs: 1 });
+        // A failing script is the refusal itself, so it is never run again.
+        expect(run(pod, 3), job).toEqual({ code: 3, runs: 1 });
+      }
+    } finally {
+      rmSync(work, { recursive: true, force: true });
+    }
+    // Each of the four runs waits 1 s per refused connection.
+  }, 30_000);
+
   test("a kid that is no seal key id fails the render, naming the value", () => {
     expect(failure(["platform.sealKeys.retire[0]=x'; DROP TABLE y;--"])).toContain("platform.sealKeys.retire[0]");
     expect(failure(["platform.sealKeys.activeKid=ABCDEF0123456789"])).toContain("platform.sealKeys.activeKid");
@@ -338,6 +377,12 @@ describe("the workloads", () => {
   test("the auth ingress reaches only the edge, and the Admin API stays in-cluster", () => {
     const ingress = find(docs(), "Ingress", "keycloak");
     expect(ingress.spec.rules[0].http.paths[0].backend.service.name).toBe("keycloak-edge");
+  });
+
+  test("Platform's Ingress asks ingress-nginx for a 16k header buffer, which Platform's sign-in callback needs", () => {
+    const annotation = "nginx.ingress.kubernetes.io/proxy-buffer-size";
+    expect(find(docs(), "Ingress", "libredb-platform").metadata.annotations?.[annotation]).toBe("16k");
+    expect(find(render(["ingress.annotations.team=dba"]), "Ingress", "libredb-platform").metadata.annotations).toEqual({ [annotation]: "16k", team: "dba" });
   });
 
   test("a job's name follows the revision and what it runs: the same values keep it, a new installation document renames it", () => {
