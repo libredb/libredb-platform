@@ -181,6 +181,7 @@ describe('deleteDatabaseConnection', () => {
     expect(tables.adminAction).toEqual([
       {
         actorId: 'user-alice',
+        channel: 'web',
         action: 'connection.delete',
         targetType: 'connection',
         targetId: 'conn-orders',
@@ -236,6 +237,7 @@ describe('deleteDatabaseConnection', () => {
     ])
     expect(tables.adminAction[2]).toEqual({
       actorId: 'user-alice',
+      channel: 'web',
       action: 'grant.revoke',
       targetType: 'grant',
       targetId: 'grant-erin',

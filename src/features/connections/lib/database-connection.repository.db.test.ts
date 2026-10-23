@@ -113,7 +113,7 @@ describe('DatabaseConnectionRepository on PostgreSQL', () => {
   it('create writes the connection with its admin action, and bridge.connections_v1 publishes it to Studio', async () => {
     const connection = newConnection({ writeSecret: null })
 
-    expect(await repository.create(TENANT_A, USER_ID, connection, UNGATED)).toEqual({ id: connection.id })
+    expect(await repository.create(TENANT_A, USER_ID, 'web', connection, UNGATED)).toEqual({ id: connection.id })
 
     expect(await published(connection.id)).toEqual([
       {
@@ -146,11 +146,11 @@ describe('DatabaseConnectionRepository on PostgreSQL', () => {
 
   it('an update that seals again for a new definition passes the rebind trigger, and one that does not is refused with nothing recorded', async () => {
     const connection = newConnection()
-    await repository.create(TENANT_A, USER_ID, connection, UNGATED)
+    await repository.create(TENANT_A, USER_ID, 'web', connection, UNGATED)
 
     // A definition change that keeps the old read envelope is what the trigger refuses.
     await expect(
-      repository.update(TENANT_A, connection.id, USER_ID, { definition: MOVED, writeSecret: null }, [], UNGATED),
+      repository.update(TENANT_A, connection.id, USER_ID, 'web', { definition: MOVED, writeSecret: null }, [], UNGATED),
     ).rejects.toThrow(/newly sealed read secret/)
     expect(await stored(connection.id)).toMatchObject({ definition: DEFINITION, readSecret: connection.readSecret })
     expect(await adminActions(connection.id)).toHaveLength(1)
@@ -160,6 +160,7 @@ describe('DatabaseConnectionRepository on PostgreSQL', () => {
       TENANT_A,
       connection.id,
       USER_ID,
+      'web',
       { engine: 'postgres', definition: MOVED, readSecret, writeSecret: null },
       ['read'],
       UNGATED,
@@ -178,25 +179,25 @@ describe('DatabaseConnectionRepository on PostgreSQL', () => {
     // A credential sealed again for the stored binding writes that binding back, which the trigger accepts.
     const rotated = seal(connection.id, 'read', MOVED, { ...READ, password: 'read-pass-2' })
     const binding = { engine: 'postgres', definition: MOVED, readSecret: rotated }
-    await repository.update(TENANT_A, connection.id, USER_ID, binding, ['read'], UNGATED)
+    await repository.update(TENANT_A, connection.id, USER_ID, 'web', binding, ['read'], UNGATED)
     expect(await stored(connection.id)).toMatchObject({ definition: MOVED, readSecret: rotated })
   })
 
   it('soft delete hides the connection from bridge.connections_v1, the finders and the plan count, and other tenants never reach it', async () => {
     const connection = newConnection()
-    await repository.create(TENANT_A, USER_ID, connection, UNGATED)
+    await repository.create(TENANT_A, USER_ID, 'web', connection, UNGATED)
     const count = await repository.countByTenant(TENANT_A)
 
     for (const attempt of [
       () => repository.findById(TENANT_B, connection.id),
-      () => repository.update(TENANT_B, connection.id, USER_ID, { name: 'Taken over' }, [], UNGATED),
-      () => repository.softDelete(TENANT_B, connection.id, USER_ID),
+      () => repository.update(TENANT_B, connection.id, USER_ID, 'web', { name: 'Taken over' }, [], UNGATED),
+      () => repository.softDelete(TENANT_B, connection.id, USER_ID, 'web'),
     ]) {
       await expect(attempt()).rejects.toThrow('Connection not found')
     }
     expect(await published(connection.id)).toHaveLength(1)
 
-    await repository.softDelete(TENANT_A, connection.id, USER_ID)
+    await repository.softDelete(TENANT_A, connection.id, USER_ID, 'web')
 
     expect(await published(connection.id)).toEqual([])
     expect(await stored(connection.id)).toMatchObject({
@@ -207,10 +208,27 @@ describe('DatabaseConnectionRepository on PostgreSQL', () => {
     expect(await repository.countByTenant(TENANT_A)).toBe(count - 1)
     expect((await repository.findAllByTenant(TENANT_A)).map((found) => found.id)).not.toContain(connection.id)
     await expect(repository.findById(TENANT_A, connection.id)).rejects.toThrow('Connection not found')
-    await expect(repository.softDelete(TENANT_A, connection.id, USER_ID)).rejects.toThrow('Connection not found')
+    await expect(repository.softDelete(TENANT_A, connection.id, USER_ID, 'web')).rejects.toThrow('Connection not found')
     expect((await adminActions(connection.id)).map((action) => action.action)).toEqual([
       'connection.create',
       'connection.delete',
+    ])
+  })
+
+  it('every write records the channel its caller names', async () => {
+    const connection = newConnection()
+    await repository.create(TENANT_A, USER_ID, 'api', connection, UNGATED)
+    await repository.update(TENANT_A, connection.id, USER_ID, 'api', { name: 'Orders API' }, [], UNGATED)
+    await repository.softDelete(TENANT_A, connection.id, USER_ID, 'api')
+
+    const { rows } = await superuser.query(
+      'SELECT action, channel::text AS channel FROM platform.admin_actions WHERE "targetId" = $1 ORDER BY "createdAt", id',
+      [connection.id],
+    )
+    expect(rows).toEqual([
+      { action: 'connection.create', channel: 'api' },
+      { action: 'connection.update', channel: 'api' },
+      { action: 'connection.delete', channel: 'api' },
     ])
   })
 })

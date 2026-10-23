@@ -96,7 +96,7 @@ export const updateDatabaseConnection = safeAction(
     }
 
     if (Object.keys(changes).length > 0) {
-      await DatabaseConnectionRepository.update(tenantId, current.id, user.id, changes, resealed, getLicenseStatus())
+      await DatabaseConnectionRepository.update(tenantId, current.id, user.id, 'web', changes, resealed, getLicenseStatus())
       revalidatePath('/connections')
       revalidatePath(`/connections/${current.id}`)
     }

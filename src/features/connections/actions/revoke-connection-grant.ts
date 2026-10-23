@@ -21,7 +21,7 @@ export const revokeConnectionGrant = safeAction(
     const tenantId = user.currentTenantId
     if (!tenantId) throw new Error('No active tenant')
 
-    const { connectionId } = await ConnectionGrantRepository.revoke(tenantId, grantId, user.id)
+    const { connectionId } = await ConnectionGrantRepository.revoke(tenantId, grantId, user.id, 'web')
     revalidatePath(`/connections/${connectionId}`)
     return { id: grantId }
   },

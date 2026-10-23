@@ -36,6 +36,7 @@ export const revokeStudioSessions = safeAction(
       const revocation = await insertSessionRevocation(tx, { subject, reason: 'admin', createdById: user.id })
       await recordAdminAction(tx, {
         actorId: user.id,
+        channel: 'web',
         action: 'revocation.create',
         targetType: TARGET_TYPE,
         targetId: revocation.id,
