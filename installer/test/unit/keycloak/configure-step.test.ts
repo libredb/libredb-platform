@@ -47,6 +47,21 @@ describe("keycloak-configure step", () => {
     });
   });
 
+  test("the mobile app changes the inputs only while it is enabled, so an install without it keeps the hash it had", () => {
+    const inputsFor = (sets: string[]) =>
+      keycloakConfigureStep.inputs({
+        desired: installationFixture(sets),
+        config: loadConfig({ file: configFile, sets }),
+      } as DockerContext) as { clients: Record<string, unknown> };
+    const without = hashInputs(inputsFor([]));
+    expect(hashInputs(inputsFor(["mobile.enabled=false"]))).toBe(without);
+    expect(hashInputs(inputsFor(["mobile.enabled=true"]))).not.toBe(without);
+    expect(inputsFor(["mobile.enabled=true"]).clients.mobile).toEqual({
+      redirectUri: "org.libredb.mobile:/oauth2redirect",
+      postLogoutRedirectUri: "org.libredb.mobile:/oauth2redirect",
+    });
+  });
+
   test("a run that skips the converge for want of the customer's admin credential plans nothing and records why", async () => {
     const warnings: string[] = [];
     const skipping = run();

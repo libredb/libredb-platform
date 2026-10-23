@@ -230,3 +230,98 @@ describe("manualKeycloakFindings", () => {
     ]);
   });
 });
+
+describe("manualKeycloakFindings with the mobile app", () => {
+  const mobileConfig = loadConfig({
+    file: join(root, "test", "fixtures", "configs", "docker-minimal.yaml"),
+    sets: [...MANUAL_KEYCLOAK_SETS, "keycloak.realm=corp", "mobile.enabled=true"],
+  });
+  const mobileDesired = desiredKeycloak({
+    installation: computeDesired(mobileConfig, manifestFixture()),
+    keycloak: mobileConfig.keycloak,
+    clientSecrets: undefined,
+    passwordLocations: PASSWORD_LOCATIONS,
+  });
+  const expected = manualExpectations(mobileDesired, installation.issuer);
+  const found = mobileDesired.appClients.find((candidate) => candidate.representation.clientId === "libredb-mobile");
+  if (found === undefined) throw new Error("no client libredb-mobile");
+  const client = found;
+
+  /** libredb-mobile as view-clients reads it in a realm configured from the export, with its mapper as Keycloak keeps it. */
+  function liveMobile(): ClientRepresentation {
+    return {
+      ...client.representation,
+      defaultClientScopes: ["web-origins", "acr", "profile", "roles", "basic", "email", "libredb-roles"],
+      protocolMappers: client.protocolMappers.map((mapper) => ({
+        ...mapper,
+        name: "audience",
+        id: "m1",
+        config: { ...mapper.config, "lightweight.claim": "false", "included.client.audience": "" },
+      })),
+    };
+  }
+
+  function mobileObservation(mobile: ClientRepresentation | undefined): ManualKeycloakObservation {
+    const observed = observation(liveClients());
+    const directory = observed.directory as NonNullable<ManualKeycloakObservation["directory"]>;
+    directory.clients.push({ clientId: "libredb-mobile", answer: { status: 200, body: mobile === undefined ? [] : [mobile] } });
+    return observed;
+  }
+
+  test("expects libredb-mobile as the export creates it, and a realm configured from the export passes", () => {
+    expect(expected.appClients.map((candidate) => candidate.representation.clientId)).toEqual([
+      "libredb-studio",
+      "libredb-platform",
+      "libredb-mobile",
+    ]);
+    expect(manualKeycloakFindings(mobileObservation(liveMobile()), expected)).toEqual([]);
+  });
+
+  test("names a missing libredb-mobile", () => {
+    expect(manualKeycloakFindings(mobileObservation(undefined), expected)).toEqual([
+      "realm corp has no client libredb-mobile; create it from the installer's export",
+    ]);
+  });
+
+  test("names every difference of libredb-mobile from the export that view-clients reads", () => {
+    const mobile: ClientRepresentation = {
+      ...liveMobile(),
+      redirectUris: ["org.libredb.mobile:/*"],
+      publicClient: false,
+      standardFlowEnabled: false,
+      implicitFlowEnabled: true,
+      directAccessGrantsEnabled: true,
+      defaultClientScopes: ["profile", "roles"],
+      attributes: { "post.logout.redirect.uris": "+" },
+      protocolMappers: [
+        {
+          name: "audience",
+          protocol: "openid-connect",
+          protocolMapper: "oidc-audience-mapper",
+          config: { "included.custom.audience": "libredb-studio", "access.token.claim": "true" },
+        },
+      ],
+    };
+    expect(manualKeycloakFindings(mobileObservation(mobile), expected)).toEqual([
+      "client libredb-mobile has the redirect URIs [org.libredb.mobile:/*], and the export needs exactly " +
+        "[org.libredb.mobile:/oauth2redirect]",
+      "client libredb-mobile does not list org.libredb.mobile:/oauth2redirect among its valid post logout redirect URIs",
+      "client libredb-mobile has the PKCE method (none), and the export needs S256",
+      "client libredb-mobile is confidential, and the export needs Client authentication off, because the mobile app " +
+        "keeps no secret",
+      "client libredb-mobile has the standard flow off, and the mobile app signs in with it",
+      "client libredb-mobile has the implicit flow on, and the export needs it off",
+      "client libredb-mobile has Direct access grants on, and the export needs them off, so that no app signs in " +
+        "with a password in place of the browser",
+      "client libredb-mobile lacks the default client scope basic, which carries the claim sub",
+      "client libredb-mobile lacks the default client scope email, which carries the claim email",
+      "client libredb-mobile lacks the default client scope libredb-roles, which carries the claim libredb_roles",
+      "client libredb-mobile lacks a protocol mapper of type oidc-audience-mapper with included.custom.audience " +
+        "libredb-studio-api, id.token.claim false, access.token.claim true and introspection.token.claim true, which " +
+        "puts the audience that Studio's bearer channel checks into the access token",
+      "client libredb-mobile lacks a protocol mapper of type oidc-audience-mapper with included.custom.audience " +
+        "libredb-platform-api, id.token.claim false, access.token.claim true and introspection.token.claim true, " +
+        "which puts the audience that Platform's bearer API checks into the access token",
+    ]);
+  });
+});

@@ -94,6 +94,7 @@ describe('resetStudioSetting', () => {
     expect(tables.adminAction).toHaveLength(1)
     expect(tables.adminAction[0]).toMatchObject({
       actorId: 'user-alice',
+      channel: 'web',
       action: 'settings.reset',
       targetType: 'studio_setting',
       targetId: 'query.timeoutMs',

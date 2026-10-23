@@ -4,8 +4,9 @@ import { defineConfig } from "prisma/config";
 
 // A variable already set in the environment wins over .env.local, which wins over .env,
 // so a caller that passes MIGRATE_DATABASE_URL (the migrate job, tests/db/global-setup.ts) migrates that database.
-dotenv.config({ path: path.join(__dirname, ".env.local") });
-dotenv.config({ path: path.join(__dirname, ".env") });
+// quiet keeps dotenv off stdout, which `npm run db:migration` writes into migration.sql.
+dotenv.config({ path: path.join(__dirname, ".env.local"), quiet: true });
+dotenv.config({ path: path.join(__dirname, ".env"), quiet: true });
 
 // The Prisma CLI is the only user of these URLs, and it connects as libredb_owner, the role that owns schema platform.
 // MIGRATE_DATABASE_URL is the libredb_owner URL with schema=platform in Prisma syntax.

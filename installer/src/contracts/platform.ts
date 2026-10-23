@@ -5,7 +5,7 @@ export type EnvRequirement = "always" | "oidc" | "governance" | "self-hosted" | 
 export type EnvProducer = "installer" | "config" | "default" | "operator";
 
 /** When the installer writes a variable. */
-export type EnvWriteCondition = "always" | "httpsProxy" | "keycloakAdminUrl" | "logoutHintVerified" | "volumeSize" | "authSecretPrevious";
+export type EnvWriteCondition = "always" | "httpsProxy" | "keycloakAdminUrl" | "logoutHintVerified" | "mobileClient" | "volumeSize" | "authSecretPrevious";
 
 export interface EnvDescriptor {
   /** When the app requires the variable. */
@@ -40,6 +40,8 @@ export const PLATFORM_ENV_KEYS = [
   "QUERY_LOG_RETENTION_DAYS",
   "STUDIO_PUBLIC_URL",
   "BRIDGE_SEAL_PUBLIC_KEY",
+  "PLATFORM_API_AUDIENCE",
+  "PLATFORM_API_CLIENT_IDS",
   "STORAGE_PROVIDER",
   "STORAGE_LOCAL_PATH",
   "PLATFORM_DB_VOLUME_BYTES",
@@ -186,6 +188,20 @@ export const PLATFORM_ENV: Readonly<Record<PlatformEnvKey, EnvDescriptor>> = {
     producer: "installer",
     value: "{{sealPublicKey}}",
     when: "always",
+  },
+  PLATFORM_API_AUDIENCE: {
+    required: "optional",
+    secret: false,
+    producer: "installer",
+    value: "libredb-platform-api",
+    when: "mobileClient",
+  },
+  PLATFORM_API_CLIENT_IDS: {
+    required: "optional",
+    secret: false,
+    producer: "installer",
+    value: "libredb-mobile",
+    when: "mobileClient",
   },
   STORAGE_PROVIDER: {
     required: "optional",

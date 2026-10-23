@@ -32,7 +32,7 @@ export const updateStudioSetting = safeAction(
     const error = studioSettingValueError(row, value)
     if (error) throw new ValidationError({ value: [error] })
 
-    await StudioSettingsRepository.set(key, value, user.id)
+    await StudioSettingsRepository.set(key, value, user.id, 'web')
     revalidatePath('/studio-settings')
     return { key }
   },

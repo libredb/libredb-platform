@@ -13,6 +13,7 @@ describe('recordAdminAction', () => {
 
     await recordAdminAction(tx, {
       actorId: 'user-1',
+      channel: 'web',
       action: 'connection.update',
       targetType: 'connection',
       targetId: 'conn-1',
@@ -33,6 +34,7 @@ describe('recordAdminAction', () => {
     expect(create).toHaveBeenCalledWith({
       data: {
         actorId: 'user-1',
+        channel: 'web',
         action: 'connection.update',
         targetType: 'connection',
         targetId: 'conn-1',
@@ -47,6 +49,7 @@ describe('recordAdminAction', () => {
 
     const result = await recordAdminAction(tx, {
       actorId: 'user-1',
+      channel: 'api',
       action: 'grant.revoke',
       targetType: 'grant',
       targetId: 'grant-1',
@@ -59,6 +62,7 @@ describe('recordAdminAction', () => {
     expect(create).toHaveBeenCalledWith({
       data: {
         actorId: 'user-1',
+        channel: 'api',
         action: 'grant.revoke',
         targetType: 'grant',
         targetId: 'grant-1',

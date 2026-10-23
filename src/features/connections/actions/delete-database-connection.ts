@@ -21,7 +21,7 @@ export const deleteDatabaseConnection = safeAction(
     const tenantId = user.currentTenantId
     if (!tenantId) throw new Error('No active tenant')
 
-    await DatabaseConnectionRepository.softDelete(tenantId, id, user.id)
+    await DatabaseConnectionRepository.softDelete(tenantId, id, user.id, 'web')
     revalidatePath('/connections')
     return { id }
   },

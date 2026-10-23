@@ -52,7 +52,7 @@ const ADMIN_REALM = `/admin/realms/${REALM}`;
 const packageRoot = join(import.meta.dir, "..", "..", "..");
 const config = loadConfig({
   file: join(packageRoot, "test", "fixtures", "configs", "docker.yaml"),
-  sets: [`keycloak.adminPort=${KEYCLOAK_PORT}`],
+  sets: [`keycloak.adminPort=${KEYCLOAK_PORT}`, "mobile.enabled=true"],
 });
 const installation = computeDesired(config, embeddedRelease());
 const BASE_URL = installation.keycloak.adminUrl;
@@ -303,8 +303,15 @@ async function tokenFor(form: Record<string, string>): Promise<string> {
 const userToken = (username: string, password: string) =>
   tokenFor({ grant_type: "password", client_id: "admin-cli", username, password });
 
-/** An authorization-code login with PKCE through the login form, with the form posted to the loopback port. */
-async function codeLogin(clientId: string, clientSecret: string, redirectUri: string): Promise<Record<string, unknown>> {
+/**
+ * An authorization-code login with PKCE through the login form, with the form posted to the loopback port, as a
+ * confidential client with its secret or as a public client without one. Returns the claims of both tokens.
+ */
+async function codeLoginTokens(
+  clientId: string,
+  clientSecret: string | undefined,
+  redirectUri: string,
+): Promise<{ id: Record<string, unknown>; access: Record<string, unknown> }> {
   const oidc = `${BASE_URL}/realms/${REALM}/protocol/openid-connect`;
   const verifier = randomBytes(32).toString("base64url");
   const nonce = randomBytes(16).toString("base64url");
@@ -350,13 +357,19 @@ async function codeLogin(clientId: string, clientSecret: string, redirectUri: st
       redirect_uri: redirectUri,
       code_verifier: verifier,
       client_id: clientId,
-      client_secret: clientSecret,
+      ...(clientSecret === undefined ? {} : { client_secret: clientSecret }),
     }),
   });
   expect(response.status).toBe(200);
-  const claims = decodeJwtPayload(((await response.json()) as { id_token: string }).id_token);
+  const tokens = (await response.json()) as { id_token: string; access_token: string };
+  const claims = decodeJwtPayload(tokens.id_token);
   expect(claims.nonce).toBe(nonce);
-  return claims;
+  return { id: claims, access: decodeJwtPayload(tokens.access_token) };
+}
+
+/** The claims of the ID token of codeLoginTokens. */
+async function codeLogin(clientId: string, clientSecret: string, redirectUri: string): Promise<Record<string, unknown>> {
+  return (await codeLoginTokens(clientId, clientSecret, redirectUri)).id;
 }
 
 /** The status of a password-grant token request of the realm's admin-cli client, which signs a user in. */
@@ -499,7 +512,7 @@ beforeAll(async () => {
     redactor,
     log: () => {},
   });
-  expect((await converge()).length).toBe(15);
+  expect((await converge()).length).toBe(19);
   // The realm's own test user, holding libredb:admin directly, as an admin assigns it in the realm console.
   const created = await operator().write(
     "POST",
@@ -523,7 +536,9 @@ beforeAll(async () => {
     [204],
   );
   // Hardening some sites apply: tokens carry only the roles in a client's scope.
-  for (const clientId of ["libredb-studio", "libredb-platform"]) await editClient(clientId, { fullScopeAllowed: false });
+  for (const clientId of ["libredb-studio", "libredb-platform", "libredb-mobile"]) {
+    await editClient(clientId, { fullScopeAllowed: false });
+  }
 }, LONG);
 
 afterAll(() => {
@@ -547,6 +562,55 @@ describe("keycloak configure", () => {
         libredb_roles: ["admin"],
       });
     }
+  });
+
+  test("with Full Scope Allowed off, a PKCE login through the public client libredb-mobile without a secret yields an access token for Studio's bearer channel and Platform's bearer API and an ID token with the role, and the password grant is refused", async () => {
+    const mobile = installation.clients.mobile;
+    if (mobile === undefined) throw new Error("the configuration does not enable the mobile app");
+    expect(await clientOf("libredb-mobile")).toMatchObject({ publicClient: true, fullScopeAllowed: false });
+    const { id, access } = await codeLoginTokens("libredb-mobile", undefined, mobile.redirectUri);
+    expect({ iss: id.iss, azp: id.azp, libredb_roles: id.libredb_roles }).toEqual({
+      iss: installation.issuer,
+      azp: "libredb-mobile",
+      libredb_roles: ["admin"],
+    });
+    // What Studio's bearer channel and Platform's bearer API read: their audiences in one token and never
+    // libredb-studio's, the client, the role and an identity.
+    const audience = typeof access.aud === "string" ? [access.aud] : (access.aud as string[]);
+    expect(audience).toContain("libredb-studio-api");
+    expect(audience).toContain("libredb-platform-api");
+    expect(audience).not.toContain("libredb-studio");
+    expect({
+      iss: access.iss,
+      azp: access.azp,
+      typ: access.typ,
+      libredb_roles: access.libredb_roles,
+      email: access.email,
+      preferred_username: access.preferred_username,
+      sub: access.sub,
+    }).toEqual({
+      iss: installation.issuer,
+      azp: "libredb-mobile",
+      typ: "Bearer",
+      libredb_roles: ["admin"],
+      email: ALICE.email,
+      preferred_username: ALICE.username,
+      sub: id.sub,
+    });
+    const password = await fetch(`${BASE_URL}${tokenPath(REALM)}`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "password",
+        client_id: "libredb-mobile",
+        username: ALICE.username,
+        password: ALICE.password,
+      }),
+    });
+    expect({ status: password.status, body: await password.json() }).toMatchObject({
+      status: 400,
+      body: { error: "unauthorized_client" },
+    });
   });
 
   test("a libredb-platform client-credentials token gets 200 on GET /admin/realms/libredb/clients/{libredb}/roles/admin/users and 403 on POST /admin/realms/libredb/users", async () => {
@@ -782,6 +846,7 @@ describe("keycloak configure", () => {
       `${ADMIN_REALM}/events?type=LOGIN&max=1000`,
     );
     expect(logins.filter((event) => event.userId === alice.id).map((event) => event.clientId).sort()).toEqual([
+      "libredb-mobile",
       "libredb-platform",
       "libredb-studio",
     ]);

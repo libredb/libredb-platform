@@ -38,6 +38,20 @@ describe("computeDesired", () => {
     });
   });
 
+  test("the mobile app's client URIs join the desired model only while mobile.enabled is true", () => {
+    const without = computeDesired(config(), manifestFixture());
+    expect(computeDesired(config({ mobile: { enabled: false } }), manifestFixture())).toEqual(without);
+    expect("mobile" in without.clients).toBe(false);
+    const enabled = computeDesired(
+      config({ mobile: { enabled: true, postLogoutRedirectUri: "org.libredb.mobile:/signed-out" } }),
+      manifestFixture(),
+    );
+    expect(enabled.clients).toEqual({
+      ...without.clients,
+      mobile: { redirectUri: "org.libredb.mobile:/oauth2redirect", postLogoutRedirectUri: "org.libredb.mobile:/signed-out" },
+    });
+  });
+
   test("the issuer follows the configured realm", () => {
     const desired = computeDesired(config({ keycloak: { realm: "corp" } }), manifestFixture());
     expect(desired.realm).toBe("corp");

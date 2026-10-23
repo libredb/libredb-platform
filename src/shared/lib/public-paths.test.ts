@@ -3,18 +3,23 @@ import { isPublicPath, publicPathsFor } from './public-paths'
 
 describe('public paths', () => {
   it('cloud mode treats sign-in, registration, password reset, Auth.js and health as public', () => {
-    expect(publicPathsFor('cloud')).toEqual(['/login', '/register', '/forgot-password', '/api/auth', '/api/health'])
+    expect(publicPathsFor('cloud')).toEqual(['/login', '/register', '/forgot-password', '/api/auth', '/api/health', '/api/v1'])
     for (const path of ['/login', '/register', '/forgot-password', '/api/auth/session', '/api/health/live']) {
       expect(isPublicPath(path, 'cloud')).toBe(true)
     }
   })
 
   it('self-hosted mode does not treat /register and /forgot-password as public', () => {
-    expect(publicPathsFor('self-hosted')).toEqual(['/login', '/api/auth', '/api/health'])
+    expect(publicPathsFor('self-hosted')).toEqual(['/login', '/api/auth', '/api/health', '/api/v1'])
     expect(isPublicPath('/register', 'self-hosted')).toBe(false)
     expect(isPublicPath('/forgot-password', 'self-hosted')).toBe(false)
     expect(isPublicPath('/login', 'self-hosted')).toBe(true)
     expect(isPublicPath('/api/auth/callback/keycloak', 'self-hosted')).toBe(true)
+  })
+
+  it('both modes serve the bearer API under /api/v1 without a session, because its routes authenticate themselves', () => {
+    expect(isPublicPath('/api/v1/me', 'cloud')).toBe(true)
+    expect(isPublicPath('/api/v1/me', 'self-hosted')).toBe(true)
   })
 
   it('neither mode treats an application page as public', () => {

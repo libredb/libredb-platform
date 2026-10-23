@@ -557,3 +557,165 @@ describe("planKeycloak", () => {
     expect(refusal(() => planKeycloak(desiredFixture(), observed)).message).toContain("client realm-management");
   });
 });
+
+const MOBILE_SETS = ["mobile.enabled=true"] as const;
+
+/** The converged realm with libredb-mobile as Keycloak holds it after the converge created it. */
+function convergedMobileFixture(): ObservedKeycloak {
+  const observed = convergedFixture();
+  const mobile = desiredFixture([...MOBILE_SETS]).appClients.find((client) => client.representation.clientId === "libredb-mobile");
+  if (mobile === undefined) throw new Error("the desired objects have no client libredb-mobile");
+  observed.clients.push({
+    representation: {
+      ...mobile.representation,
+      id: "mobile-client-id",
+      fullScopeAllowed: true,
+      attributes: { ...mobile.representation.attributes, "backchannel.logout.session.required": "true" },
+      protocolMappers: mobile.protocolMappers.map((mapper, index) => ({
+        ...mapper,
+        id: ["audience-mapper-id", "platform-audience-mapper-id"][index],
+        config: { ...mapper.config, "lightweight.claim": "false" },
+      })),
+      defaultClientScopes: ["web-origins", "acr", "profile", "roles", "libredb-roles", "basic", "email"],
+      optionalClientScopes: ["address", "phone", "offline_access", "organization", "microprofile-jwt"],
+    },
+    roles: [],
+    scopeMappings: {},
+  });
+  return observed;
+}
+
+describe("planKeycloak with the mobile app", () => {
+  test("an empty realm creates libredb-mobile after the app clients, with the roles scope and both audience mappers", async () => {
+    const actions = planKeycloak(desiredFixture([...MOBILE_SETS]), observedFixture("empty-realm"));
+    const without = summaries(planKeycloak(desiredFixture(), observedFixture("empty-realm")));
+    // basic, profile and email are default scopes of the realm, which Keycloak gives every client it creates.
+    const created = [
+      "create client libredb-mobile",
+      "add default client scope libredb-roles to client libredb-mobile",
+      "create protocol mapper libredb studio api audience on client libredb-mobile",
+      "create protocol mapper libredb platform api audience on client libredb-mobile",
+    ];
+    const users = without.findIndex((summary) => summary.startsWith("create user "));
+    expect(summaries(actions)).toEqual([...without.slice(0, users), ...created, ...without.slice(users)]);
+    const context = fakeRequestContext({ "libredb-admin": "first-admin-temporary", "libredb-user-manager": "manager-temporary" });
+    const mobile = actions.filter((action) => created.includes(action.summary));
+    const requests = await Promise.all(mobile.map((action) => adminRequest("libredb", action, context)));
+    expect(requests.map((request) => `${request.method} ${request.path} ${request.expected.join(",")}`)).toEqual([
+      `POST ${REALM}/clients 201`,
+      `PUT ${REALM}/clients/cid-libredb-mobile/default-client-scopes/sid-libredb-roles 204`,
+      `POST ${REALM}/clients/cid-libredb-mobile/protocol-mappers/models 201`,
+      `POST ${REALM}/clients/cid-libredb-mobile/protocol-mappers/models 201`,
+    ]);
+    expect(requests[0]?.body).toMatchObject({ clientId: "libredb-mobile", publicClient: true, directAccessGrantsEnabled: false });
+    expect(requests[0]?.body).not.toHaveProperty("secret");
+    expect(requests[2]?.body).toEqual({
+      name: "libredb studio api audience",
+      protocol: "openid-connect",
+      protocolMapper: "oidc-audience-mapper",
+      consentRequired: false,
+      config: {
+        "included.custom.audience": "libredb-studio-api",
+        "id.token.claim": "false",
+        "access.token.claim": "true",
+        "introspection.token.claim": "true",
+      },
+    });
+    expect(requests[3]?.body).toMatchObject({
+      name: "libredb platform api audience",
+      protocolMapper: "oidc-audience-mapper",
+      config: { "included.custom.audience": "libredb-platform-api", "id.token.claim": "false", "access.token.claim": "true" },
+    });
+  });
+
+  test("a libredb-mobile that has only Studio's audience mapper gets Platform's added, and nothing else changes", () => {
+    const observed = convergedMobileFixture();
+    const mobile = clientOf(observed, "libredb-mobile").representation;
+    mobile.protocolMappers = (mobile.protocolMappers ?? []).slice(0, 1);
+    expect(summaries(planKeycloak(desiredFixture([...MOBILE_SETS]), observed))).toEqual([
+      "create protocol mapper libredb platform api audience on client libredb-mobile",
+    ]);
+  });
+
+  test("a converged realm plans no action, and turning the mobile app off leaves libredb-mobile alone", () => {
+    expect(planKeycloak(desiredFixture([...MOBILE_SETS]), convergedMobileFixture())).toEqual([]);
+    expect(planKeycloak(desiredFixture(["mobile.enabled=false"]), convergedMobileFixture())).toEqual([]);
+  });
+
+  test("a confidential client, a turned-on password grant and lost identity scopes converge back", () => {
+    const observed = convergedMobileFixture();
+    const mobile = clientOf(observed, "libredb-mobile").representation;
+    mobile.publicClient = false;
+    mobile.directAccessGrantsEnabled = true;
+    mobile.defaultClientScopes = (mobile.defaultClientScopes ?? []).filter((name) => name !== "basic" && name !== "email");
+    expect(summaries(planKeycloak(desiredFixture([...MOBILE_SETS]), observed))).toEqual([
+      "update client libredb-mobile (publicClient, directAccessGrantsEnabled)",
+      "add default client scope email to client libredb-mobile",
+      "add default client scope basic to client libredb-mobile",
+    ]);
+  });
+
+  test("the audience mapper converges on its config or is replaced under another type, and the client's other mappers are kept", async () => {
+    const observed = convergedMobileFixture();
+    const mobile = clientOf(observed, "libredb-mobile").representation;
+    const [mapper, platformMapper] = mobile.protocolMappers ?? [];
+    if (mapper === undefined || platformMapper === undefined) throw new Error("the fixture client lacks a mapper");
+    const foreign = { id: "foreign", name: "site claim", protocol: "openid-connect", protocolMapper: "oidc-hardcoded-claim-mapper", config: {} };
+    mobile.protocolMappers = [
+      { ...mapper, config: { ...mapper.config, "included.custom.audience": "libredb-studio", "access.token.claim": "false" } },
+      platformMapper,
+      foreign,
+    ];
+    const actions = planKeycloak(desiredFixture([...MOBILE_SETS]), observed);
+    expect(summaries(actions)).toEqual([
+      "update protocol mapper libredb studio api audience on client libredb-mobile (included.custom.audience, access.token.claim)",
+    ]);
+    const request = await adminRequest("libredb", actions[0] as KeycloakAction, fakeRequestContext());
+    expect(request).toEqual({
+      method: "PUT",
+      path: `${REALM}/clients/cid-libredb-mobile/protocol-mappers/models/audience-mapper-id`,
+      body: {
+        ...mapper,
+        id: "audience-mapper-id",
+        config: { ...mapper.config, "included.custom.audience": "libredb-studio-api", "access.token.claim": "true" },
+      },
+      expected: [204],
+    });
+
+    mobile.protocolMappers = [{ ...mapper, protocolMapper: "oidc-hardcoded-claim-mapper" }, platformMapper, foreign];
+    const replaced = planKeycloak(desiredFixture([...MOBILE_SETS]), observed);
+    expect(summaries(replaced)).toEqual([
+      "delete protocol mapper libredb studio api audience from client libredb-mobile",
+      "create protocol mapper libredb studio api audience on client libredb-mobile",
+    ]);
+    expect(await adminRequest("libredb", replaced[0] as KeycloakAction, fakeRequestContext())).toEqual({
+      method: "DELETE",
+      path: `${REALM}/clients/cid-libredb-mobile/protocol-mappers/models/audience-mapper-id`,
+      expected: [204],
+    });
+
+    mobile.protocolMappers = [{ ...mapper, id: undefined, protocolMapper: "x" }, platformMapper];
+    expect(() => planKeycloak(desiredFixture([...MOBILE_SETS]), observed)).toThrow(
+      "Keycloak returned the protocol mapper libredb studio api audience of client libredb-mobile without an id",
+    );
+  });
+
+  test("an unmarked libredb-mobile is refused with exit 6, and a pairwise subject mapper on it with exit 3", () => {
+    const unmarked = convergedMobileFixture();
+    const mobile = clientOf(unmarked, "libredb-mobile").representation;
+    mobile.attributes = { ...mobile.attributes, "libredb.managed": "false" };
+    const error = refusal(() => planKeycloak(desiredFixture([...MOBILE_SETS]), unmarked));
+    expect(error.exitCode).toBe(6);
+    expect(error.message).toContain("client libredb-mobile");
+
+    const pairwise = convergedMobileFixture();
+    const client = clientOf(pairwise, "libredb-mobile").representation;
+    client.protocolMappers = [
+      ...(client.protocolMappers ?? []),
+      { id: "p", name: "pairwise", protocol: "openid-connect", protocolMapper: "oidc-sha256-pairwise-sub-mapper", config: {} },
+    ];
+    const refused = refusal(() => planKeycloak(desiredFixture([...MOBILE_SETS]), pairwise));
+    expect(refused.exitCode).toBe(3);
+    expect(refused.message).toContain("client libredb-mobile has the mapper pairwise of type oidc-sha256-pairwise-sub-mapper");
+  });
+});

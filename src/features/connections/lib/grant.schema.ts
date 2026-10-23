@@ -19,8 +19,13 @@ const MAX_DIRECTORY_PAGE = 100_000
 export const setConnectionGrantSchema = z.strictObject({
   connectionId: z.string().min(1),
   // The Keycloak user id, the OIDC sub of the issuer: opaque text of up to 512 characters, because an LDAP-federated
-  // user without import has an id such as f:<component>:<username>.
-  subject: z.string().min(1).max(512),
+  // user without import has an id such as f:<component>:<username>. The directory refuses "." and "..", which the URL
+  // parser would resolve to another Admin API path, so they never name a user.
+  subject: z
+    .string()
+    .min(1)
+    .max(512)
+    .refine((value) => value !== '.' && value !== '..', 'cannot be "." or ".."'),
   level: z.enum(GRANT_LEVELS),
   // When the grant stops; the action refuses a time that is not in the future.
   expiresAt: z.coerce.date({ error: 'must be a date, or null for a grant that does not expire' }).nullable(),

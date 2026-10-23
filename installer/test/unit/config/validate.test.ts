@@ -899,3 +899,51 @@ describe("tls modes", () => {
     ).toEqual(["tls.provided: is read only in tls.mode provided", "tls.external: is read only in tls.mode external"]);
   });
 });
+
+describe("mobile app", () => {
+  const REDIRECT = "org.libredb.mobile:/oauth2redirect";
+
+  test("is absent unless set, and takes the app's redirect URI for both URIs by default", () => {
+    expect("mobile" in parseInstallation(minimal())).toBe(false);
+    expect(parseInstallation(minimal({ mobile: { enabled: true } })).mobile).toEqual({
+      enabled: true,
+      redirectUri: REDIRECT,
+      postLogoutRedirectUri: REDIRECT,
+    });
+    expect(parseInstallation(minimal({ mobile: { enabled: false } })).mobile).toEqual({
+      enabled: false,
+      redirectUri: REDIRECT,
+      postLogoutRedirectUri: REDIRECT,
+    });
+  });
+
+  test("keeps a private-use scheme in reverse domain name form or an https URL that the configuration sets", () => {
+    const mobile = parseInstallation(
+      minimal({
+        mobile: {
+          enabled: true,
+          redirectUri: "com.corp.libredb:/oauth2redirect",
+          postLogoutRedirectUri: "https://app.corp.example/signed-out",
+        },
+      }),
+    ).mobile;
+    expect(mobile).toEqual({
+      enabled: true,
+      redirectUri: "com.corp.libredb:/oauth2redirect",
+      postLogoutRedirectUri: "https://app.corp.example/signed-out",
+    });
+  });
+
+  test("needs enabled, refuses unknown keys, and refuses a URI an attacker's app or page could claim", () => {
+    expect(issuesOf(minimal({ mobile: {} }))).toEqual(["mobile.enabled: Invalid input: expected boolean, received undefined"]);
+    expect(issuesOf(minimal({ mobile: { enabled: true, clientId: "app" } }))).toEqual([
+      'mobile: Unrecognized key: "clientId"',
+    ]);
+    const expected =
+      "expected a private-use URI scheme in reverse domain name form, such as org.libredb.mobile:/oauth2redirect, or " +
+      "an https:// URL, without a wildcard or a fragment";
+    for (const uri of ["libredb:/oauth2redirect", "http://app.corp.example/cb", "org.libredb.mobile:/*", "https://app.corp.example/cb#x", "not a uri"]) {
+      expect(issuesOf(minimal({ mobile: { enabled: true, redirectUri: uri } }))).toEqual([`mobile.redirectUri: ${expected}`]);
+    }
+  });
+});

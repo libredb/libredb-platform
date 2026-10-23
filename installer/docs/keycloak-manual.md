@@ -73,13 +73,35 @@ Without them Platform's session recheck, directory sync and grant search fail, a
 
 Neither app client may carry a pairwise subject identifier mapper, because both apps key every user by the `sub` claim.
 
-## 5. Users
+## 5. Client `libredb-mobile`, only with the mobile app
+
+Create this client only when `libredb.yaml` sets `mobile.enabled: true`; the export lists it then too.
+`<mobile-redirect>` is `mobile.redirectUri` and `<mobile-post-logout>` is `mobile.postLogoutRedirectUri`, both `org.libredb.mobile:/oauth2redirect` by default.
+
+1. Open Clients, then Create client.
+2. Set Client ID to `libredb-mobile` and Name to `LibreDB Mobile`, then Next.
+3. Keep Client authentication off, keep Standard flow on, and turn every other flow off, Direct access grants and Implicit flow included.
+4. Next, set Valid redirect URIs to exactly `<mobile-redirect>` and Valid post logout redirect URIs to `<mobile-post-logout>`, then Save.
+5. Open the Advanced tab, and under Advanced settings set Proof Key for Code Exchange Code Challenge Method to S256, then Save.
+6. Open the Client scopes tab, choose Add client scope, select `libredb-roles` and add it as Default.
+   Keep `basic`, `profile` and `email` among the default scopes, because Studio needs `sub` and `email` or `preferred_username` in the access token.
+7. On the same tab open `libredb-mobile-dedicated`, choose Configure a new mapper, then Audience.
+8. Set Name to `libredb studio api audience`, leave Included Client Audience empty, and set Included Custom Audience to `libredb-studio-api`.
+9. Turn Add to ID token off, and Add to access token and Add to token introspection on, then Save.
+10. Repeat steps 7 to 9 with Name `libredb platform api audience` and Included Custom Audience `libredb-platform-api`.
+
+The client has no secret, so the installer checks it through the service account of `libredb-platform` only.
+The first mapper must name `libredb-studio-api` and never `libredb-studio`, because Studio refuses a token whose audience names its own client as a bearer.
+The second puts `libredb-platform-api` into the same access token, the audience that Platform's bearer API checks.
+The bearer channel needs a Studio release that contains libredb-studio#1914, as [the installer's README](../README.md#mobile-app) describes.
+
+## 6. Users
 
 Users and their role assignments stay with the identity team.
 Give each LibreDB user the client role `admin` or `user` of client `libredb`, directly (Users, the user, Role mapping, Assign role, filter by clients) or through a group.
 A role reached only through a composite role is not seen by Platform's directory sync and is not supported.
 
-## 6. The installer
+## 7. The installer
 
 Store the two secrets in files that only root can read, or in environment variables of the installer, and set them in `libredb.yaml`:
 

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { STUDIO_ENV, STUDIO_FORBIDDEN, type StudioEnvKey } from "../../../src/contracts/studio";
+import { MOBILE_CLIENT_ID, STUDIO_API_AUDIENCE } from "../../../src/keycloak/desired";
 import { EnvRenderError, renderEnv } from "../../../src/model/env-render";
 import { renderStudioEnv, type StudioEnvInputs } from "../../../src/model/studio-env";
 import { desiredFixture, POSTGRES } from "./fixture";
@@ -69,6 +70,19 @@ describe("renderStudioEnv", () => {
     expect(renderStudioEnv(desiredFixture({}, true), inputs).OIDC_LOGOUT_HINT).toBe("true");
   });
 
+  test("turns Studio's bearer channel on for libredb-mobile only while mobile.enabled is true", () => {
+    const plain = renderStudioEnv(desiredFixture(), inputs);
+    expect(renderStudioEnv(desiredFixture({ mobile: { enabled: false } }), inputs)).toEqual(plain);
+    expect(plain.OIDC_BEARER_AUDIENCE).toBeUndefined();
+    expect(plain.OIDC_BEARER_CLIENT_IDS).toBeUndefined();
+    const mobile = renderStudioEnv(desiredFixture({ mobile: { enabled: true } }), inputs);
+    expect(mobile).toEqual({ ...plain, OIDC_BEARER_AUDIENCE: "libredb-studio-api", OIDC_BEARER_CLIENT_IDS: "libredb-mobile" });
+    // The audience the mobile client's tokens carry and the client Keycloak issues them to, as desired.ts names them.
+    expect(mobile.OIDC_BEARER_AUDIENCE).toBe(STUDIO_API_AUDIENCE);
+    expect(mobile.OIDC_BEARER_CLIENT_IDS).toBe(MOBILE_CLIENT_ID);
+    expect(mobile.OIDC_BEARER_AUDIENCE).not.toBe(mobile.OIDC_CLIENT_ID);
+  });
+
   test("writes HTTPS_PROXY and NODE_USE_ENV_PROXY=1 only when network.httpsProxy is set", () => {
     const plain = renderStudioEnv(desiredFixture(), inputs);
     expect(plain.HTTPS_PROXY).toBeUndefined();
@@ -94,6 +108,7 @@ describe("renderEnv", () => {
     httpsProxy: false,
     keycloakAdminUrl: false,
     logoutHintVerified: false,
+    mobileClient: false,
     volumeSize: false,
     authSecretPrevious: false,
   };

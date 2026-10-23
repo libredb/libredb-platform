@@ -1,15 +1,17 @@
 // The Keycloak objects that Platform and Studio rely on, as one configuration asks for them: the role holder `libredb`
 // with the client roles `admin` and `user`, the client scope `libredb-roles` that writes them into the flat claim
-// `libredb_roles`, the app clients `libredb-studio` and `libredb-platform`, and the installation's two accounts: the
+// `libredb_roles`, the app clients `libredb-studio` and `libredb-platform`, the public client `libredb-mobile` of the
+// mobile app while the configuration enables it, and the installation's two accounts: the
 // first LibreDB admin, and the user manager that administers users without holding a LibreDB role. In the realm the
 // installer creates in its own Keycloak, it also owns the realm's brute force detection, password policy and events.
 import type { LibreDBInstallation } from "../config/schema";
-import { DEFAULT_QUERY_LOG_RETENTION_DAYS, type DesiredInstallation } from "../model/desired";
+import { DEFAULT_QUERY_LOG_RETENTION_DAYS, type ClientUris, type DesiredInstallation } from "../model/desired";
 import {
   MANAGED_ATTRIBUTE,
   type ClientRepresentation,
   type ClientRoleNames,
   type ClientScopeRepresentation,
+  type ProtocolMapperRepresentation,
   type RealmRepresentation,
   type RoleRepresentation,
 } from "./representations";
@@ -19,6 +21,18 @@ export const ROLES_SCOPE = "libredb-roles";
 export const ROLES_CLAIM = "libredb_roles";
 export const REALM_MANAGEMENT = "realm-management";
 export const APP_CLIENT_IDS = { studio: "libredb-studio", platform: "libredb-platform" } as const;
+
+/** The public client of the mobile app, which Studio's OIDC_BEARER_CLIENT_IDS names. */
+export const MOBILE_CLIENT_ID = "libredb-mobile";
+
+/**
+ * The audience Studio's OIDC_BEARER_AUDIENCE names, which the mobile app's access tokens carry. It is not
+ * libredb-studio, the audience of every ID token Studio's web sign-in receives, which Studio refuses as a bearer.
+ */
+export const STUDIO_API_AUDIENCE = "libredb-studio-api";
+
+/** The audience Platform's PLATFORM_API_AUDIENCE names, which the mobile app's access tokens carry beside Studio's. */
+export const PLATFORM_API_AUDIENCE = "libredb-platform-api";
 
 /** The secret store names of the app client secrets, which the app environments read too. */
 export const CLIENT_SECRET_NAMES = {
@@ -48,6 +62,8 @@ export interface DesiredClient {
   roles: RoleRepresentation[];
   /** The client scopes that must be default scopes of the client besides the realm's default client scopes. */
   defaultClientScopes: string[] | undefined;
+  /** The protocol mappers the client itself must have, by name; Keycloak keeps them in the client's dedicated scope. */
+  protocolMappers: ProtocolMapperRepresentation[];
   /** Client roles that must be in the client's own scope mappings. */
   scopeMappings: ClientRoleNames;
   /** The exact client roles of the client's service account, per role client; undefined without a service account. */
@@ -89,7 +105,10 @@ export interface DesiredKeycloak {
 }
 
 export interface KeycloakDesiredInputs {
-  /** The realm, the redirect and post-logout URIs of the app clients, and whether the installer runs Keycloak. */
+  /**
+   * The realm, the redirect and post-logout URIs of the app clients and of the mobile app's client when it is enabled,
+   * and whether the installer runs Keycloak.
+   */
   installation: Pick<DesiredInstallation, "realm" | "clients"> & { keycloak: Pick<DesiredInstallation["keycloak"], "managed"> };
   keycloak: Pick<LibreDBInstallation["keycloak"], "firstAdmin" | "userManager">;
   /**
@@ -130,6 +149,7 @@ function roleClient(): DesiredClient {
     },
     roles: [role("admin", "LibreDB administrator"), role("user", "LibreDB user")],
     defaultClientScopes: undefined,
+    protocolMappers: [],
     scopeMappings: {},
     serviceAccountRoles: undefined,
   };
@@ -174,7 +194,7 @@ function appClient(
   clientId: string,
   name: string,
   secret: string | undefined,
-  uris: DesiredInstallation["clients"]["studio"],
+  uris: ClientUris,
   serviceAccount: boolean,
   attributes: Record<string, string> = {},
 ): DesiredClient {
@@ -202,10 +222,68 @@ function appClient(
     },
     roles: [],
     defaultClientScopes: [ROLES_SCOPE],
+    protocolMappers: [],
     // Keycloak lets a service account use a role only when the role is in its client's scope, so these mappings keep
     // the directory readable when Full Scope Allowed is off.
     scopeMappings: serviceAccount ? { [REALM_MANAGEMENT]: [...PLATFORM_DIRECTORY_ROLES] } : {},
     serviceAccountRoles: serviceAccount ? { [REALM_MANAGEMENT]: [...PLATFORM_DIRECTORY_ROLES] } : undefined,
+  };
+}
+
+// The scopes that put sub, preferred_username and email into the mobile app's access token, which Studio's bearer
+// channel needs besides the roles; a client Keycloak creates gets them from the realm's defaults, and an existing
+// client gets them back.
+const MOBILE_IDENTITY_SCOPES = ["basic", "profile", "email"];
+
+/** An audience mapper that adds one custom audience to the access token alone, since Keycloak's takes one per mapper. */
+function audienceMapper(name: string, audience: string): ProtocolMapperRepresentation {
+  return {
+    name,
+    protocol: "openid-connect",
+    protocolMapper: "oidc-audience-mapper",
+    consentRequired: false,
+    config: {
+      "included.custom.audience": audience,
+      "id.token.claim": "false",
+      "access.token.claim": "true",
+      "introspection.token.claim": "true",
+    },
+  };
+}
+
+/**
+ * The mobile app's client: public, because an app on a phone cannot keep a secret, signing in with the standard flow
+ * and PKCE S256 only, with the roles scope and audience mappers that name the audiences Studio's bearer channel and
+ * Platform's bearer API check in the access token alone.
+ */
+function mobileClient(uris: ClientUris): DesiredClient {
+  return {
+    representation: {
+      clientId: MOBILE_CLIENT_ID,
+      name: "LibreDB Mobile",
+      protocol: "openid-connect",
+      enabled: true,
+      publicClient: true,
+      standardFlowEnabled: true,
+      implicitFlowEnabled: false,
+      directAccessGrantsEnabled: false,
+      serviceAccountsEnabled: false,
+      redirectUris: [uris.redirectUri],
+      attributes: {
+        [MANAGED_ATTRIBUTE]: "true",
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": uris.postLogoutRedirectUri,
+        ...OTHER_GRANTS_OFF,
+      },
+    },
+    roles: [],
+    defaultClientScopes: [...MOBILE_IDENTITY_SCOPES, ROLES_SCOPE],
+    protocolMappers: [
+      audienceMapper("libredb studio api audience", STUDIO_API_AUDIENCE),
+      audienceMapper("libredb platform api audience", PLATFORM_API_AUDIENCE),
+    ],
+    scopeMappings: {},
+    serviceAccountRoles: undefined,
   };
 }
 
@@ -303,6 +381,7 @@ export function desiredKeycloak(inputs: KeycloakDesiredInputs): DesiredKeycloak 
         true,
         REFRESH_TOKENS_ON,
       ),
+      ...(installation.clients.mobile === undefined ? [] : [mobileClient(installation.clients.mobile)]),
     ],
     users,
   };

@@ -37,6 +37,7 @@ const CONDITIONS = [
   "httpsProxy",
   "keycloakAdminUrl",
   "logoutHintVerified",
+  "mobileClient",
   "volumeSize",
   "authSecretPrevious",
 ] as const;

@@ -1,3 +1,4 @@
+import type { AdminActionChannel } from '@prisma/client'
 import { db } from '@/shared/lib/db'
 import { recordAdminAction } from '@/shared/lib/admin-actions'
 import { toStudioSettingField, type StudioSettingField, type StudioSettingValue } from './setting-value'
@@ -20,7 +21,7 @@ export const StudioSettingsRepository = {
   },
 
   /** Writes the value and its admin action in one transaction; the validation trigger rechecks the value. */
-  set(key: string, value: StudioSettingValue, actorId: string) {
+  set(key: string, value: StudioSettingValue, actorId: string, channel: AdminActionChannel) {
     return db.$transaction(async (tx) => {
       const before = await tx.studioSetting.findUnique({ where: { key } })
       await tx.studioSetting.upsert({
@@ -30,6 +31,7 @@ export const StudioSettingsRepository = {
       })
       await recordAdminAction(tx, {
         actorId,
+        channel,
         action: 'settings.update',
         targetType: TARGET_TYPE,
         targetId: key,
@@ -40,13 +42,14 @@ export const StudioSettingsRepository = {
   },
 
   /** Deletes the value so Studio applies its default, with an admin action when a value existed. */
-  reset(key: string, actorId: string) {
+  reset(key: string, actorId: string, channel: AdminActionChannel) {
     return db.$transaction(async (tx) => {
       const before = await tx.studioSetting.findUnique({ where: { key } })
       if (!before) return
       await tx.studioSetting.deleteMany({ where: { key } })
       await recordAdminAction(tx, {
         actorId,
+        channel,
         action: 'settings.reset',
         targetType: TARGET_TYPE,
         targetId: key,

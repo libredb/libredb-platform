@@ -1,4 +1,4 @@
-import type { ConnectionGrant, GrantLevel, Prisma } from '@prisma/client'
+import type { AdminActionChannel, ConnectionGrant, GrantLevel, Prisma } from '@prisma/client'
 import { db } from '@/shared/lib/db'
 import { recordAdminAction } from '@/shared/lib/admin-actions'
 import { NotFoundError } from '@/shared/lib/errors'
@@ -49,6 +49,7 @@ export async function deleteConnectionGrants(
   tx: Prisma.TransactionClient,
   connectionId: string,
   actorId: string,
+  channel: AdminActionChannel,
 ): Promise<void> {
   const grants = await tx.connectionGrant.findMany({
     where: { connectionId },
@@ -59,6 +60,7 @@ export async function deleteConnectionGrants(
   for (const grant of grants) {
     await recordAdminAction(tx, {
       actorId,
+      channel,
       action: 'grant.revoke',
       targetType: TARGET_TYPE,
       targetId: grant.id,
@@ -102,6 +104,7 @@ export const ConnectionGrantRepository = {
   set(
     tenantId: string,
     actorId: string,
+    channel: AdminActionChannel,
     grant: GrantSetting,
     now: Date,
     license: LicenseStatus | null,
@@ -126,6 +129,7 @@ export const ConnectionGrantRepository = {
       })
       await recordAdminAction(tx, {
         actorId,
+        channel,
         action: before === null ? 'grant.create' : 'grant.update',
         targetType: TARGET_TYPE,
         targetId: row.id,
@@ -138,18 +142,30 @@ export const ConnectionGrantRepository = {
 
   /**
    * Deletes a grant on a connection of the tenant that is not deleted, with its admin action in one transaction.
-   * NotFound for a grant of another tenant and for one that another admin revoked first.
+   * NotFound for a grant of another tenant, for one that another admin revoked first, and, when `connectionId` is
+   * given, for a grant of any other connection.
    */
-  revoke(tenantId: string, grantId: string, actorId: string): Promise<{ connectionId: string }> {
+  revoke(
+    tenantId: string,
+    grantId: string,
+    actorId: string,
+    channel: AdminActionChannel,
+    connectionId?: string,
+  ): Promise<{ connectionId: string }> {
     return db.$transaction(async (tx) => {
       const grant = await tx.connectionGrant.findFirst({
-        where: { id: grantId, connection: { tenantId, deletedAt: null } },
+        where: {
+          id: grantId,
+          ...(connectionId === undefined ? {} : { connectionId }),
+          connection: { tenantId, deletedAt: null },
+        },
       })
       if (!grant) throw new NotFoundError('Grant')
       const { count } = await tx.connectionGrant.deleteMany({ where: { id: grant.id } })
       if (count === 0) throw new NotFoundError('Grant')
       await recordAdminAction(tx, {
         actorId,
+        channel,
         action: 'grant.revoke',
         targetType: TARGET_TYPE,
         targetId: grant.id,

@@ -40,6 +40,7 @@ export const createDatabaseConnection = safeAction(
     const created = await DatabaseConnectionRepository.create(
       tenantId,
       user.id,
+      'web',
       {
         id,
         name: input.name,

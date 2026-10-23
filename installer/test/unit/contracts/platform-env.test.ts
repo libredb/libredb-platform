@@ -3,6 +3,7 @@ import { exitCodeOf } from "../../../src/cli/commands/docker-session";
 import { ExitCode } from "../../../src/cli/exit-codes";
 import { PLATFORM_ENV, PLATFORM_MIGRATE_ENV, type PlatformEnvKey } from "../../../src/contracts/platform";
 import { ConfigError } from "../../../src/config/schema";
+import { MOBILE_CLIENT_ID, PLATFORM_API_AUDIENCE } from "../../../src/keycloak/desired";
 import { formatLogLine, REDACTED, Redactor } from "../../../src/log/redact";
 import {
   readAuthSecretPrevious,
@@ -122,6 +123,18 @@ describe("renderPlatformEnv", () => {
     expect(env.HTTPS_PROXY).toBe("https://proxy.corp:3128");
     expect(env.NODE_USE_ENV_PROXY).toBe("1");
     expect(env.PLATFORM_DB_VOLUME_BYTES).toBe("21474836480");
+  });
+
+  test("turns Platform's bearer API on for libredb-mobile only while mobile.enabled is true", () => {
+    const plain = renderPlatformEnv(desiredFixture(), inputs);
+    expect(renderPlatformEnv(desiredFixture({ mobile: { enabled: false } }), inputs)).toEqual(plain);
+    expect(plain.PLATFORM_API_AUDIENCE).toBeUndefined();
+    expect(plain.PLATFORM_API_CLIENT_IDS).toBeUndefined();
+    const mobile = renderPlatformEnv(desiredFixture({ mobile: { enabled: true } }), inputs);
+    expect(mobile).toEqual({ ...plain, PLATFORM_API_AUDIENCE: "libredb-platform-api", PLATFORM_API_CLIENT_IDS: "libredb-mobile" });
+    // The audience the mobile client's tokens carry and the client Keycloak issues them to, as desired.ts names them.
+    expect(mobile.PLATFORM_API_AUDIENCE).toBe(PLATFORM_API_AUDIENCE);
+    expect(mobile.PLATFORM_API_CLIENT_IDS).toBe(MOBILE_CLIENT_ID);
   });
 
   test("never writes a variable whose producer is the app default or the operator", () => {

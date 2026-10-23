@@ -63,6 +63,7 @@ describe('ConnectionGrantRepository on PostgreSQL', () => {
     await connections.create(
       TENANT_A,
       ACTOR_ID,
+      'web',
       {
         id,
         name: 'Orders',
@@ -148,7 +149,7 @@ describe('ConnectionGrantRepository on PostgreSQL', () => {
     await listener.flush()
 
     const granted = new Date(Date.now() - 1_000)
-    const { id } = await grants.set(TENANT_A, ACTOR_ID, setting(connectionId, bob), granted, UNGATED)
+    const { id } = await grants.set(TENANT_A, ACTOR_ID, 'web', setting(connectionId, bob), granted, UNGATED)
 
     expect(await listener.flush()).toEqual([{ v: 1, kind: 'grants' }])
     expect(await published(connectionId)).toEqual([{ subject: bob, level: 'read', expires_at: null, downgraded: false }])
@@ -170,6 +171,7 @@ describe('ConnectionGrantRepository on PostgreSQL', () => {
     const replaced = await grants.set(
       TENANT_A,
       ACTOR_ID,
+      'web',
       setting(connectionId, bob, { level: 'write', expiresAt, subjectEmail: null }),
       changed,
       UNGATED,
@@ -206,7 +208,7 @@ describe('ConnectionGrantRepository on PostgreSQL', () => {
       subjectEmail: 'probe@libredb.test',
       expiresAt: new Date(now.getTime() + 1),
     })
-    await grants.set(TENANT_A, ACTOR_ID, own, now, UNGATED)
+    await grants.set(TENANT_A, ACTOR_ID, 'web', own, now, UNGATED)
 
     expect(await grantActions(connectionId)).toEqual([
       expect.objectContaining({ action: 'grant.create', after: expect.objectContaining({ selfGrant: true }) }),
@@ -216,26 +218,27 @@ describe('ConnectionGrantRepository on PostgreSQL', () => {
   it('revoke deletes a grant of its own tenant only, and softDelete deletes the grants of the connection with it', async () => {
     const connectionId = await newConnection()
     const [bob, erin] = [randomUUID(), randomUUID()]
-    const { id: bobGrant } = await grants.set(TENANT_A, ACTOR_ID, setting(connectionId, bob), new Date(), UNGATED)
+    const { id: bobGrant } = await grants.set(TENANT_A, ACTOR_ID, 'web', setting(connectionId, bob), new Date(), UNGATED)
     const { id: erinGrant } = await grants.set(
       TENANT_A,
       ACTOR_ID,
+      'web',
       setting(connectionId, erin, { subjectUsername: 'erin' }),
       new Date(),
       UNGATED,
     )
     await listener.flush()
 
-    await expect(grants.revoke(TENANT_B, bobGrant, ACTOR_ID)).rejects.toThrow('Grant not found')
+    await expect(grants.revoke(TENANT_B, bobGrant, ACTOR_ID, 'web')).rejects.toThrow('Grant not found')
     expect(await published(connectionId)).toHaveLength(2)
 
-    expect(await grants.revoke(TENANT_A, bobGrant, ACTOR_ID)).toEqual({ connectionId })
+    expect(await grants.revoke(TENANT_A, bobGrant, ACTOR_ID, 'web')).toEqual({ connectionId })
 
     expect(await listener.flush()).toEqual([{ v: 1, kind: 'grants' }])
     expect((await published(connectionId)).map((row) => row.subject)).toEqual([erin])
-    await expect(grants.revoke(TENANT_A, bobGrant, ACTOR_ID)).rejects.toThrow('Grant not found')
+    await expect(grants.revoke(TENANT_A, bobGrant, ACTOR_ID, 'web')).rejects.toThrow('Grant not found')
 
-    await connections.softDelete(TENANT_A, connectionId, ACTOR_ID)
+    await connections.softDelete(TENANT_A, connectionId, ACTOR_ID, 'web')
 
     expect(await stored(connectionId)).toEqual([])
     const kinds = (await listener.flush()).map((payload) => (payload as { kind: string }).kind).sort()
@@ -247,15 +250,36 @@ describe('ConnectionGrantRepository on PostgreSQL', () => {
       ['grant.revoke', erinGrant],
     ])
     // A grant on a deleted connection is gone with it.
-    await expect(grants.revoke(TENANT_A, erinGrant, ACTOR_ID)).rejects.toThrow('Grant not found')
+    await expect(grants.revoke(TENANT_A, erinGrant, ACTOR_ID, 'web')).rejects.toThrow('Grant not found')
+  })
+
+  it('set, revoke and the grants a softDelete takes with it record the channel their caller names', async () => {
+    const connectionId = await newConnection()
+    const now = new Date()
+    const { id: first } = await grants.set(TENANT_A, ACTOR_ID, 'api', setting(connectionId, randomUUID()), now, UNGATED)
+    const { id: second } = await grants.set(TENANT_A, ACTOR_ID, 'api', setting(connectionId, randomUUID()), now, UNGATED)
+    await grants.revoke(TENANT_A, first, ACTOR_ID, 'api')
+    await connections.softDelete(TENANT_A, connectionId, ACTOR_ID, 'api')
+
+    const { rows } = await superuser.query(
+      `SELECT action, "targetId", channel::text AS channel FROM platform.admin_actions
+       WHERE "targetType" = 'grant' AND coalesce(after, before)->>'connectionId' = $1 ORDER BY "createdAt", id`,
+      [connectionId],
+    )
+    expect(rows).toEqual([
+      { action: 'grant.create', targetId: first, channel: 'api' },
+      { action: 'grant.create', targetId: second, channel: 'api' },
+      { action: 'grant.revoke', targetId: first, channel: 'api' },
+      { action: 'grant.revoke', targetId: second, channel: 'api' },
+    ])
   })
 
   it('listForConnection lists the grants of a connection of the tenant by username with their granter, and none for another tenant', async () => {
     const connectionId = await newConnection()
     const now = new Date()
     const zoe = setting(connectionId, randomUUID(), { subjectUsername: 'zoe', subjectEmail: null })
-    await grants.set(TENANT_A, ACTOR_ID, zoe, now, UNGATED)
-    await grants.set(TENANT_A, ACTOR_ID, setting(connectionId, randomUUID(), { level: 'write' }), now, UNGATED)
+    await grants.set(TENANT_A, ACTOR_ID, 'web', zoe, now, UNGATED)
+    await grants.set(TENANT_A, ACTOR_ID, 'web', setting(connectionId, randomUUID(), { level: 'write' }), now, UNGATED)
 
     const listed = await grants.listForConnection(TENANT_A, connectionId)
     expect(listed.map((grant) => [grant.subjectUsername, grant.level])).toEqual([

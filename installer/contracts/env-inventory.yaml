@@ -15,8 +15,8 @@
 #             app's default, and null means the app's built-in value. Producer operator has no value.
 #   when      for producers installer and config, the condition under which the installer writes it:
 #             always (the default), httpsProxy, keycloakAdminUrl (a managed Keycloak, or an external one with
-#             keycloak.external.adminUrl), logoutHintVerified, volumeSize or authSecretPrevious (while
-#             platform.authSecretPreviousFile is set).
+#             keycloak.external.adminUrl), logoutHintVerified, mobileClient (while mobile.enabled is true),
+#             volumeSize or authSecretPrevious (while platform.authSecretPreviousFile is set).
 #
 # The installer never writes runtime settings: Platform keeps them in its tables and Studio reads them through
 # bridge.settings_v1.
@@ -89,6 +89,22 @@ variables:
     producer: installer
     value: "true"
     when: logoutHintVerified
+  # Studio's bearer channel for the mobile app's access tokens, which needs a Studio build that has it: the audience
+  # the audience mapper of client libredb-mobile adds, and that client alone.
+  - name: OIDC_BEARER_AUDIENCE
+    apps: [studio]
+    required: optional
+    secret: false
+    producer: installer
+    value: libredb-studio-api
+    when: mobileClient
+  - name: OIDC_BEARER_CLIENT_IDS
+    apps: [studio]
+    required: optional
+    secret: false
+    producer: installer
+    value: libredb-mobile
+    when: mobileClient
   - name: AUTH_SESSION_TTL_SECONDS
     apps: [studio]
     required: optional
@@ -303,6 +319,22 @@ variables:
     secret: false
     producer: installer
     value: "{{sealPublicKey}}"
+  # Platform's bearer API for the mobile app's access tokens, which needs a Platform build that has it: the audience
+  # the second audience mapper of client libredb-mobile adds, and that client alone.
+  - name: PLATFORM_API_AUDIENCE
+    apps: [platform]
+    required: optional
+    secret: false
+    producer: installer
+    value: libredb-platform-api
+    when: mobileClient
+  - name: PLATFORM_API_CLIENT_IDS
+    apps: [platform]
+    required: optional
+    secret: false
+    producer: installer
+    value: libredb-mobile
+    when: mobileClient
   - name: PLATFORM_ORGANIZATION_NAME
     apps: [platform-migrate]
     required: migrate

@@ -130,4 +130,56 @@ describe("keycloakExport", () => {
       "the export creates no user, and a request asks for the password of alice",
     );
   });
+
+  test("with the mobile app the export creates libredb-mobile after the app clients, and with it off the export is unchanged", async () => {
+    const without = renderExport(await keycloakExport(installation()));
+    expect(renderExport(await keycloakExport(installation([...MANUAL_KEYCLOAK_SETS, "mobile.enabled=false"])))).toBe(without);
+    const exported = await keycloakExport(installation([...MANUAL_KEYCLOAK_SETS, "mobile.enabled=true"]));
+    const base = "/admin/realms/libredb";
+    const previous = (JSON.parse(without) as { requests: unknown[] }).requests;
+    expect(exported.requests.slice(0, previous.length)).toEqual(previous as typeof exported.requests);
+    const mobile = exported.requests.slice(previous.length);
+    const scope = (name: string) => ({
+      summary: `add default client scope ${name} to client libredb-mobile`,
+      method: "PUT" as const,
+      path: `${base}/clients/(client.libredb-mobile)/default-client-scopes/(client-scope.${name})`,
+    });
+    expect(mobile.map(({ summary, method, path }) => ({ summary, method, path }))).toEqual([
+      { summary: "create client libredb-mobile", method: "POST", path: `${base}/clients` },
+      scope("basic"),
+      scope("profile"),
+      scope("email"),
+      scope("libredb-roles"),
+      {
+        summary: "create protocol mapper libredb studio api audience on client libredb-mobile",
+        method: "POST",
+        path: `${base}/clients/(client.libredb-mobile)/protocol-mappers/models`,
+      },
+      {
+        summary: "create protocol mapper libredb platform api audience on client libredb-mobile",
+        method: "POST",
+        path: `${base}/clients/(client.libredb-mobile)/protocol-mappers/models`,
+      },
+    ]);
+    expect(mobile[0]?.body).toMatchObject({
+      clientId: "libredb-mobile",
+      publicClient: true,
+      standardFlowEnabled: true,
+      implicitFlowEnabled: false,
+      directAccessGrantsEnabled: false,
+      redirectUris: ["org.libredb.mobile:/oauth2redirect"],
+      attributes: {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "org.libredb.mobile:/oauth2redirect",
+      },
+    });
+    expect(mobile[5]?.body).toMatchObject({
+      protocolMapper: "oidc-audience-mapper",
+      config: { "included.custom.audience": "libredb-studio-api", "access.token.claim": "true" },
+    });
+    expect(mobile[6]?.body).toMatchObject({
+      protocolMapper: "oidc-audience-mapper",
+      config: { "included.custom.audience": "libredb-platform-api", "access.token.claim": "true" },
+    });
+  });
 });

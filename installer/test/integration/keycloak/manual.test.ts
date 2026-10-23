@@ -48,6 +48,7 @@ const config = loadConfig({
     "keycloak.external.studioClientSecretEnv=SITE_STUDIO_CLIENT_SECRET",
     "keycloak.external.platformClientSecretEnv=SITE_PLATFORM_CLIENT_SECRET",
     `keycloak.external.caBundleFile=${caFile}`,
+    "mobile.enabled=true",
   ],
 });
 if (config.keycloak.mode !== "external") throw new Error("the configuration does not reuse an external Keycloak");
@@ -155,6 +156,7 @@ async function check(secrets = shared): Promise<{ exitCode: number; findings: re
     realm: installation.realm,
     adminUrl: installation.keycloak.adminUrl,
     clientSecrets: secrets,
+    clientIds: ["libredb", ...expected.appClients.map((client) => client.representation.clientId)],
     fetch: trusted,
     log: (line) => logged.push(line),
   });
@@ -217,6 +219,28 @@ describe("a realm configured by the site from the export", () => {
         ]);
       } finally {
         await serviceAccountRoles("POST", ["view-users"]);
+      }
+      expect((await check()).exitCode).toBe(ExitCode.Ok);
+    },
+    LONG,
+  );
+
+  test(
+    "a libredb-mobile without the audience mapper fails the manual check with exit 3 naming the mapper",
+    async () => {
+      const mobile = await clientId("libredb-mobile");
+      const mappers = await customer().get<{ id: string; protocolMapper: string }[]>(`${base}/clients/${mobile}/protocol-mappers/models`);
+      const audience = mappers.find((mapper) => mapper.protocolMapper === "oidc-audience-mapper");
+      if (audience === undefined) throw new Error("libredb-mobile has no audience mapper");
+      await customer().write("DELETE", `${base}/clients/${mobile}/protocol-mappers/models/${audience.id}`, undefined, [204]);
+      try {
+        const result = await check();
+        expect(result.exitCode).toBe(ExitCode.PreflightFailed);
+        expect(result.findings).toHaveLength(1);
+        expect(result.findings[0]).toStartWith("client libredb-mobile lacks a protocol mapper of type oidc-audience-mapper");
+      } finally {
+        const { id: _id, ...mapper } = audience;
+        await customer().write("POST", `${base}/clients/${mobile}/protocol-mappers/models`, mapper, [201]);
       }
       expect((await check()).exitCode).toBe(ExitCode.Ok);
     },

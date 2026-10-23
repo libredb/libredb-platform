@@ -113,6 +113,7 @@ describe('revokeStudioSessions', () => {
     expect(tables.adminAction).toEqual([
       {
         actorId: 'user-alice',
+        channel: 'web',
         action: 'revocation.create',
         targetType: 'session_revocation',
         targetId: 'revocation-1',
