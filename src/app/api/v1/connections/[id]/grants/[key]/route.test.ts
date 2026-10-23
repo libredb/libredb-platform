@@ -132,6 +132,16 @@ describe('PUT /api/v1/connections/{id}/grants/{subject}', () => {
     expect(set).not.toHaveBeenCalled()
   })
 
+  it('refuses a subject of "." or ".." with 400 on subject before it asks Keycloak', async () => {
+    for (const subject of ['.', '..']) {
+      const { status, body } = await put({ level: 'read', expiresAt: null }, subject)
+      expect(status).toBe(400)
+      expect(body.error).toMatchObject({ code: 'VALIDATION_FAILED', fieldErrors: { subject: [expect.any(String)] } })
+    }
+    expect(directory.getUser).not.toHaveBeenCalled()
+    expect(set).not.toHaveBeenCalled()
+  })
+
   it('refuses an expiry that is not in the future with 400 on expiresAt', async () => {
     const { status, body } = await put({ level: 'read', expiresAt: new Date(Date.now() - 1_000).toISOString() })
 
