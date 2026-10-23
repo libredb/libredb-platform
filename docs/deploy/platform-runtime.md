@@ -68,7 +68,7 @@ A self-hosted install leaves these variables unset:
 
 ## Migrate container
 
-The `migrate` command runs as a one-shot container (a Docker Compose service that exits, or a Kubernetes Job once Kubernetes support arrives in the next release) before every start of a new image.
+The `migrate` command runs as a one-shot container (a Docker Compose service that exits, or a Kubernetes Job of the Helm chart, [install-kubernetes.md](install-kubernetes.md)) before every start of a new image.
 It receives exactly these variables, and the serve container never receives `MIGRATE_DATABASE_URL`: `serve` refuses to start when it is set.
 
 | Variable | Used by | Value |

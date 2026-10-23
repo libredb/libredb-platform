@@ -67,6 +67,12 @@ const chainResult = z
   })
   .strict();
 
+/** Why Studio sends its callback with http: where the public URL is https:. */
+const PLAIN_HTTP_HINT =
+  "Studio saw plain HTTP, so the edge did not pass X-Forwarded-Proto on; in tls.mode external, " +
+  "tls.external.trustedProxies must hold the address the upstream proxy arrives from, " +
+  "which for a proxy on the Docker host is the gateway of the network libredb_edge";
+
 /** What a redirect to /login?error=<code> of Studio's OIDC login route means. */
 function loginErrorMeaning(code: string, issuer: string): string {
   if (code === "oidc_config") return "Studio's OIDC configuration is invalid";
@@ -120,9 +126,9 @@ export const studioOidcChainCheck: Check<OidcChecks> = {
     }
     const redirectUri = location.searchParams.get("redirect_uri");
     if (redirectUri !== oidc.studioRedirectUri) {
-      return failed(
-        `the authorization request sends redirect_uri ${redirectUri}, and Studio's callback is ${oidc.studioRedirectUri}`,
-      );
+      const cause = `the authorization request sends redirect_uri ${redirectUri}, and Studio's callback is ${oidc.studioRedirectUri}`;
+      // Studio builds its callback from X-Forwarded-Proto, which the edge drops from a proxy it does not trust.
+      return failed(redirectUri === oidc.studioRedirectUri.replace(/^https:/, "http:") ? `${cause}: ${PLAIN_HTTP_HINT}` : cause);
     }
     const prompt = location.searchParams.get("prompt");
     if (prompt !== null) {

@@ -15,7 +15,8 @@
     "embed": "bun scripts/embed-release.ts",
     "release:check": "bun scripts/check-release-compat.ts",
     "release:record": "bun scripts/record-release.ts",
-    "build": "bun scripts/build.ts"
+    "build": "bun scripts/build.ts",
+    "build:helm-jobs": "bun scripts/build-helm-jobs.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.58.2",

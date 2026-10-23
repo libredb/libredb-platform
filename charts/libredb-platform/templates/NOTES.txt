@@ -1,0 +1,47 @@
+LibreDB Platform {{ .Chart.AppVersion }} is installing in namespace {{ .Release.Namespace }}.
+
+  Platform  https://{{ .Values.hosts.platform }}
+  Studio    https://{{ .Values.hosts.studio }}
+  Keycloak  {{ include "libredb-platform.issuer" . }}
+
+Watch it come up; Platform turns ready once its migrate job has run:
+
+  kubectl -n {{ .Release.Namespace }} get pods,jobs
+  kubectl -n {{ .Release.Namespace }} logs deploy/libredb-platform | grep -i licen
+
+{{- if eq .Values.tls.mode "generated" }}
+
+The internal CA issued the ingress certificates. Import it into the trust store of every workstation that opens the
+three URLs (it can sign a certificate for any name, so import it only where the cluster's operators are trusted):
+
+  kubectl -n {{ .Release.Namespace }} get secret libredb-tls-platform -o jsonpath='{.data.ca\.crt}' | base64 -d > libredb-ca.crt
+{{- end }}
+{{- if include "libredb-platform.managedKeycloak" . }}
+
+First sign-in: open Platform, choose Continue with SSO and sign in as {{ .Values.keycloak.firstAdmin.username }} with
+its temporary password; Keycloak then asks for a new password and a TOTP device.
+
+  kubectl -n {{ .Release.Namespace }} get secret libredb-keycloak-config -o jsonpath='{.data.first-admin-password}' | base64 -d; echo
+
+{{ .Values.keycloak.userManager.username }} manages the realm's users in Keycloak's console, which is not exposed by the ingress:
+
+  kubectl -n {{ .Release.Namespace }} get secret libredb-keycloak-config -o jsonpath='{.data.user-manager-password}' | base64 -d; echo
+  kubectl -n {{ .Release.Namespace }} port-forward svc/keycloak 18080:8080
+  # then open http://127.0.0.1:18080/admin/{{ .Values.keycloak.realm }}/console/
+{{- end }}
+{{- if eq .Values.postgresql.mode "external" }}
+
+The external PostgreSQL server needs its one-time provisioning by a DBA. The script holds SCRAM verifiers only:
+
+  kubectl -n {{ .Release.Namespace }} get secret libredb-postgres-dba-script -o jsonpath='{.data.provision\.sql}' | base64 -d > libredb-provision.sql
+  psql "host={{ .Values.postgresql.external.host }} port={{ .Values.postgresql.external.port }} dbname=postgres user=<admin> sslmode=verify-full sslrootcert=<CA file>" -f libredb-provision.sql
+
+The migrate job retries until the roles exist.
+{{- end }}
+
+BACK UP THE GENERATED SECRETS NOW. Secret libredb-secrets holds the seal keys that open every database credential
+Platform stores; it outlives `helm uninstall` on purpose, and a lost key cannot be recovered:
+
+  kubectl -n {{ .Release.Namespace }} get secret libredb-secrets libredb-tls libredb-installer-state -o yaml > libredb-secrets-backup.yaml
+
+A full backup set adds a dump of each database; "Back up and restore" in docs/deploy/install-kubernetes.md has both.

@@ -39,7 +39,7 @@ Write to [info@libredb.org](mailto:info@libredb.org) or join the waiting list at
 
 Platform 1.0.1 is the current release, published as the image `ghcr.io/libredb/libredb-platform`, and pairs with LibreDB Studio 1.0.0.
 It installs with Docker on one x86_64 Linux host: the installer deploys PostgreSQL, Keycloak, Platform, Studio and a Caddy edge, and can use an existing PostgreSQL server or Keycloak instead.
-Kubernetes support follows in the next release.
+On Kubernetes, the Helm chart [`charts/libredb-platform`](charts/libredb-platform) installs the same, as the [Kubernetes install guide](docs/deploy/install-kubernetes.md) describes.
 Cloud mode serves development and the hosted service of a later release, and it is not a supported way to install LibreDB.
 Download the installer from this repository's [GitHub releases](https://github.com/libredb/libredb-platform/releases) and follow the [Docker install guide](docs/deploy/install-docker.md).
 Every install needs a license key from LibreDB, and Platform does not start in self-hosted mode without one.

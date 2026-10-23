@@ -6,7 +6,7 @@
 
 - [ ] Studio users can connect to the platform with limited permissions(studio, account, support/tickets)
 - [ ] All libredb-studio database connections support
-- [ ] Kubernetes
+- [x] Kubernetes (Helm chart `charts/libredb-platform`)
 - [ ] GitOps
 
 ---

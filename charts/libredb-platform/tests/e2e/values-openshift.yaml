@@ -1,0 +1,21 @@
+# The values of the OpenShift test (Red Hat Developer Sandbox, one namespace, restricted-v2 SCC): three hosts under
+# the cluster's apps domain, which the router serves; OpenShift turns each Ingress into a Route with the Ingress's TLS
+# Secret. LIBREDB_OS_DOMAIN in run-openshift.sh replaces apps.example.com.
+hosts:
+  platform: ldb-platform.apps.example.com
+  studio: ldb-studio.apps.example.com
+  auth: ldb-auth.apps.example.com
+platform:
+  organizationName: Acme OpenShift
+studio:
+  config:
+    oidcIssuer: https://ldb-auth.apps.example.com/realms/libredb
+  ingress:
+    hosts:
+      - host: ldb-studio.apps.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: libredb-tls-studio
+        hosts: [ldb-studio.apps.example.com]

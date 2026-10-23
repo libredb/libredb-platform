@@ -66,3 +66,6 @@ next-env.d.ts
 /installer/keycloak-export/
 /installer/ca.crt
 *.license
+
+# Helm chart dependencies, built with helm dependency build from Chart.lock
+charts/*/charts/*.tgz

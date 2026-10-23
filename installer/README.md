@@ -67,7 +67,7 @@ The Docker Engine minimum and that refused range keep the ports published to `12
 The refused range lives in the preflight module instead of the release manifest, because a minimum cannot exclude it and still admit 28.0.x and 28.1.x, and its message names the advisory GHSA-x4rx-4gw3-53p4 and asks for 28.3.3 or newer, which fixes it.
 The [Docker install guide](../docs/deploy/install-docker.md) lists every prerequisite of the host.
 Run every command below as root.
-This build applies only `mode: docker`: `preflight`, `plan`, `apply`, `verify` and `db-script` refuse any other mode with exit 2, and Kubernetes mode follows in the next release.
+This build applies only `mode: docker`: `preflight`, `plan`, `apply`, `verify` and `db-script` refuse any other mode with exit 2. On Kubernetes, the Helm chart `charts/libredb-platform` runs the installer's Kubernetes-mode logic in its jobs (`src/kubernetes/`, bundled by `bun run build:helm-jobs`), as [install-kubernetes.md](../docs/deploy/install-kubernetes.md) describes.
 This build applies every `tls.mode` (`generated`, `provided` and `external`) and `postgres.mode` `managed` or `external`.
 Keycloak is either managed, or the customer's own Keycloak with a realm the installer reuses (see External Keycloak below).
 
@@ -150,13 +150,29 @@ The installer never renews a provided certificate: replace the files and run `ap
 
 `tls.mode: external` puts the edge behind the customer's TLS proxy.
 The edge serves plain HTTP on `tls.external.httpPort` (default 8080), one site per public hostname, and the upstream proxy terminates TLS on 443 of each public hostname and forwards to that port with `X-Forwarded-Proto` and `X-Forwarded-Host`.
+The proxy must accept response headers of 16 KB: Platform's sign-in callback sets its session cookie in chunks, which hold the Keycloak ID and refresh tokens, beside the state and PKCE cookies it clears, more than the 4 KB that nginx buffers by default on x86_64, so an nginx with its defaults answers that callback 502 (`upstream sent too big header`) while every check of `verify` passes.
+With nginx, such as the proxy of CapRover, set `proxy_buffer_size 16k;` and `proxy_buffers 8 16k;` in the location that forwards to the edge; Traefik, as Dokploy runs it, needs no setting.
 `tls.external.trustedProxies` is required and has no default: it lists the upstream proxy's addresses as the edge sees them, as CIDR ranges such as `192.0.2.10/32`, and the edge passes `X-Forwarded-For`, `X-Forwarded-Proto` and `X-Forwarded-Host` on only from them, so `validate` refuses `tls.mode: external` without it with exit 2.
 The edge sees a proxy on another host at that host's own address when no NAT lies between them, and a proxy container on the network `libredb_edge` at its address there, while a proxy on the Docker host that connects through `127.0.0.1` arrives from the gateway of `libredb_edge`, the address that containers of other networks arrive from as well when they connect to the published port.
+Docker picks that gateway when the first `apply` creates the network, such as `172.19.0.1` on a host whose bridge networks hold `172.17.0.0/16` and `172.18.0.0/16`, as the default bridge and the `docker_gwbridge` of a Swarm such as Dokploy's or CapRover's do; `docker network inspect libredb_edge -f '{{(index .IPAM.Config 0).Gateway}}'` prints it, and when it differs from `trustedProxies`, `verify` fails `studio-oidc-chain` with a `redirect_uri` of `http://`, so correct the value and run `apply` again.
 `private_ranges` is accepted when written out, but it trusts every client on a private network.
 The edge's HTTP port must be reachable only from the upstream proxy, because a client that reaches it directly bypasses the proxy's TLS: restrict it with a host firewall rule, which with Docker's iptables backend belongs in the `DOCKER-USER` chain, because Docker forwards the traffic of a published port past the `INPUT` chain.
+Match the host's external interface in that rule, such as `iptables -I DOCKER-USER -i eth0 -p tcp -m conntrack --ctorigdstport 8080 -j DROP` for a proxy on the Docker host: Docker passes the traffic between containers through `DOCKER-USER` as well, so a rule on the port alone also drops Platform's and Studio's calls to Keycloak on its port 8080, and `verify` then fails `platform-admin-api`, `platform-signin-redirect`, `studio-oidc-chain` and `oidc-discovery-in-network`.
 The edge then holds no hostname alias, so the containers reach the public issuer and app URLs through the upstream proxy: every public hostname must resolve from inside the network `libredb_edge` to the proxy, and the proxy must present a certificate for it that validates against `tls.caBundleFile`, which is required.
 `preflight` checks both from a one-shot container of the Platform image on `libredb_edge`, or on Docker's default bridge before the first `apply` has created that network, and refuses with exit 3 naming each host that does not resolve or present a valid chain.
 `verify`'s `edge-tls` then connects to each public hostname on 443 by its name, through the upstream proxy.
+
+#### Beside Dokploy or CapRover
+
+Dokploy and CapRover hold ports 80 and 443 of their host, where `preflight` refuses the default `tls.mode: generated` with exit 3 naming their proxy container, so LibreDB installs on such a host in `tls.mode: external` behind their proxy:
+
+- Dokploy: a file under `/etc/dokploy/traefik/dynamic` with an HTTP router for the three hostnames on entry point `websecure`, `tls: {}`, the site's certificate in a `tls.certificates` entry, and a service to `http://<host address>:8080`.
+- CapRover: an app with the three hostnames as custom domains whose custom nginx configuration listens on 443 with the site's certificate, which CapRover's own HTTPS gives only from Let's Encrypt, proxies to `http://<host address>:8080` and sets `proxy_buffer_size 16k;` and `proxy_buffers 8 16k;`.
+- `trustedProxies` holds the gateway of `libredb_edge`, which both proxies arrive from.
+
+Both clean up Docker on their own, which removes the containers of a LibreDB service that is stopped at that moment, such as Studio after the kill switch of [break-glass.md](docs/runbooks/break-glass.md) or the apps during a [restore](docs/runbooks/restore.md): Dokploy's daily Docker cleanup, on by default, runs `docker container prune`, `docker image prune --all` and `docker system prune --all`, and CapRover runs `docker container prune` after every deploy of one of its apps.
+`docker compose up -d` and `apply` create such a container again, with its volume.
+Dokploy's cleanup of unused volumes (`docker volume prune --all`), which its daily cleanup leaves out, also deletes the volume of a removed container, such as `libredb_platform-uploads` with every support attachment, so never run it while a LibreDB service is stopped.
 
 The managed PostgreSQL leaf comes from the internal CA in every TLS mode.
 `tls export-ca [-o <file> [--force]]` writes the internal CA certificate, without its key, for the trust stores of database clients and, in `tls.mode: generated`, of browsers:

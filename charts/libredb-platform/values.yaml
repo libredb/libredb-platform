@@ -1,0 +1,280 @@
+# LibreDB Platform on Kubernetes. docs/deploy/install-kubernetes.md is the guide; this file documents every value.
+#
+# The chart is the installer's Kubernetes mode driven by Helm: it renders these values as a LibreDBInstallation
+# (installer/src/config/schema.ts, mode kubernetes), and its jobs run the installer's own code on it. One installation
+# per namespace: the objects have fixed names, like the installer's Kubernetes constants.
+
+global:
+  compatibility:
+    openshift:
+      # -- OpenShift's restricted-v2 SCC: "auto" leaves out the pods' fixed runAsUser, runAsGroup and fsGroup when
+      # the API server is OpenShift, so the SCC assigns ids from the namespace's range; "force" always leaves them
+      # out, "disabled" never. The Studio chart reads the same value.
+      adaptSecurityContext: auto
+
+installation:
+  # -- metadata.name of the installation: a lowercase DNS label, which names the internal CA.
+  name: libredb
+
+# -- The public host of each app. Each needs DNS that the users' browsers and the pods of this release resolve to the
+# ingress controller: Platform and Studio call Keycloak's issuer URL from inside the cluster.
+hosts:
+  platform: ""
+  studio: ""
+  # -- Keycloak's host, the host of the issuer https://<auth>/realms/<realm>. With keycloak.mode external it must be
+  # the host of keycloak.external.baseUrl.
+  auth: ""
+
+platform:
+  # -- The organization's name, which the first install gives the installation's one tenant.
+  organizationName: ""
+  # -- Days Platform keeps query events, from 1 to 36500. null keeps Platform's default, 90.
+  queryLogRetentionDays: null
+  # -- The license from LibreDB (required): the token, one line that starts with ldl1. Give it inline with
+  # `--set-file platform.license.value=acme.license`, or name a Secret that holds it. The license names the
+  # Platform host, so hosts.platform must be that host.
+  license:
+    value: ""
+    existingSecret: ""
+    key: license
+  # -- The seal key rotation of installer/docs/runbooks/seal-key-rotation.md, one helm upgrade per step, as
+  # bridge.sealKeys of the installation: issueNew adds a live key to Studio's keyring, activeKid (16 hex digits) names
+  # the key Platform seals to (the oldest live key when empty), and retire lists kids to take out of Studio's keyring,
+  # which an upgrade refuses while a connection still uses one. The secret store keeps every key.
+  sealKeys:
+    issueNew: false
+    activeKid: ""
+    retire: []
+  # -- During a rotation of Platform's AUTH_SECRET: a Secret that holds the previous value, which Platform keeps
+  # accepting for the sessions it signed, as platform.authSecretPreviousFile of the installation.
+  authSecretPrevious:
+    existingSecret: ""
+    key: auth-secret-previous
+  image:
+    repository: ghcr.io/libredb/libredb-platform
+    # -- The release's tag and digest, from installer/release/release.config.json.
+    tag: "1.0.1@sha256:b42e346756b4e39a1ed99eee4990092b139dcdc1e0c561069c12ee1bcc081268"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      memory: 1Gi
+  # -- Support attachments under /app/uploads. Disabled keeps them in an emptyDir, which a restart loses.
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+  podAnnotations: {}
+  podLabels: {}
+  # -- Platform's pods and the jobs that run its image. The chart adds kubernetes.io/arch: amd64 unless this names an
+  # arch: the Platform image is built for linux/amd64 alone.
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+tls:
+  # -- generated: the internal CA issues the ingress certificates of the three hosts, as the installer's
+  # tls.mode generated does; browsers must trust the CA (Secret libredb-tls-platform holds it as ca.crt).
+  # secrets: the ingress uses TLS Secrets you provide, such as cert-manager's, named in tls.secrets.
+  mode: generated
+  secrets:
+    platform: ""
+    studio: ""
+    auth: ""
+  # -- With tls.mode secrets, the PEM of the CA that issued those certificates (required there), which every pod
+  # trusts. A public CA's root works too.
+  caBundle: ""
+
+ingress:
+  # -- The Ingress of Platform and of a managed Keycloak. Studio's Ingress is studio.ingress.
+  enabled: true
+  className: ""
+  annotations:
+    # Platform's sign-in callback sets its session cookie in chunks that hold the Keycloak ID and refresh tokens,
+    # more response header than ingress-nginx buffers by default (4k), which then answers the callback 502. Other
+    # controllers ignore the annotation; an nginx-based one of another vendor needs its own setting of 16k.
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+
+postgresql:
+  # -- managed: the chart runs PostgreSQL with verified TLS from the internal CA and provisions it, as the installer
+  # does. external: your server, provisioned once by a DBA with the script the chart writes to Secret
+  # libredb-postgres-dba-script.
+  mode: managed
+  managed:
+    image:
+      repository: docker.io/library/postgres
+      tag: "18.6@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336"
+      pullPolicy: IfNotPresent
+    persistence:
+      size: 10Gi
+      storageClass: ""
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 1Gi
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+  external:
+    # -- The server's DNS name, which its certificate covers: Platform and Studio connect with sslmode=verify-full.
+    host: ""
+    port: 5432
+    # -- The PEM of the CA that issued the server's certificate.
+    caBundle: ""
+
+keycloak:
+  # -- managed: the chart runs Keycloak behind the installer's edge rules and configures its realm. external: your
+  # Keycloak, configured by the chart's job (provisioning installer) or by your identity team (provisioning manual).
+  mode: managed
+  realm: libredb
+  # -- The installer's first accounts, created with temporary passwords in Secret libredb-keycloak-config. Enabled
+  # by default with a managed Keycloak only; provisioning manual creates none.
+  firstAdmin:
+    enabled: null
+    username: libredb-admin
+  userManager:
+    enabled: null
+    username: libredb-user-manager
+  managed:
+    image:
+      repository: quay.io/keycloak/keycloak
+      tag: "26.8.1@sha256:79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244"
+      pullPolicy: IfNotPresent
+    # -- The installer's edge in front of Keycloak's public paths: only /realms/<realm>/ and /resources/, and no
+    # non-canonical path, reach Keycloak (installer/src/render/caddyfile.ts).
+    edge:
+      image:
+        repository: docker.io/library/caddy
+        tag: "2.11.7@sha256:685ae3d7c34d9b5f8caeddc5d14051db7bbd88ff1f5a2fa0c16bd8ca328fb7af"
+        pullPolicy: IfNotPresent
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          memory: 128Mi
+    resources:
+      requests:
+        cpu: 200m
+        memory: 768Mi
+      limits:
+        memory: 1536Mi
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+  external:
+    # -- The https base URL of your Keycloak, without /realms.
+    baseUrl: ""
+    # -- Where the jobs and Platform reach the Admin API, when not at baseUrl.
+    adminUrl: ""
+    # -- installer: the chart's job configures the realm with the admin credential below. manual: your identity
+    # team configures it from `libredb-installer keycloak export` and gives the two client secrets.
+    provisioning: installer
+    adminRealm: master
+    # -- provisioning installer: a Secret with the admin credential, either a client (adminClientId plus the key
+    # admin-client-secret) or a user (adminUser plus the key admin-password).
+    adminSecret: ""
+    adminClientId: ""
+    adminUser: ""
+    # -- provisioning manual: a Secret with the keys studio-client-secret and platform-client-secret.
+    clientSecretsSecret: ""
+    # -- The PEM of the CA of your Keycloak's certificate, when a private CA issued it.
+    caBundle: ""
+
+network:
+  # -- An http(s) proxy for the apps' outbound HTTPS, written as HTTPS_PROXY with the installer's NO_PROXY.
+  httpsProxy: ""
+
+jobs:
+  # -- The bootstrap hook, the PostgreSQL provisioning, the Keycloak and the migrate jobs.
+  backoffLimit: 6
+  activeDeadlineSeconds: 900
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+
+networkPolicy:
+  # -- PostgreSQL and Keycloak's Admin API reachable only from this release's pods, like the installer's internal
+  # network; the ingress reaches Keycloak through its edge alone. Takes effect with a CNI that enforces policies.
+  enabled: true
+
+imagePullSecrets: []
+
+# -- The Studio chart (oci of https://libredb.org/libredb-studio/, pinned by the release manifest) under governance.
+# Repeat hosts.studio as the ingress host and the issuer of hosts.auth here: Helm passes no values down to a
+# dependency, so the chart refuses to render when they differ.
+studio:
+  enabled: true
+  fullnameOverride: libredb-studio
+  image:
+    repository: ghcr.io/libredb/libredb-studio
+    tag: "1.0.0@sha256:0cb0177dd2789534f2dbfbc6673104ec0ce70ee82815f5fe9bec5efe3d329ce3"
+  authProvider: oidc
+  governance:
+    enabled: true
+    postgresSchema: bridge
+  secrets:
+    # -- Written by the bootstrap job; keep this name.
+    existingSecret: libredb-studio-env
+    adminEmail: ""
+    userEmail: ""
+  config:
+    # -- Must be https://<hosts.auth>/realms/<keycloak.realm>.
+    oidcIssuer: ""
+    oidcRoleClaim: libredb_roles
+    oidcAdminRoles: admin
+    oidcUserRoles: user
+    oidcPrompt: omit
+    oidcAutoRedirect: true
+    oidcLogoutHint: true
+    sessionTtlSeconds: 28800
+    authBootstrap: "off"
+    storageProvider: postgres
+    storagePostgresSchema: studio
+  postgresql:
+    enabled: false
+  ingress:
+    enabled: true
+    className: ""
+    annotations: {}
+    # -- Must hold one host, hosts.studio.
+    hosts:
+      - host: ""
+        paths:
+          - path: /
+            pathType: Prefix
+    # -- tls.mode generated: libredb-tls-studio with hosts.studio.
+    tls:
+      - secretName: libredb-tls-studio
+        hosts: []
+  extraEnv:
+    - name: STORAGE_ENCRYPTION_KEY
+      valueFrom:
+        secretKeyRef:
+          name: libredb-studio-env
+          key: storage-encryption-key
+    - name: NODE_EXTRA_CA_CERTS
+      value: /etc/libredb/ca/ca.crt
+  # -- The installer's network environment of Studio (NO_PROXY, and HTTPS_PROXY with network.httpsProxy), which the
+  # bootstrap job writes.
+  extraEnvFrom:
+    - secretRef:
+        name: libredb-studio-network-env
+        optional: true
+  extraVolumes:
+    - name: libredb-ca
+      configMap:
+        name: libredb-ca
+  extraVolumeMounts:
+    - name: libredb-ca
+      mountPath: /etc/libredb/ca
+      readOnly: true

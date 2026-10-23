@@ -4,7 +4,7 @@ This guide installs LibreDB 1.0.1 on one x86_64 Linux host with Docker.
 The installer, `libredb-installer`, runs on that host as root and deploys PostgreSQL, Keycloak, LibreDB Platform, LibreDB Studio and a Caddy edge as the Docker Compose project `libredb`.
 The guide takes the shortest path: a PostgreSQL and a Keycloak that the installer runs itself, one DNS name per app, and certificates from the installer's internal CA.
 The [installer reference](../../installer/README.md) covers the other choices: your own certificates or TLS proxy, an existing PostgreSQL server or Keycloak realm, one host without DNS, and a registry mirror.
-Kubernetes support comes in the next release.
+To install on Kubernetes instead, use the Helm chart, as the [Kubernetes install guide](install-kubernetes.md) describes.
 
 ## What you need
 

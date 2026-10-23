@@ -1,0 +1,23 @@
+# The ingress controller of the kind end-to-end test: Traefik on the node ports that kind-config.yaml maps to
+# 127.0.0.1:80 and 127.0.0.1:443 of the host.
+ingressClass:
+  enabled: true
+  isDefaultClass: true
+service:
+  spec:
+    type: NodePort
+ports:
+  web:
+    nodePort: 30080
+  websecure:
+    nodePort: 30443
+providers:
+  kubernetesIngress:
+    enabled: true
+    # Publish an address on every Ingress, as a cloud load balancer does: Argo CD counts an Ingress healthy only then.
+    ingressEndpoint:
+      ip: 127.0.0.1
+    publishedService:
+      enabled: false
+  kubernetesCRD:
+    enabled: false

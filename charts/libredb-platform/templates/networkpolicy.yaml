@@ -1,0 +1,52 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- /*
+The installer's internal data network: the managed PostgreSQL server accepts connections only from this release's
+pods, and Keycloak's port 8080 (the Admin API) only from them; the ingress reaches Keycloak through its edge alone.
+*/}}
+{{- if include "libredb-platform.managedPostgres" . }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: libredb-postgres
+  labels:
+    {{- include "libredb-platform.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "libredb-platform.selectorLabels" (dict "root" . "component" "postgres") | nindent 6 }}
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: {{ .Release.Name }}
+      ports:
+        - port: 5432
+---
+{{- end }}
+{{- if include "libredb-platform.managedKeycloak" . }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: keycloak
+  labels:
+    {{- include "libredb-platform.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "libredb-platform.selectorLabels" (dict "root" . "component" "keycloak") | nindent 6 }}
+  policyTypes: ["Ingress"]
+  ingress:
+    # Platform, Studio and the jobs reach the Admin API and the token endpoint in-cluster.
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: {{ .Release.Name }}
+      ports:
+        - port: 8080
+    # Anyone may reach the edge, which forwards only the realm's public paths; restrict it to your ingress
+    # controller's namespace with an extra policy if you like.
+    - ports:
+        - port: 8081
+{{- end }}
+{{- end }}

@@ -13,8 +13,8 @@ import {
   type PasswordUser,
 } from "./platform";
 
-/** Studio's URL in test/fixtures/configs/docker.yaml. */
-export const STUDIO_URL = "https://studio.libredb.test";
+/** Studio's URL in test/fixtures/configs/docker.yaml; LIBREDB_E2E_STUDIO_URL points the Helm chart's suite elsewhere. */
+export const STUDIO_URL = process.env.LIBREDB_E2E_STUDIO_URL ?? "https://studio.libredb.test";
 
 /** The Studio container of the Compose project libredb. */
 export const STUDIO_CONTAINER = "libredb-studio-1";

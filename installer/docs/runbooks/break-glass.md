@@ -59,8 +59,10 @@ Studio's public URL answers 502 from the edge while it is stopped.
 Start it again when the cause is dealt with; a full `apply` starts it as well:
 
 ```sh
-docker compose -p libredb -f /opt/libredb/compose.yaml start studio
+docker compose -p libredb -f /opt/libredb/compose.yaml up -d studio
 ```
+
+`up -d` also creates the container again when something removed the stopped one, as `docker container prune` does, which a PaaS on the same host may run on its own, such as Dokploy's daily Docker cleanup or CapRover after every deploy; `start` then starts nothing and still exits 0.
 
 ## PostgreSQL is down
 
