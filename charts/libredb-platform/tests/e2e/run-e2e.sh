@@ -50,7 +50,11 @@ else
 fi
 
 step "chart dependencies"
-[ -f "$chart/charts/libredb-studio-0.1.100.tgz" ] || helm dependency build "$chart"
+if [ ! -f "$chart/charts/libredb-studio-0.1.100.tgz" ]; then
+  # helm dependency build takes Chart.lock's Studio chart only from a repository Helm knows.
+  helm repo add libredb-studio https://libredb.org/libredb-studio/ >/dev/null 2>&1 || true
+  helm dependency build "$chart"
+fi
 
 step "install into a namespace that enforces the restricted Pod Security Standard"
 kubectl create namespace "$namespace" --dry-run=client -o yaml | kubectl apply -f - >/dev/null

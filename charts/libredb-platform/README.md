@@ -10,6 +10,7 @@ It renders the values as an installation configuration of `mode: kubernetes`, wh
 ## Install
 
 ```sh
+helm repo add libredb-studio https://libredb.org/libredb-studio/
 helm dependency build charts/libredb-platform
 helm install libredb charts/libredb-platform -n libredb --create-namespace \
   -f libredb-values.yaml --set-file platform.license.value=acme.license \
@@ -50,7 +51,7 @@ When one of them changes, the restart job restarts the workloads that read it, o
 | `tls.mode` | `generated` | `generated`: the internal CA issues the ingress certificates; `secrets`: your TLS Secrets |
 | `tls.secrets.platform`, `studio`, `auth` | | With `tls.mode: secrets`, the TLS Secret of each host (`auth` only with a managed Keycloak); repeat `studio` as `studio.ingress.tls[0].secretName` |
 | `tls.caBundle` | | With `tls.mode: secrets`, the PEM of the CA that issued them (required) |
-| `ingress.enabled`, `className`, `annotations` | `true` | The Ingress of Platform and of a managed Keycloak |
+| `ingress.enabled`, `className`, `annotations` | `true`, `""`, `nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"` | The Ingress of Platform and of a managed Keycloak; the annotation gives ingress-nginx room for the response headers of Platform's sign-in callback, and other controllers ignore it |
 | `postgresql.mode` | `managed` | `managed` or `external` |
 | `postgresql.managed.image`, `persistence.size`, `persistence.storageClass`, `resources`, `nodeSelector`, `tolerations`, `affinity` | the release's image, `10Gi` | The managed server |
 | `postgresql.external.host`, `port`, `caBundle` | `""`, `5432` | The external server, provisioned once by a DBA with Secret `libredb-postgres-dba-script` |

@@ -8,7 +8,8 @@ The [chart README](../../charts/libredb-platform/README.md) lists every value.
 ## What you need
 
 - Kubernetes 1.28 or newer, with a default StorageClass for the PostgreSQL volume and Platform's uploads.
-- An ingress controller with an IngressClass, such as Traefik or HAProxy, which terminates TLS for the three hosts.
+- An ingress controller with an IngressClass, such as Traefik, HAProxy or ingress-nginx, which terminates TLS for the three hosts and accepts response headers of 16 KB: Platform's sign-in callback sets its session cookie in chunks, more than the 4 KB that nginx buffers by default.
+  The chart sets `nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"` on its Ingresses for ingress-nginx; another nginx-based controller needs its own setting, or the first sign-in ends in a 502 from the controller.
 - Helm 3.
 - At least one x86_64 (amd64) node: the Platform image is built for linux/amd64 alone, so the chart schedules Platform and the jobs that run its image with `kubernetes.io/arch: amd64`; Studio, Keycloak and PostgreSQL also run on arm64 nodes.
 - Three DNS names, for Platform, Studio and Keycloak, such as `libredb.acme.example`, `studio.acme.example` and `sso.acme.example`, which resolve to the ingress controller from the users' browsers **and from the cluster's pods**: Platform and Studio call Keycloak's issuer URL `https://<auth>/realms/libredb` from inside the cluster.
@@ -47,12 +48,14 @@ Set `ingress.className` and `studio.ingress.className` when the cluster has no d
 ## Install
 
 ```sh
+helm repo add libredb-studio https://libredb.org/libredb-studio/
 helm dependency build charts/libredb-platform
 helm install libredb charts/libredb-platform -n libredb --create-namespace \
   -f libredb-values.yaml --set-file platform.license.value=acme.license \
   --wait --wait-for-jobs --timeout 10m
 ```
 
+`helm dependency build` takes the Studio chart that `Chart.lock` pins only from a repository Helm knows, so without the `helm repo add` it stops with `no repository definition for https://libredb.org/libredb-studio/`.
 Instead of `--set-file`, `platform.license.existingSecret` names a Secret that holds the token under the key `license`.
 The install runs in this order, and `--wait --wait-for-jobs` returns once every step is done:
 
@@ -318,6 +321,7 @@ The chart installs on OpenShift 4 with the default `restricted-v2` SCC and names
 - OpenShift turns each Ingress into a Route that terminates TLS at the router with the Ingress's Secret, so `tls.mode: generated` works unchanged; the hosts are names under the cluster's apps domain, or names your DNS points at the router.
 - The project template may add NetworkPolicies of its own, such as an `allow-same-namespace` policy, and policies add up: there, every pod of the namespace reaches PostgreSQL and Keycloak's Admin API, so give the installation a namespace of its own.
 
+## An install without network access
 
 `helm dependency build` fetches the pinned Studio chart from `https://libredb.org/libredb-studio/`.
 For a site without that access, run `helm package --dependency-update charts/libredb-platform` on a machine that has it and install the archive, which holds the dependency, so Helm on the site needs no repository.
