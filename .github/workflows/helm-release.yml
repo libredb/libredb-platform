@@ -116,19 +116,20 @@ jobs:
         with:
           bun-version: '1.4.2'
       - run: bun install --frozen-lockfile
-      - name: Read the pinned Studio chart commit
-        id: studio
-        run: echo "commit=$(jq -r '.studioChart.version | select(startswith("git:")) | ltrimstr("git:")' release/release.config.json)" >> "$GITHUB_OUTPUT"
-      - if: steps.studio.outputs.commit != ''
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          repository: libredb/libredb-studio
-          ref: ${{ steps.studio.outputs.commit }}
-          path: studio-src
+      # A published chart holds a released Studio chart only: a git:<sha> pin, which installer CI builds from a Studio
+      # commit, is refused here, so this workflow never checks out or runs code of another repository.
+      - name: Refuse a Studio chart that is not a release
+        run: |
+          set -euo pipefail
+          version=$(jq -r '.studioChart.version' release/release.config.json)
+          case "$version" in
+            git:*)
+              echo "::error::release.config.json pins the Studio chart ${version}; publish a Studio chart release and pin it first"
+              exit 1
+              ;;
+          esac
       - name: Embed the release manifest and the pinned Studio chart
         run: bun run embed
-        env:
-          LIBREDB_STUDIO_REPO: ${{ github.workspace }}/studio-src
       - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
           version: v3.21.3
