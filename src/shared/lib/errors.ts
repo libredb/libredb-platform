@@ -27,8 +27,25 @@ export class ForbiddenError extends AppError {
 }
 
 export class ValidationError extends AppError {
-  constructor(public readonly fieldErrors: Record<string, string[]>) {
-    super('Validation failed', 'VALIDATION_ERROR', 422, { fieldErrors })
+  constructor(
+    public readonly fieldErrors: Record<string, string[]>,
+    message = 'Validation failed',
+  ) {
+    super(message, 'VALIDATION_ERROR', 422, { fieldErrors })
+  }
+}
+
+/** The plan of the tenant lacks a feature, which gates it before any permission, PLATFORM_ADMIN included. */
+export class PlanFeatureRequiredError extends AppError {
+  constructor() {
+    super('This feature requires a plan upgrade', 'PLAN_FEATURE_REQUIRED', 403)
+  }
+}
+
+/** The user lacks the permission a read needs. */
+export class PermissionDeniedError extends AppError {
+  constructor(permission: string) {
+    super(`Permission denied: ${permission} required`, 'PERMISSION_DENIED', 403)
   }
 }
 
