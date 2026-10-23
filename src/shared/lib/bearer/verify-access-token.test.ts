@@ -119,6 +119,27 @@ describe('verifyAccessToken', () => {
     await expectBearerInvalid(token)
   })
 
+  it('accepts an access token whose header typ is at+jwt or whose typ claim is Bearer, and one without either', async () => {
+    const atJwt = await new SignJWT(CLAIMS).setProtectedHeader({ alg: 'RS256', kid: 'key-1', typ: 'at+jwt' }).sign(signingKey)
+    const mediaType = await new SignJWT(CLAIMS)
+      .setProtectedHeader({ alg: 'RS256', kid: 'key-1', typ: 'application/at+jwt' })
+      .sign(signingKey)
+    const untyped = await new SignJWT(CLAIMS).setProtectedHeader({ alg: 'RS256', kid: 'key-1' }).sign(signingKey)
+    for (const token of [atJwt, mediaType, untyped, await sign(withClaims({ typ: 'Bearer' }))]) {
+      await expect(verify(token)).resolves.toMatchObject({ sub: 'kc-alice' })
+    }
+  })
+
+  it('refuses a token whose header typ names another kind of JWT', async () => {
+    const token = await new SignJWT(CLAIMS).setProtectedHeader({ alg: 'RS256', kid: 'key-1', typ: 'logout+jwt' }).sign(signingKey)
+    await expectBearerInvalid(token)
+  })
+
+  it('refuses an ID token or a refresh token that carries the audience, by its typ claim', async () => {
+    await expectBearerInvalid(await sign(withClaims({ typ: 'ID' })))
+    await expectBearerInvalid(await sign(withClaims({ typ: 'Refresh' })))
+  })
+
   it('refuses a value that is not a JWT', async () => {
     await expectBearerInvalid('not-a-jwt')
   })
