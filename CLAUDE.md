@@ -37,7 +37,7 @@ app/ ──imports→ features/ ──imports→ shared/
 
 **Key patterns:**
 - Server Actions for mutations (`'use server'`), NOT API Routes
-- API Routes only for: Auth.js, health checks, client-polled reads, file downloads and webhooks
+- API Routes only for: Auth.js, health checks, client-polled reads, file downloads, webhooks and the bearer API under `/api/v1`
 - Repository pattern per feature (`{feature}.repository.ts`)
 - `safeAction()` wrapper for all Server Actions (validation + auth + logging)
 - Tenant isolation is a `tenantId` filter written in each repository query; there is no PostgreSQL row-level security, and no feature uses `createTenantClient` from `db.ts`.
