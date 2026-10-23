@@ -125,6 +125,7 @@ chmod 0600 /etc/libredb/libredb.yaml
 
 Every other field keeps its default: `tls.mode: generated`, in which the installer's internal CA issues the certificates, a managed PostgreSQL and Keycloak, the Keycloak realm `libredb` with its admin port on `127.0.0.1:18080`, and the first accounts `libredb-admin` and `libredb-user-manager`.
 The Keycloak client of the LibreDB mobile app is created only with `mobile.enabled: true`, as the [installer reference](../../installer/README.md#mobile-app) describes.
+The same setting writes `PLATFORM_API_AUDIENCE` and `PLATFORM_API_CLIENT_IDS` into `platform.env`, which turn on Platform's bearer API for that app.
 An installation keeps `postgres.mode`, `keycloak.mode` and `keycloak.realm` for life, so a later run that changes one of them stops with exit 6: choose them before the first `apply`.
 Write every path in the configuration as an absolute path, because the installer resolves a relative one against the directory it runs in.
 The configuration never holds a secret or a license token itself, only the paths or environment variables that hold them, and `validate` refuses one written inline.

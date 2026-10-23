@@ -88,9 +88,11 @@ Create this client only when `libredb.yaml` sets `mobile.enabled: true`; the exp
 7. On the same tab open `libredb-mobile-dedicated`, choose Configure a new mapper, then Audience.
 8. Set Name to `libredb studio api audience`, leave Included Client Audience empty, and set Included Custom Audience to `libredb-studio-api`.
 9. Turn Add to ID token off, and Add to access token and Add to token introspection on, then Save.
+10. Repeat steps 7 to 9 with Name `libredb platform api audience` and Included Custom Audience `libredb-platform-api`.
 
 The client has no secret, so the installer checks it through the service account of `libredb-platform` only.
-The mapper must name `libredb-studio-api` and never `libredb-studio`, because Studio refuses a token whose audience names its own client as a bearer.
+The first mapper must name `libredb-studio-api` and never `libredb-studio`, because Studio refuses a token whose audience names its own client as a bearer.
+The second puts `libredb-platform-api` into the same access token, the audience that Platform's bearer API checks.
 The bearer channel needs a Studio release that contains libredb-studio#1914, as [the installer's README](../README.md#mobile-app) describes.
 
 ## 6. Users

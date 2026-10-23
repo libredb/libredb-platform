@@ -202,7 +202,7 @@ When neither the bootstrap client nor the secret in `installer.env` is accepted,
 | Client `libredb` | Role holder only: confidential, every flow off, with the client roles `admin` and `user` |
 | Client scope `libredb-roles` | `include.in.token.scope=false`, exactly one mapper `oidc-usermodel-client-role-mapper` that writes the `libredb` client roles into the claim `libredb_roles` of the ID token, access token, userinfo and introspection, and scope mappings for `libredb:admin` and `libredb:user` |
 | Clients `libredb-studio` and `libredb-platform` | Confidential with the standard flow only, PKCE S256, the redirect URI `https://<studio>/api/auth/oidc/callback` or `https://<platform>/api/auth/callback/keycloak` and the post-logout URI `https://<studio>/login` or `https://<platform>/login`, the realm's default client scopes plus `libredb-roles`, and the client secret from the secret store |
-| Client `libredb-mobile`, only with `mobile.enabled: true` | Public with the standard flow only, PKCE S256, no direct access grants and no implicit flow, the redirect and post-logout URIs of `mobile.redirectUri` and `mobile.postLogoutRedirectUri`, the default client scopes `basic`, `profile`, `email` and `libredb-roles` besides the realm's, and the client's own mapper `oidc-audience-mapper` that adds the audience `libredb-studio-api` to the access token only (see [Mobile app](#mobile-app)) |
+| Client `libredb-mobile`, only with `mobile.enabled: true` | Public with the standard flow only, PKCE S256, no direct access grants and no implicit flow, the redirect and post-logout URIs of `mobile.redirectUri` and `mobile.postLogoutRedirectUri`, the default client scopes `basic`, `profile`, `email` and `libredb-roles` besides the realm's, and the client's own mappers `oidc-audience-mapper` that add the audiences `libredb-studio-api` and `libredb-platform-api` to the access token only (see [Mobile app](#mobile-app)) |
 | Service account of `libredb-platform` | Exactly the `realm-management` roles `view-users` and `view-clients`, which are also in the client's scope mappings so that the directory stays readable when Full Scope Allowed is off |
 | First admin (`keycloak.firstAdmin.username`, default `libredb-admin`) | Created once with `libredb:admin`, no `realm-management` role, a temporary password in `/opt/libredb/secrets/first-admin.txt` and the required actions `UPDATE_PASSWORD` and `CONFIGURE_TOTP` |
 | User manager (`keycloak.userManager.username`, default `libredb-user-manager`) | Created once while `keycloak.userManager.enabled` is true, the default for a managed Keycloak, with exactly the `realm-management` roles `manage-users`, `view-users`, `query-groups` and `view-clients`, no `libredb` role, a temporary password in `/opt/libredb/secrets/user-manager.txt` and the same required actions |
@@ -302,7 +302,7 @@ keycloak:
 
 `keycloak export` writes `keycloak-export/libredb-keycloak-export.json`: the realm, the issuer and the Admin REST requests the installer itself would send to an empty realm, in order, with placeholders such as `(client.libredb)` for the ids Keycloak assigns.
 They create client `libredb` with the roles `admin` and `user`, client scope `libredb-roles` with its mapper and scope mappings, `libredb-studio` and `libredb-platform` with their redirect and post-logout URIs and the default scope `libredb-roles`, and the `realm-management` roles `view-users` and `view-clients` for the service account of `libredb-platform`.
-With `mobile.enabled: true` they also create the public client `libredb-mobile` with its default scopes and its audience mapper, after the app clients.
+With `mobile.enabled: true` they also create the public client `libredb-mobile` with its default scopes and its two audience mappers, after the app clients.
 The export holds no secret and no user, needs no root and reads nothing from the host or from Keycloak.
 An operator may still run it as root, so the directory of `-o` must pass the rule of `tls export-ca -o`: no symbolic link in the path, and every directory from `/` down owned by root, by the user that runs the installer or by the operator who ran `sudo`, and writable by its owner only, unless it has the sticky bit; otherwise it exits 2 naming the problem.
 It exits 2 when `-o` names something other than a directory, and creates a missing directory with mode 0755 only when its parent exists and passes the same rule; a missing parent exits 2 naming it, because the export creates no parent directory.
@@ -315,12 +315,13 @@ A run whose reference supplies nothing keeps the stored secret with a warning, a
 
 `preflight` checks the issuer's discovery document only, and `keycloak-configure` changes nothing in the realm and checks it from outside instead.
 It refuses with exit 3, naming each finding, when discovery fails at the issuer, when token introspection refuses either client secret, when `libredb-platform` gets no token through `client_credentials`, when that token cannot list users (`view-users`) or read client `libredb` (`view-clients`), when client `libredb` lacks the role `admin` or `user`, and when an app client's redirect URIs, post-logout URI, PKCE method, client authentication, standard flow or default client scope `libredb-roles` differ from the export, `libredb-platform` has Use refresh tokens off, or an app client has a pairwise subject mapper.
-With `mobile.enabled: true` it reads `libredb-mobile` as well, which shares no secret, and refuses it when it is missing, confidential, has the implicit flow or direct access grants on, lacks one of its default scopes or lacks a mapper of type `oidc-audience-mapper` with the configuration of the export, or differs in the checks above.
+With `mobile.enabled: true` it reads `libredb-mobile` as well, which shares no secret, and refuses it when it is missing, confidential, has the implicit flow or direct access grants on, lacks one of its default scopes or lacks one of the two mappers of type `oidc-audience-mapper` with the configuration of the export, or differs in the checks above.
 The check runs on every apply, so a realm that the site changes later is refused on the next run.
 
 Platform runs from the pinned Platform image in two services of `/opt/libredb/compose.yaml`.
 `platform-migrate`, in the Compose profile `jobs` that `up` never starts, runs `migrate` with `/opt/libredb/env/platform-migrate.env`, the only file that holds `MIGRATE_DATABASE_URL`, on the network `libredb_data` alone.
 `platform` runs `serve` with `/opt/libredb/env/platform.env`, which holds the runtime set that [`contracts/env-inventory.yaml`](contracts/env-inventory.yaml) lists for Platform, with `KEYCLOAK_ADMIN_URL=http://keycloak:8080` and `QUERY_LOG_RETENTION_DAYS=90`.
+`PLATFORM_API_AUDIENCE=libredb-platform-api` and `PLATFORM_API_CLIENT_IDS=libredb-mobile` are written only with `mobile.enabled: true` (see [Mobile app](#mobile-app)).
 It runs as uid 1001 with a read-only root filesystem, tmpfs for `/tmp` and `/app/.next/cache`, the volume `platform-uploads` at `/app/uploads`, no capabilities, `no-new-privileges` and the CA bundle read-only at `/etc/libredb/ca`.
 `BRIDGE_SEAL_PUBLIC_KEY` is the public half of the oldest live seal key in the secret store, so a key issued later reaches Studio's keyring before Platform seals with it.
 The env files quote a value that Compose would otherwise change, and a value that no quoting carries, one with a single quote together with `$`, `"` or `\`, stops the step naming the variable.
@@ -409,7 +410,7 @@ The contract drift tests in `test/integration/contracts` boot the pinned Platfor
 
 ### Mobile app
 
-The LibreDB mobile app signs in to Keycloak itself, as a public client with the authorization code flow and PKCE S256, and calls Studio's API with `Authorization: Bearer <access token>`.
+The LibreDB mobile app signs in to Keycloak itself, as a public client with the authorization code flow and PKCE S256, and calls Studio's API and Platform's API under `/api/v1` with `Authorization: Bearer <access token>`.
 It is off unless the configuration enables it:
 
 ```yaml
@@ -421,19 +422,23 @@ mobile:
 
 | Field | Meaning |
 | --- | --- |
-| `mobile.enabled` | Required in the section: `true` creates client `libredb-mobile` and turns Studio's bearer channel on for it |
+| `mobile.enabled` | Required in the section: `true` creates client `libredb-mobile` and turns Studio's bearer channel and Platform's bearer API on for it |
 | `mobile.redirectUri` | The app's redirect URI, `org.libredb.mobile:/oauth2redirect` by default |
 | `mobile.postLogoutRedirectUri` | The app's post-logout redirect URI, `org.libredb.mobile:/oauth2redirect` by default |
 
 `validate` accepts as a URI only a private-use scheme in reverse domain name form, such as `org.libredb.mobile:`, or an `https://` URL, each without a wildcard or a fragment, and refuses a scheme without a dot such as `libredb:`, which another app could claim as well.
 `keycloak-configure` then creates `libredb-mobile` as the table above lists it, in a managed Keycloak and in a reused realm alike, and with `provisioning: manual` the export holds it and the check reads it.
 Its access token carries the audience `libredb-studio-api` from the client's own audience mapper, which differs from `libredb-studio`, the audience of every ID token of Studio's web sign-in, because Studio refuses an ID token as a bearer.
+A second audience mapper adds `libredb-platform-api` to the same access token, because Keycloak's audience mapper adds one custom audience, so one token serves both apps.
 The claim `libredb_roles` reaches its ID token, from which the app reads its role, and its access token, from which Studio reads the role, through `libredb-roles`, which writes both tokens, and `basic`, `profile` and `email` put `sub`, `preferred_username` and `email` into the access token.
 `studio.env` gets `OIDC_BEARER_AUDIENCE=libredb-studio-api` and `OIDC_BEARER_CLIENT_IDS=libredb-mobile`, so Studio accepts an access token only when its `aud` holds that audience and its `azp` is `libredb-mobile`.
 Under governance Studio applies to that token the same sign-in rule as to a session cookie, and because the realm is the one Studio's web sign-in uses, its `sub` matches the subject of Platform's grants.
 The bearer channel needs a Studio release that contains [libredb-studio#1914](https://github.com/libredb/libredb-studio/pull/1914); a Studio without it ignores both variables and the `Authorization` header, so the app gets `401` on every call.
 This release pins Studio 1.0.0, which does not contain it.
-Turning the mobile app off again removes both variables from `studio.env` and leaves `libredb-mobile` in the realm, where an administrator deletes it in the console.
+`platform.env` gets `PLATFORM_API_AUDIENCE=libredb-platform-api` and `PLATFORM_API_CLIENT_IDS=libredb-mobile`, so Platform's API accepts an access token only when its `aud` holds that audience and its `azp` is `libredb-mobile`, and only for an account with the role `admin`, as [docs/api/v1.md](../docs/api/v1.md) describes.
+The bearer API needs a Platform release that contains [#24](https://github.com/libredb/libredb-platform/issues/24); a Platform without it ignores both variables, so every call under `/api/v1` gets `404`.
+This release pins Platform 1.0.1, which does not contain it.
+Turning the mobile app off again removes the variables from `studio.env` and `platform.env`, and leaves `libredb-mobile` in the realm, where an administrator deletes it in the console.
 
 | Exit code | Meaning |
 | --- | --- |
