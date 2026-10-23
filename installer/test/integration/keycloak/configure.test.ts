@@ -512,7 +512,7 @@ beforeAll(async () => {
     redactor,
     log: () => {},
   });
-  expect((await converge()).length).toBe(18);
+  expect((await converge()).length).toBe(19);
   // The realm's own test user, holding libredb:admin directly, as an admin assigns it in the realm console.
   const created = await operator().write(
     "POST",
