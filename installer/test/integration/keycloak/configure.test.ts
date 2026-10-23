@@ -564,7 +564,7 @@ describe("keycloak configure", () => {
     }
   });
 
-  test("with Full Scope Allowed off, a PKCE login through the public client libredb-mobile without a secret yields an access token for Studio's bearer channel and an ID token with the role, and the password grant is refused", async () => {
+  test("with Full Scope Allowed off, a PKCE login through the public client libredb-mobile without a secret yields an access token for Studio's bearer channel and Platform's bearer API and an ID token with the role, and the password grant is refused", async () => {
     const mobile = installation.clients.mobile;
     if (mobile === undefined) throw new Error("the configuration does not enable the mobile app");
     expect(await clientOf("libredb-mobile")).toMatchObject({ publicClient: true, fullScopeAllowed: false });
@@ -574,9 +574,11 @@ describe("keycloak configure", () => {
       azp: "libredb-mobile",
       libredb_roles: ["admin"],
     });
-    // What Studio's bearer channel reads: its audience and never libredb-studio's, the client, the role and an identity.
+    // What Studio's bearer channel and Platform's bearer API read: their audiences in one token and never
+    // libredb-studio's, the client, the role and an identity.
     const audience = typeof access.aud === "string" ? [access.aud] : (access.aud as string[]);
     expect(audience).toContain("libredb-studio-api");
+    expect(audience).toContain("libredb-platform-api");
     expect(audience).not.toContain("libredb-studio");
     expect({
       iss: access.iss,

@@ -319,6 +319,9 @@ describe("manualKeycloakFindings with the mobile app", () => {
       "client libredb-mobile lacks a protocol mapper of type oidc-audience-mapper with included.custom.audience " +
         "libredb-studio-api, id.token.claim false, access.token.claim true and introspection.token.claim true, which " +
         "puts the audience that Studio's bearer channel checks into the access token",
+      "client libredb-mobile lacks a protocol mapper of type oidc-audience-mapper with included.custom.audience " +
+        "libredb-platform-api, id.token.claim false, access.token.claim true and introspection.token.claim true, " +
+        "which puts the audience that Platform's bearer API checks into the access token",
     ]);
   });
 });

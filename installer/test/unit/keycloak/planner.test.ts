@@ -571,9 +571,9 @@ function convergedMobileFixture(): ObservedKeycloak {
       id: "mobile-client-id",
       fullScopeAllowed: true,
       attributes: { ...mobile.representation.attributes, "backchannel.logout.session.required": "true" },
-      protocolMappers: mobile.protocolMappers.map((mapper) => ({
+      protocolMappers: mobile.protocolMappers.map((mapper, index) => ({
         ...mapper,
-        id: "audience-mapper-id",
+        id: ["audience-mapper-id", "platform-audience-mapper-id"][index],
         config: { ...mapper.config, "lightweight.claim": "false" },
       })),
       defaultClientScopes: ["web-origins", "acr", "profile", "roles", "libredb-roles", "basic", "email"],
@@ -586,7 +586,7 @@ function convergedMobileFixture(): ObservedKeycloak {
 }
 
 describe("planKeycloak with the mobile app", () => {
-  test("an empty realm creates libredb-mobile after the app clients, with the roles scope and the audience mapper", async () => {
+  test("an empty realm creates libredb-mobile after the app clients, with the roles scope and both audience mappers", async () => {
     const actions = planKeycloak(desiredFixture([...MOBILE_SETS]), observedFixture("empty-realm"));
     const without = summaries(planKeycloak(desiredFixture(), observedFixture("empty-realm")));
     // basic, profile and email are default scopes of the realm, which Keycloak gives every client it creates.
@@ -594,6 +594,7 @@ describe("planKeycloak with the mobile app", () => {
       "create client libredb-mobile",
       "add default client scope libredb-roles to client libredb-mobile",
       "create protocol mapper libredb studio api audience on client libredb-mobile",
+      "create protocol mapper libredb platform api audience on client libredb-mobile",
     ];
     const users = without.findIndex((summary) => summary.startsWith("create user "));
     expect(summaries(actions)).toEqual([...without.slice(0, users), ...created, ...without.slice(users)]);
@@ -603,6 +604,7 @@ describe("planKeycloak with the mobile app", () => {
     expect(requests.map((request) => `${request.method} ${request.path} ${request.expected.join(",")}`)).toEqual([
       `POST ${REALM}/clients 201`,
       `PUT ${REALM}/clients/cid-libredb-mobile/default-client-scopes/sid-libredb-roles 204`,
+      `POST ${REALM}/clients/cid-libredb-mobile/protocol-mappers/models 201`,
       `POST ${REALM}/clients/cid-libredb-mobile/protocol-mappers/models 201`,
     ]);
     expect(requests[0]?.body).toMatchObject({ clientId: "libredb-mobile", publicClient: true, directAccessGrantsEnabled: false });
@@ -619,6 +621,20 @@ describe("planKeycloak with the mobile app", () => {
         "introspection.token.claim": "true",
       },
     });
+    expect(requests[3]?.body).toMatchObject({
+      name: "libredb platform api audience",
+      protocolMapper: "oidc-audience-mapper",
+      config: { "included.custom.audience": "libredb-platform-api", "id.token.claim": "false", "access.token.claim": "true" },
+    });
+  });
+
+  test("a libredb-mobile that has only Studio's audience mapper gets Platform's added, and nothing else changes", () => {
+    const observed = convergedMobileFixture();
+    const mobile = clientOf(observed, "libredb-mobile").representation;
+    mobile.protocolMappers = (mobile.protocolMappers ?? []).slice(0, 1);
+    expect(summaries(planKeycloak(desiredFixture([...MOBILE_SETS]), observed))).toEqual([
+      "create protocol mapper libredb platform api audience on client libredb-mobile",
+    ]);
   });
 
   test("a converged realm plans no action, and turning the mobile app off leaves libredb-mobile alone", () => {
@@ -642,11 +658,12 @@ describe("planKeycloak with the mobile app", () => {
   test("the audience mapper converges on its config or is replaced under another type, and the client's other mappers are kept", async () => {
     const observed = convergedMobileFixture();
     const mobile = clientOf(observed, "libredb-mobile").representation;
-    const [mapper] = mobile.protocolMappers ?? [];
-    if (mapper === undefined) throw new Error("the fixture client has no mapper");
+    const [mapper, platformMapper] = mobile.protocolMappers ?? [];
+    if (mapper === undefined || platformMapper === undefined) throw new Error("the fixture client lacks a mapper");
     const foreign = { id: "foreign", name: "site claim", protocol: "openid-connect", protocolMapper: "oidc-hardcoded-claim-mapper", config: {} };
     mobile.protocolMappers = [
       { ...mapper, config: { ...mapper.config, "included.custom.audience": "libredb-studio", "access.token.claim": "false" } },
+      platformMapper,
       foreign,
     ];
     const actions = planKeycloak(desiredFixture([...MOBILE_SETS]), observed);
@@ -665,7 +682,7 @@ describe("planKeycloak with the mobile app", () => {
       expected: [204],
     });
 
-    mobile.protocolMappers = [{ ...mapper, protocolMapper: "oidc-hardcoded-claim-mapper" }, foreign];
+    mobile.protocolMappers = [{ ...mapper, protocolMapper: "oidc-hardcoded-claim-mapper" }, platformMapper, foreign];
     const replaced = planKeycloak(desiredFixture([...MOBILE_SETS]), observed);
     expect(summaries(replaced)).toEqual([
       "delete protocol mapper libredb studio api audience from client libredb-mobile",
@@ -677,7 +694,7 @@ describe("planKeycloak with the mobile app", () => {
       expected: [204],
     });
 
-    mobile.protocolMappers = [{ ...mapper, id: undefined, protocolMapper: "x" }];
+    mobile.protocolMappers = [{ ...mapper, id: undefined, protocolMapper: "x" }, platformMapper];
     expect(() => planKeycloak(desiredFixture([...MOBILE_SETS]), observed)).toThrow(
       "Keycloak returned the protocol mapper libredb studio api audience of client libredb-mobile without an id",
     );
