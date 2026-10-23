@@ -33,8 +33,8 @@ The `maintain` command runs the same check before it opens any connection.
 | `STUDIO_PUBLIC_URL` | self-hosted | `https://<studio>` | installer |
 | `BRIDGE_SEAL_PUBLIC_KEY` | self-hosted | unpadded base64url of Studio's raw 32-byte X25519 public key | installer |
 | `PLATFORM_LICENSE` | self-hosted | the license token from LibreDB | installer config |
-| `PLATFORM_API_AUDIENCE` | to turn the bearer API on | `libredb-platform-api` | operator |
-| `PLATFORM_API_CLIENT_IDS` | when `PLATFORM_API_AUDIENCE` is set | `libredb-mobile` | operator |
+| `PLATFORM_API_AUDIENCE` | to turn the bearer API on | `libredb-platform-api` | installer |
+| `PLATFORM_API_CLIENT_IDS` | when `PLATFORM_API_AUDIENCE` is set | `libredb-mobile` | installer |
 | `PLATFORM_ORGANIZATION_NAME` | migrate container, self-hosted | the customer's name | installer config |
 | `NODE_EXTRA_CA_CERTS` | internal CA | `/etc/libredb/ca/ca.crt` | installer |
 | `STORAGE_PROVIDER` | optional | `LOCAL` | installer |
@@ -51,7 +51,7 @@ The [License](#license) section describes the license states, how seats are coun
 `PLATFORM_API_AUDIENCE` turns on the bearer API under `/api/v1`, which [docs/api/v1.md](../api/v1.md) describes: an access token must carry it in `aud`.
 `PLATFORM_API_CLIENT_IDS` is the comma-separated list of the clients whose tokens the API accepts in `azp`, and a set `PLATFORM_API_AUDIENCE` without it stops `serve` with the `ConfigError` that names it.
 With `PLATFORM_API_AUDIENCE` unset, and always in cloud mode, every `/api/v1` route answers 404 `API_DISABLED`.
-The installer writes neither variable yet, and its `libredb-mobile` client puts only `libredb-studio-api` in `aud`, so an operator who turns the API on sets both variables and adds the audience `libredb-platform-api` to the tokens of that client.
+The installer writes both variables only with `mobile.enabled: true` in its configuration, and then also adds the audience `libredb-platform-api` beside `libredb-studio-api` to the access tokens of its client `libredb-mobile`.
 `PLATFORM_ORGANIZATION_NAME` is read by the seed only: the first seed names the install's one tenant (slug `default`), and a later run never renames it.
 `STORAGE_PROVIDER` and `STORAGE_LOCAL_PATH` are read by the file storage of support attachments, not by the runtime schema.
 `PLATFORM_DB_VOLUME_BYTES` is reserved for a database size warning on the admin dashboard, which this release does not show.

@@ -319,6 +319,22 @@ variables:
     secret: false
     producer: installer
     value: "{{sealPublicKey}}"
+  # Platform's bearer API for the mobile app's access tokens, which needs a Platform build that has it: the audience
+  # the second audience mapper of client libredb-mobile adds, and that client alone.
+  - name: PLATFORM_API_AUDIENCE
+    apps: [platform]
+    required: optional
+    secret: false
+    producer: installer
+    value: libredb-platform-api
+    when: mobileClient
+  - name: PLATFORM_API_CLIENT_IDS
+    apps: [platform]
+    required: optional
+    secret: false
+    producer: installer
+    value: libredb-mobile
+    when: mobileClient
   - name: PLATFORM_ORGANIZATION_NAME
     apps: [platform-migrate]
     required: migrate
