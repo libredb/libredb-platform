@@ -72,7 +72,12 @@ jobs:
           path: studio-src
           persist-credentials: false
       - run: bun run typecheck
-      # The chart's unit tests, which coverage:check runs, render the chart with Helm.
+      # The chart's unit tests, which coverage:check runs, render the chart with Helm and with the Studio chart that
+      # embed downloads and checks against the manifest's sha256; bun run build embeds again, the same files.
+      - name: Embed the release manifest and the pinned Studio chart
+        run: bun run embed
+        env:
+          LIBREDB_STUDIO_REPO: ${{ github.workspace }}/studio-src
       - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
           version: v3.21.3

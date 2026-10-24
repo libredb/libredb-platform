@@ -540,7 +540,7 @@ describe('.github/workflows', () => {
     }
   })
 
-  it('the build job of installer-release.yml runs release:check, typecheck, coverage:check and a smoke test of the binary, and none of its checkouts keeps the token', () => {
+  it('the build job of installer-release.yml runs release:check, typecheck, embed before coverage:check, and a smoke test of the binary, and none of its checkouts keeps the token', () => {
     const build = jobsOf(readWorkflow('installer-release.yml')).find(job => job.name === 'build')
     expect(build, 'a build job').toBeDefined()
     const steps = stepsOf(build!)
@@ -551,6 +551,10 @@ describe('.github/workflows', () => {
       expect(running(command), command).toBeGreaterThan(-1)
     }
     expect(running('./dist/libredb-installer-linux-x64 version')).toBeGreaterThan(running('bun run build'))
+    // The chart tests in coverage:check render the chart with the Studio chart that embed downloads and checks against
+    // the manifest's sha256; without it they fall back to helm dependency build, which knows no Studio repository.
+    expect(running('bun run embed'), 'bun run embed').toBeGreaterThan(-1)
+    expect(running('bun run embed')).toBeLessThan(running('bun run coverage:check'))
     // Without persist-credentials: false, a checkout leaves the token in .git/config, where the dependencies and the
     // build can read it.
     const checkouts = steps.filter(step => /^actions\/checkout@/.test(valueOf(step, 'uses') ?? ''))
