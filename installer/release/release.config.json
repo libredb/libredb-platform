@@ -1,10 +1,10 @@
 {
-  "version": "1.0.1",
+  "version": "1.1.0",
   "images": {
     "platform": {
       "repository": "ghcr.io/libredb/libredb-platform",
-      "version": "1.0.1",
-      "digest": "sha256:b42e346756b4e39a1ed99eee4990092b139dcdc1e0c561069c12ee1bcc081268"
+      "version": "1.1.0",
+      "digest": "sha256:56d89d9cbb7fde237a1e8af51bb155c276352bf1f7719f8c651b9f5b37213d92"
     },
     "studio": {
       "repository": "ghcr.io/libredb/libredb-studio",
