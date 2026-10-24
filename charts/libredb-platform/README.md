@@ -9,6 +9,22 @@ It renders the values as an installation configuration of `mode: kubernetes`, wh
 
 ## Install
 
+Each installer release `installer-v<version>` publishes the chart under the same version: as `libredb-platform-<version>.tgz` of that GitHub release, in the Helm repository `https://libredb.org/libredb-platform/`, listed on Artifact Hub, and as an OCI artifact.
+The first release with the chart is the one after 1.0.1.
+
+```sh
+helm repo add libredb-platform https://libredb.org/libredb-platform/
+helm repo update
+helm install libredb libredb-platform/libredb-platform --version <version> -n libredb --create-namespace \
+  -f libredb-values.yaml --set-file platform.license.value=acme.license \
+  --wait --wait-for-jobs --timeout 10m
+```
+
+From the OCI registry, the same install names `oci://ghcr.io/libredb/charts/libredb-platform --version <version>` instead of `libredb-platform/libredb-platform`.
+A published chart already holds the Studio chart it pins, so neither form needs the Studio repository.
+
+From a checkout of this repository:
+
 ```sh
 helm repo add libredb-studio https://libredb.org/libredb-studio/
 helm dependency build charts/libredb-platform

@@ -46,6 +46,16 @@ jobs:
             exit 1
           fi
           echo "$GITHUB_REF_NAME names version $version of release/release.config.json and package.json, and $history records that config"
+      # The Helm chart is the installer's Kubernetes mode and ships in the same release, under the same version.
+      - name: Refuse a Helm chart of another version
+        working-directory: .
+        run: |
+          version=$(jq -r '.version' installer/release/release.config.json)
+          chart=$(grep '^version:' charts/libredb-platform/Chart.yaml | awk '{print $2}' | tr -d '"')
+          if [ "$chart" != "$version" ]; then
+            echo "::error::charts/libredb-platform/Chart.yaml has version $chart, but the release is $version"
+            exit 1
+          fi
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: '1.4.2'
@@ -62,6 +72,10 @@ jobs:
           path: studio-src
           persist-credentials: false
       - run: bun run typecheck
+      # The chart's unit tests, which coverage:check runs, render the chart with Helm.
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v3.21.3
       - run: bun run coverage:check
       # Release 1.0.0 runs on x86_64 Linux alone, because the Platform image is built for linux/amd64 only.
       - name: Build the Linux x86_64 binary with the embedded release manifest and Studio chart
@@ -72,9 +86,28 @@ jobs:
         run: ./dist/libredb-installer-linux-x64 version
       - name: Copy the license next to the binary
         run: cp ../LICENSE dist/LICENSE
+      # The chart packages the Studio chart that the build embedded and the tests ran against, never a second
+      # download, and only while it still has the sha256 of the release manifest.
+      - name: Lint and package the Helm chart with the embedded Studio chart
+        working-directory: .
+        run: |
+          set -euo pipefail
+          version=$(jq -r '.studioChart.version' installer/release/release.config.json)
+          expected=$(jq -r '.studioChart.sha256' installer/release/release.config.json)
+          archive="installer/generated/libredb-studio-${version}.tgz"
+          actual=$(sha256sum "$archive" | cut -d' ' -f1)
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::${archive} has sha256 ${actual}, but the release manifest pins ${expected}"
+            exit 1
+          fi
+          mkdir -p charts/libredb-platform/charts
+          cp "$archive" charts/libredb-platform/charts/
+          helm lint charts/libredb-platform --strict -f charts/libredb-platform/tests/e2e/values-kind.yaml \
+            --set platform.license.value=ldl1.0123456789abcdef.eyJpZCI6IkxJTlQifQ.c2lnbmF0dXJl
+          helm package charts/libredb-platform -d installer/dist
       - name: Write SHA256SUMS
         working-directory: installer/dist
-        run: sha256sum libredb-installer-linux-x64 LICENSE > SHA256SUMS
+        run: sha256sum libredb-installer-linux-x64 LICENSE libredb-platform-*.tgz > SHA256SUMS
       - name: Hand the binary, LICENSE and SHA256SUMS to the publish job
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -82,6 +115,7 @@ jobs:
           path: |
             installer/dist/libredb-installer-linux-x64
             installer/dist/LICENSE
+            installer/dist/libredb-platform-*.tgz
             installer/dist/SHA256SUMS
           if-no-files-found: error
 
@@ -111,6 +145,7 @@ jobs:
         with:
           subject-path: |
             dist/libredb-installer-linux-x64
+            dist/libredb-platform-*.tgz
             dist/SHA256SUMS
       - name: Publish the GitHub release
         working-directory: dist
@@ -121,5 +156,89 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --title "LibreDB installer ${GITHUB_REF_NAME#installer-v}" \
             --latest \
-            --notes "The Linux x86_64 binary of the LibreDB installer, under the Elastic License 2.0 in LICENSE. Install it with the Docker install guide: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/docs/deploy/install-docker.md. Verify the downloads with: sha256sum -c --ignore-missing SHA256SUMS. With a GitHub login, check the build provenance of the binary with: gh attestation verify libredb-installer-linux-x64 --repo $GITHUB_REPOSITORY" \
-            libredb-installer-linux-x64 LICENSE SHA256SUMS
+            --notes "The Linux x86_64 binary of the LibreDB installer and the Helm chart libredb-platform, under the Elastic License 2.0 in LICENSE. Install with Docker by the guide $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/docs/deploy/install-docker.md, or on Kubernetes by $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/docs/deploy/install-kubernetes.md from the Helm repository https://libredb.org/libredb-platform/ or oci://ghcr.io/libredb/charts/libredb-platform. Verify the downloads with: sha256sum -c --ignore-missing SHA256SUMS. With a GitHub login, check the build provenance with: gh attestation verify <file> --repo $GITHUB_REPOSITORY" \
+            libredb-installer-linux-x64 LICENSE libredb-platform-*.tgz SHA256SUMS
+
+  # Adds the release's chart to the Helm repository index on gh-pages, which https://libredb.org/libredb-platform/
+  # serves and Artifact Hub tracks. It checks out gh-pages alone, which holds data only, and runs no repository code;
+  # --merge keeps every earlier entry, and only the new one points at this release's download.
+  chart-index:
+    name: Add the chart to the Helm repository index
+    needs: publish
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: gh-pages
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: installer-release
+          path: ${{ runner.temp }}/release
+      - name: Check the chart against SHA256SUMS
+        working-directory: ${{ runner.temp }}/release
+        run: sha256sum -c --ignore-missing SHA256SUMS
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v3.21.3
+      - name: Update and push index.yaml
+        env:
+          RELEASE_DIR: ${{ runner.temp }}/release
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/chart"
+          cp "$RELEASE_DIR"/libredb-platform-*.tgz "$RUNNER_TEMP/chart/"
+          helm repo index "$RUNNER_TEMP/chart" \
+            --url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME" --merge index.yaml
+          if cmp -s "$RUNNER_TEMP/chart/index.yaml" index.yaml; then
+            echo "index.yaml already holds this chart"
+            exit 0
+          fi
+          cp "$RUNNER_TEMP/chart/index.yaml" index.yaml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.yaml
+          git commit -m "Add libredb-platform ${GITHUB_REF_NAME#installer-v} to index.yaml"
+          git push origin HEAD:gh-pages
+
+  # Pushes the release's chart to oci://ghcr.io/libredb/charts/libredb-platform, with the Artifact Hub metadata of that
+  # repository under the tag artifacthub.io. It checks out nothing.
+  chart-oci:
+    name: Push the chart to GHCR
+    needs: publish
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: installer-release
+          path: dist
+      - name: Check the chart against SHA256SUMS
+        working-directory: dist
+        run: sha256sum -c --ignore-missing SHA256SUMS
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v3.21.3
+      - uses: oras-project/setup-oras@005458ad77f1c8facd38a094e4af2e69e5607ff4 # v2.0.2
+        with:
+          version: 1.3.4
+      - name: Push the chart and its Artifact Hub metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          echo "$GH_TOKEN" | helm registry login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          helm push dist/libredb-platform-*.tgz oci://ghcr.io/libredb/charts
+          echo "$GH_TOKEN" | oras login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          cat > artifacthub-repo.yml <<'EOF'
+          repositoryID: 6f46fc51-edd2-4d6a-b390-e81a09c4379d
+          owners:
+            - name: cevheri
+              email: cevheribozoglan@gmail.com
+          EOF
+          oras push ghcr.io/libredb/charts/libredb-platform:artifacthub.io \
+            --config /dev/null:application/vnd.cncf.artifacthub.config.v1+yaml \
+            artifacthub-repo.yml:application/vnd.cncf.artifacthub.repository-metadata.layer.v1.yaml

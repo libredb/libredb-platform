@@ -429,15 +429,15 @@ describe('.github/workflows', () => {
     }
   })
 
-  it('installer-release.yml builds the x86_64 binary, LICENSE and SHA256SUMS in its build job, and its publish job publishes those files as the latest release, and nothing for arm64', () => {
+  it('installer-release.yml builds the x86_64 binary, LICENSE, the Helm chart and SHA256SUMS in its build job, and its publish job publishes those files as the latest release, and nothing for arm64', () => {
     const workflow = readWorkflow('installer-release.yml')
-    expect(jobsOf(workflow).map(job => job.name)).toEqual(['build', 'publish'])
+    expect(jobsOf(workflow).map(job => job.name)).toEqual(['build', 'publish', 'chart-index', 'chart-oci'])
     const [build, publish] = jobsOf(workflow)
     // Release 1.0.0 runs on x86_64 alone, because the Platform image is built for linux/amd64 only.
     expect(workflow).not.toMatch(/arm64|aarch64/)
     // A command line that ends with a backslash continues on the next one, so each entry here is one whole command.
     const commands = (job: Job) => commandsOf(job).join('\n').replace(/\\\n/g, ' ').split('\n')
-    const files = ['libredb-installer-linux-x64', 'LICENSE']
+    const files = ['libredb-installer-linux-x64', 'LICENSE', 'libredb-platform-*.tgz']
     // The steps run in installer/ unless they name another directory, so ../LICENSE is the repository's license.
     expect(commands(build)).toContain('cp ../LICENSE dist/LICENSE')
     expect(commands(build).find(command => command.startsWith('sha256sum '))?.split(/\s+/))
@@ -460,7 +460,7 @@ describe('.github/workflows', () => {
     expect(createStep, 'a step that runs gh release create').toBeDefined()
     expect(valueOf(createStep!, 'working-directory')).toBe('dist')
     const create = creates(createStep!)
-    expect(create?.split(/\s+/).slice(-3)).toEqual([...files, 'SHA256SUMS'])
+    expect(create?.split(/\s+/).slice(-4)).toEqual([...files, 'SHA256SUMS'])
     expect(create?.split(/\s+/)).toContain('--latest')
     const notes = /--notes "([^"]*)"/.exec(create ?? '')?.[1]
     expect(notes).toMatch(/\bLinux x86_64\b/)
@@ -472,7 +472,7 @@ describe('.github/workflows', () => {
     expect(existsSync(path.join(__dirname, '..', '..', guide!)), guide).toBe(true)
   })
 
-  it('installer-release.yml grants write scopes and the OIDC token to its publish job alone, which runs no code of the repository and attests the binary and SHA256SUMS before it publishes them', () => {
+  it('installer-release.yml grants the OIDC token and contents write to its publish job, which runs no code of the repository and attests the binary, the chart and SHA256SUMS before it publishes them', () => {
     const workflow = readWorkflow('installer-release.yml')
     const build = jobsOf(workflow).find(job => job.name === 'build')
     const publish = jobsOf(workflow).find(job => job.name === 'publish')
@@ -496,7 +496,8 @@ describe('.github/workflows', () => {
 
     // actions/attest-build-provenance became a wrapper of actions/attest in v4, which GitHub recommends instead.
     const attest = steps.findIndex(step => actionOf(step) === 'actions/attest@v4')
-    expect(blockOf(steps[attest], 'subject-path')).toEqual(['dist/libredb-installer-linux-x64', 'dist/SHA256SUMS'])
+    expect(blockOf(steps[attest], 'subject-path'))
+      .toEqual(['dist/libredb-installer-linux-x64', 'dist/libredb-platform-*.tgz', 'dist/SHA256SUMS'])
     // download-artifact only warns when the files differ from the upload, so they are checked against the SHA256SUMS
     // of the build job before the attestation, and a failed check or attestation publishes nothing.
     const running = (pattern: RegExp) =>
@@ -507,6 +508,36 @@ describe('.github/workflows', () => {
     expect(download).toBeLessThan(check)
     expect(check).toBeLessThan(attest)
     expect(running(/^gh release create /)).toBeGreaterThan(attest)
+  })
+
+  it('installer-release.yml publishes the released chart to the Helm repository index and to GHCR in jobs that need publish, check it against SHA256SUMS first, and run no code of the main branch', () => {
+    const jobs = jobsOf(readWorkflow('installer-release.yml'))
+    const index = jobs.find(job => job.name === 'chart-index')
+    const oci = jobs.find(job => job.name === 'chart-oci')
+    expect(index, 'a chart-index job').toBeDefined()
+    expect(oci, 'a chart-oci job').toBeDefined()
+    // Only a published release is indexed or pushed, so a failed attestation or release publishes no chart either.
+    expect(jobValueOf(index!, 'needs')).toBe('publish')
+    expect(jobValueOf(oci!, 'needs')).toBe('publish')
+    expect(permissionsOf(index!.lines, '    ')).toEqual({ contents: 'write' })
+    expect(permissionsOf(oci!.lines, '    ')).toEqual({ contents: 'read', packages: 'write' })
+
+    // chart-index checks out gh-pages alone, which holds the index and no code; chart-oci checks out nothing.
+    const checkouts = (job: Job) => stepsOf(job).filter(step => actionOf(step) === 'actions/checkout@v4')
+    expect(checkouts(index!).map(step => withOf(step).ref)).toEqual(['gh-pages'])
+    expect(checkouts(oci!)).toEqual([])
+
+    for (const job of [index!, oci!]) {
+      const steps = stepsOf(job)
+      const download = steps.findIndex(step => actionOf(step) === 'actions/download-artifact@v4')
+      const check = steps.findIndex(step =>
+        commandsOf({ name: job.name, lines: step }).includes('sha256sum -c --ignore-missing SHA256SUMS'))
+      expect(download, `${job.name} downloads the build's files`).toBeGreaterThan(-1)
+      expect(check, `${job.name} checks them against SHA256SUMS`).toBeGreaterThan(download)
+      const uses = steps.findIndex(step =>
+        commandsOf({ name: job.name, lines: step }).some(command => /^(helm repo index|helm push) /.test(command.trim())))
+      expect(uses, `${job.name} uses the chart only after the check`).toBeGreaterThan(check)
+    }
   })
 
   it('the build job of installer-release.yml runs release:check, typecheck, coverage:check and a smoke test of the binary, and none of its checkouts keeps the token', () => {

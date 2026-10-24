@@ -15,6 +15,7 @@ import { renderStudioEnv } from "../../../src/model/studio-env";
 import { parseReleaseManifest } from "../../../src/release/manifest";
 import { composeTrust, renderCompose } from "../../../src/render/compose";
 import manifestDocument from "../../../release/release.config.json" with { type: "json" };
+import packageJson from "../../../package.json" with { type: "json" };
 import { files, MemoryObjects } from "./fixture";
 import { Redactor } from "../../../src/log/redact";
 import { INPUT_DIR, WORKLOADS } from "../../../src/kubernetes/names";
@@ -101,8 +102,11 @@ describe("the chart's pins", () => {
     expect(pick(values.keycloak.managed.edge.image)).toEqual(pinned(manifest.images.edge));
   });
 
-  test("its appVersion is the release, and its Studio dependency the manifest's chart with its sha256", () => {
+  test("its version and appVersion are the release, and its Studio dependency the manifest's chart with its sha256", () => {
     const chart = parse(readFileSync(join(CHART, "Chart.yaml"), "utf8"));
+    // The chart ships in the installer's release, under its version (.github/workflows/installer-release.yml).
+    expect(chart.version).toBe(manifest.version);
+    expect(chart.version).toBe(packageJson.version);
     expect(chart.appVersion).toBe(manifest.version);
     const studio = chart.dependencies.find((dependency: { name: string }) => dependency.name === "libredb-studio");
     expect({ version: studio.version, repository: studio.repository }).toEqual({
@@ -111,6 +115,19 @@ describe("the chart's pins", () => {
     });
     const archive = readFileSync(join(CHART, "charts", `libredb-studio-${manifest.studioChart.version}.tgz`));
     expect(new Bun.CryptoHasher("sha256").update(archive).digest("hex")).toBe(manifest.studioChart.sha256);
+  });
+
+  test("its Artifact Hub annotations list the manifest's images, and its changes parse", () => {
+    const chart = parse(readFileSync(join(CHART, "Chart.yaml"), "utf8"));
+    const images = parse(chart.annotations["artifacthub.io/images"]) as { name: string; image: string }[];
+    const pinned = (entry: { repository: string; version: string; digest: string }) => `${entry.repository}:${entry.version}@${entry.digest}`;
+    expect(images.map((entry) => entry.image).sort()).toEqual(
+      [manifest.images.platform, manifest.images.studio, manifest.images.postgres, manifest.images.keycloak, manifest.images.edge].map(pinned).sort(),
+    );
+    expect(chart.annotations["artifacthub.io/license"]).toBe("Elastic-2.0");
+    const changes = parse(chart.annotations["artifacthub.io/changes"]) as { kind: string; description: string }[];
+    expect(changes.length).toBeGreaterThan(0);
+    for (const change of changes) expect(typeof change.description).toBe("string");
   });
 });
 
