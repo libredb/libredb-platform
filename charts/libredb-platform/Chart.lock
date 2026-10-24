@@ -1,6 +1,6 @@
 dependencies:
 - name: libredb-studio
   repository: https://libredb.org/libredb-studio/
-  version: 0.1.100
-digest: sha256:a56f4096de2bd4d02e73a5b984ba8040490565a767be05a123ffb2abb88a92d6
-generated: "2026-10-20T02:08:21.66270654+03:00"
+  version: 0.1.103
+digest: sha256:5a90877a3308b571e8eeeeb72541cce1911714937b0ac908b47764241b8e792f
+generated: "2026-10-24T20:40:23.343256639+03:00"

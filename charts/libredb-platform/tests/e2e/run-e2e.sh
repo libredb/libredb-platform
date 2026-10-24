@@ -50,7 +50,7 @@ else
 fi
 
 step "chart dependencies"
-if [ ! -f "$chart/charts/libredb-studio-0.1.100.tgz" ]; then
+if [ ! -f "$chart/charts/libredb-studio-0.1.103.tgz" ]; then
   # helm dependency build takes Chart.lock's Studio chart only from a repository Helm knows.
   helm repo add libredb-studio https://libredb.org/libredb-studio/ >/dev/null 2>&1 || true
   helm dependency build "$chart"

@@ -367,6 +367,14 @@ describe("rendered environments against the pinned app images", () => {
   );
 
   test(
+    "the Studio image exits 1 naming OIDC_ROLE_PREFIX when it is set",
+    async () => {
+      await expectStudioRefusal("studio-role-prefix", { ...studioEnv, OIDC_ROLE_PREFIX: "libredb_" }, "OIDC_ROLE_PREFIX");
+    },
+    LONG,
+  );
+
+  test(
     "the Studio image exits 1 naming GOVERNANCE_PRIVATE_KEYS_FILE when the keyring holds 17 keys",
     async () => {
       // The installer's renderKeyring refuses 17 keys, so this keyring is written directly to prove Studio does too.

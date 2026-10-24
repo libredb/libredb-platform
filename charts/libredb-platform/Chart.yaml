@@ -8,8 +8,8 @@ type: application
 # The chart ships in the installer's release, so version and appVersion are both that release, whose images and
 # Studio chart it pins (installer/release/release.config.json, which installer/test/unit/kubernetes/chart.test.ts
 # compares, together with installer/package.json).
-version: 1.1.1
-appVersion: "1.1.1"
+version: 1.2.0
+appVersion: "1.2.0"
 kubeVersion: ">=1.28.0-0"
 home: https://libredb.org/platform/
 icon: https://raw.githubusercontent.com/libredb/libredb-studio/main/public/logo.svg
@@ -34,17 +34,19 @@ annotations:
   artifacthub.io/license: Elastic-2.0
   artifacthub.io/containsSecurityUpdates: "false"
   artifacthub.io/changes: |
+    - kind: changed
+      description: "LibreDB Studio 1.1.0 under governance, from the Studio chart 0.1.103; LibreDB Platform stays at 1.1.0"
     - kind: added
-      description: "First release of the chart, with LibreDB Platform 1.1.0 and LibreDB Studio 1.0.0 under governance"
+      description: "Studio 1.1.0 accepts an identity provider access token as a bearer session for native clients, under the same governance rule as a session cookie"
     - kind: added
-      description: "A managed or an external PostgreSQL and Keycloak, Argo CD hooks, OpenShift restricted-v2, seal key rotation, backup and restore, and an install without network access"
-    - kind: added
-      description: "Platform 1.1.0 adds the bearer API under /api/v1 for LibreDB Mobile"
+      description: "With mobile.enabled set to true, a Docker-mode install lets the LibreDB Mobile client use Studio and the Platform API under /api/v1; this chart does not create the mobile client yet"
+    - kind: fixed
+      description: "Studio 1.1.0 asks before a write inside a CTE or under EXPLAIN ANALYZE runs, and reads primary and foreign keys for a SELECT-only PostgreSQL role"
   artifacthub.io/images: |
     - name: libredb-platform
       image: ghcr.io/libredb/libredb-platform:1.1.0@sha256:56d89d9cbb7fde237a1e8af51bb155c276352bf1f7719f8c651b9f5b37213d92
     - name: libredb-studio
-      image: ghcr.io/libredb/libredb-studio:1.0.0@sha256:0cb0177dd2789534f2dbfbc6673104ec0ce70ee82815f5fe9bec5efe3d329ce3
+      image: ghcr.io/libredb/libredb-studio:1.1.0@sha256:e91183def05f4c13703c77363ec51ad68bfa45b1b1d3b92dc53c331b67e53d2c
     - name: postgres
       image: docker.io/library/postgres:18.6@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336
     - name: keycloak
@@ -59,6 +61,6 @@ annotations:
 dependencies:
   - name: libredb-studio
     alias: studio
-    version: 0.1.100
+    version: 0.1.103
     repository: https://libredb.org/libredb-studio/
     condition: studio.enabled

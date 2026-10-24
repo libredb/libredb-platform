@@ -409,13 +409,14 @@ variables:
 
 # Must be unset or false in Studio governance mode, because Studio's boot checks refuse them (Studio's GOVERNANCE.md,
 # Boot checks). LIBREDB_MCP_ENABLED and LIBREDB_AGENT_ENABLED stay here until Studio runs MCP and the agent under
-# governance.
+# governance. Studio 1.1.0 refuses OIDC_ROLE_PREFIX as well, which it reads only for seed connections.
 studioForbidden:
   - ALLOW_CUSTOM_CONNECTIONS
   - LIBREDB_EMBEDDED_SAMPLE
   - SQLITE_EMBEDDED_SAMPLE
   - SEED_CONFIG_PATH
   - SEED_DISCOVERY_PATH
+  - OIDC_ROLE_PREFIX
   - ADMIN_PASSWORD
   - USER_PASSWORD
   - LAUNCH_TOKEN_SECRET

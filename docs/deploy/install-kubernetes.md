@@ -1,6 +1,6 @@
 # Install LibreDB on Kubernetes
 
-This guide installs LibreDB 1.1.1 on a Kubernetes cluster with the Helm chart [`charts/libredb-platform`](../../charts/libredb-platform).
+This guide installs LibreDB 1.2.0 on a Kubernetes cluster with the Helm chart [`charts/libredb-platform`](../../charts/libredb-platform).
 The chart is tested on vanilla Kubernetes, on clusters that Rancher manages and on OpenShift 4.
 The chart deploys LibreDB Platform, its migrate job and LibreDB Studio under governance, and by default a PostgreSQL server and a Keycloak that it runs itself.
 It is the installer's Kubernetes mode driven by Helm: the chart renders its values as an installation configuration of `mode: kubernetes`, and its jobs run the installer's own code on it, so a Helm install gets the same secrets, certificates, environments, PostgreSQL provisioning and Keycloak realm as a [Docker install](install-docker.md) of the same configuration.

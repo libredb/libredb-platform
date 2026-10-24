@@ -29,6 +29,10 @@ describe("renderStudioEnv", () => {
     for (const key of STUDIO_FORBIDDEN) expect(Object.keys(env)).not.toContain(key);
   });
 
+  test("lists OIDC_ROLE_PREFIX among the variables that must be unset, because Studio 1.1.0 refuses it in governance mode", () => {
+    expect(STUDIO_FORBIDDEN).toContain("OIDC_ROLE_PREFIX");
+  });
+
   test("writes the governance values of contracts/env-inventory.yaml", () => {
     const env = renderStudioEnv(desiredFixture(), inputs);
     const url =

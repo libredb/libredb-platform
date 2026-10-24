@@ -1,6 +1,6 @@
 # Install LibreDB with Docker
 
-This guide installs LibreDB 1.1.1 on one x86_64 Linux host with Docker.
+This guide installs LibreDB 1.2.0 on one x86_64 Linux host with Docker.
 The install is tested with Docker Compose on a plain host and on a host that runs a Docker Swarm, such as one of Dokploy or CapRover.
 The installer, `libredb-installer`, runs on that host as root and deploys PostgreSQL, Keycloak, LibreDB Platform, LibreDB Studio and a Caddy edge as the Docker Compose project `libredb`.
 The guide takes the shortest path: a PostgreSQL and a Keycloak that the installer runs itself, one DNS name per app, and certificates from the installer's internal CA.
@@ -62,7 +62,7 @@ The installer treats the token as a secret and never prints it, so keep the file
 The installer is one binary, published with a file of checksums on this repository's [GitHub releases](https://github.com/libredb/libredb-platform/releases):
 
 ```sh
-V=1.1.1
+V=1.2.0
 B=https://github.com/libredb/libredb-platform/releases/download/installer-v$V
 mkdir -p ~/libredb-$V && cd ~/libredb-$V
 curl -fL -O "$B/libredb-installer-linux-x64" -O "$B/SHA256SUMS"
@@ -71,7 +71,7 @@ chmod 0755 libredb-installer-linux-x64
 ./libredb-installer-linux-x64 version
 ```
 
-Expected: `sha256sum` prints `libredb-installer-linux-x64: OK`, and `version` prints `release 1.1.1`.
+Expected: `sha256sum` prints `libredb-installer-linux-x64: OK`, and `version` prints `release 1.2.0`.
 `sha256sum -c` needs no account, and it shows that the download is complete and matches the release's checksums.
 To check that this repository's release workflow built the binary, verify its attestation with the [GitHub CLI](https://cli.github.com), which needs a GitHub login (`gh auth login`):
 
@@ -134,7 +134,7 @@ The configuration never holds a secret or a license token itself, only the paths
 ## Check the host and the configuration
 
 ```sh
-cd ~/libredb-1.1.1
+cd ~/libredb-1.2.0
 ./libredb-installer-linux-x64 validate -c /etc/libredb/libredb.yaml
 ./libredb-installer-linux-x64 preflight -c /etc/libredb/libredb.yaml
 ./libredb-installer-linux-x64 plan -c /etc/libredb/libredb.yaml
