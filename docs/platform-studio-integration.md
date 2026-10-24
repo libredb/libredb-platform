@@ -2,8 +2,8 @@
 
 This page explains, with diagrams, how LibreDB Platform governs LibreDB Studio in an on-prem install.
 It is a reading aid.
-The contract itself is [Studio's `docs/GOVERNANCE.md`](https://github.com/libredb/libredb-studio/blob/1.0.0/docs/GOVERNANCE.md).
-Every diagram and table follows the code of Platform in this repository and of [Studio 1.0.0](https://github.com/libredb/libredb-studio/releases/tag/1.0.0).
+The contract itself is [Studio's `docs/GOVERNANCE.md`](https://github.com/libredb/libredb-studio/blob/1.1.0/docs/GOVERNANCE.md).
+Every diagram and table follows the code of Platform in this repository and of [Studio 1.1.0](https://github.com/libredb/libredb-studio/releases/tag/1.1.0).
 Terms such as snapshot, envelope, seal canary, governance mode and `seed:<id>` are defined in the [glossary](#14-glossary) at the end.
 
 Five ideas carry the whole design:

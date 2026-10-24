@@ -451,7 +451,7 @@ The claim `libredb_roles` reaches its ID token, from which the app reads its rol
 `studio.env` gets `OIDC_BEARER_AUDIENCE=libredb-studio-api` and `OIDC_BEARER_CLIENT_IDS=libredb-mobile`, so Studio accepts an access token only when its `aud` holds that audience and its `azp` is `libredb-mobile`.
 Under governance Studio applies to that token the same sign-in rule as to a session cookie, and because the realm is the one Studio's web sign-in uses, its `sub` matches the subject of Platform's grants.
 The bearer channel needs a Studio release that contains [libredb-studio#1914](https://github.com/libredb/libredb-studio/pull/1914); a Studio without it ignores both variables and the `Authorization` header, so the app gets `401` on every call.
-This release pins Studio 1.0.0, which does not contain it.
+This release pins Studio 1.1.0, which contains it.
 `platform.env` gets `PLATFORM_API_AUDIENCE=libredb-platform-api` and `PLATFORM_API_CLIENT_IDS=libredb-mobile`, so Platform's API accepts an access token only when its `aud` holds that audience and its `azp` is `libredb-mobile`, and only for an account with the role `admin`, as [docs/api/v1.md](../docs/api/v1.md) describes.
 The bearer API needs a Platform release that contains [#24](https://github.com/libredb/libredb-platform/issues/24); a Platform without it ignores both variables, so every call under `/api/v1` gets `404`.
 This release pins Platform 1.1.0, which contains it.

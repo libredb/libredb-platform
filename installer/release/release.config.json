@@ -1,5 +1,5 @@
 {
-  "version": "1.1.1",
+  "version": "1.2.0",
   "images": {
     "platform": {
       "repository": "ghcr.io/libredb/libredb-platform",
@@ -8,8 +8,8 @@
     },
     "studio": {
       "repository": "ghcr.io/libredb/libredb-studio",
-      "version": "1.0.0",
-      "digest": "sha256:0cb0177dd2789534f2dbfbc6673104ec0ce70ee82815f5fe9bec5efe3d329ce3"
+      "version": "1.1.0",
+      "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
     },
     "keycloak": {
       "repository": "quay.io/keycloak/keycloak",
@@ -29,9 +29,9 @@
   },
   "studioChart": {
     "name": "libredb-studio",
-    "version": "0.1.100",
+    "version": "0.1.103",
     "repository": "https://libredb.org/libredb-studio/",
-    "sha256": "f9bf702a427bfd402f1d9525ff0be0f36c5e2618a77668fc9d5562faddc890b0"
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
   },
   "minimums": {
     "dockerEngine": "28.0.0",
@@ -40,7 +40,7 @@
   },
   "studio": {
     "logoutHintVerified": true,
-    "reportedVersion": "1.0.0"
+    "reportedVersion": "1.1.0"
   },
   "contracts": {
     "platformPublishes": [1],

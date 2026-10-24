@@ -37,7 +37,7 @@ Write to [info@libredb.org](mailto:info@libredb.org) or join the waiting list at
 
 ## Install
 
-Platform 1.1.0 is the current release, published as the image `ghcr.io/libredb/libredb-platform`, and pairs with LibreDB Studio 1.0.0.
+Platform 1.1.0 is the current release, published as the image `ghcr.io/libredb/libredb-platform`, and pairs with LibreDB Studio 1.1.0.
 It installs with Docker on one x86_64 Linux host: the installer deploys PostgreSQL, Keycloak, Platform, Studio and a Caddy edge, and can use an existing PostgreSQL server or Keycloak instead.
 On Kubernetes, the Helm chart [`charts/libredb-platform`](charts/libredb-platform) installs the same, from the Helm repository `https://libredb.org/libredb-platform/` or `oci://ghcr.io/libredb/charts/libredb-platform`, as the [Kubernetes install guide](docs/deploy/install-kubernetes.md) describes.
 Each release is tested with Docker Compose on a plain host and on a host that runs a Docker Swarm, and with the chart on vanilla Kubernetes, on clusters that Rancher manages and on OpenShift 4.
