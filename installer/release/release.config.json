@@ -9,7 +9,7 @@
     "studio": {
       "repository": "ghcr.io/libredb/libredb-studio",
       "version": "1.1.0",
-      "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      "digest": "sha256:e91183def05f4c13703c77363ec51ad68bfa45b1b1d3b92dc53c331b67e53d2c"
     },
     "keycloak": {
       "repository": "quay.io/keycloak/keycloak",
@@ -31,7 +31,7 @@
     "name": "libredb-studio",
     "version": "0.1.103",
     "repository": "https://libredb.org/libredb-studio/",
-    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    "sha256": "2998a9612e175f6cada18a5d704282e778706e542377dcd22a3eee1ee77ccf2c"
   },
   "minimums": {
     "dockerEngine": "28.0.0",

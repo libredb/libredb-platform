@@ -217,7 +217,7 @@ studio:
   fullnameOverride: libredb-studio
   image:
     repository: ghcr.io/libredb/libredb-studio
-    tag: "1.1.0@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    tag: "1.1.0@sha256:e91183def05f4c13703c77363ec51ad68bfa45b1b1d3b92dc53c331b67e53d2c"
   authProvider: oidc
   governance:
     enabled: true
