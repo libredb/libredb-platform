@@ -1,15 +1,15 @@
 apiVersion: v2
 name: libredb-platform
 description: >-
-  LibreDB Platform, database access governance, with LibreDB Studio, on Kubernetes: Platform, its migrate job,
-  Studio under governance, and optionally a managed PostgreSQL and Keycloak. Source-available under the
-  Elastic License 2.0; every install needs a license from LibreDB.
+  LibreDB Platform, database access governance, with LibreDB Studio, on Kubernetes, Rancher and OpenShift:
+  Platform, its migrate job, Studio under governance, and optionally a managed PostgreSQL and Keycloak.
+  Source-available under the Elastic License 2.0; every install needs a license from LibreDB.
 type: application
 # The chart ships in the installer's release, so version and appVersion are both that release, whose images and
 # Studio chart it pins (installer/release/release.config.json, which installer/test/unit/kubernetes/chart.test.ts
 # compares, together with installer/package.json).
-version: 1.0.1
-appVersion: "1.0.1"
+version: 1.1.0
+appVersion: "1.1.0"
 kubeVersion: ">=1.28.0-0"
 home: https://libredb.org/platform/
 icon: https://raw.githubusercontent.com/libredb/libredb-studio/main/public/logo.svg
@@ -20,6 +20,9 @@ keywords:
   - governance
   - audit
   - keycloak
+  - kubernetes
+  - openshift
+  - rancher
   - libredb
 maintainers:
   - name: LibreDB
@@ -32,10 +35,14 @@ annotations:
   artifacthub.io/containsSecurityUpdates: "false"
   artifacthub.io/changes: |
     - kind: added
-      description: "First release: LibreDB Platform 1.0.1 with LibreDB Studio under governance, a managed or external PostgreSQL and Keycloak"
+      description: "First release of the chart, with LibreDB Platform 1.1.0 and LibreDB Studio 1.0.0 under governance"
+    - kind: added
+      description: "A managed or an external PostgreSQL and Keycloak, Argo CD hooks, OpenShift restricted-v2, seal key rotation, backup and restore, and an install without network access"
+    - kind: added
+      description: "Platform 1.1.0 adds the bearer API under /api/v1 for LibreDB Mobile"
   artifacthub.io/images: |
     - name: libredb-platform
-      image: ghcr.io/libredb/libredb-platform:1.0.1@sha256:b42e346756b4e39a1ed99eee4990092b139dcdc1e0c561069c12ee1bcc081268
+      image: ghcr.io/libredb/libredb-platform:1.1.0@sha256:56d89d9cbb7fde237a1e8af51bb155c276352bf1f7719f8c651b9f5b37213d92
     - name: libredb-studio
       image: ghcr.io/libredb/libredb-studio:1.0.0@sha256:0cb0177dd2789534f2dbfbc6673104ec0ce70ee82815f5fe9bec5efe3d329ce3
     - name: postgres

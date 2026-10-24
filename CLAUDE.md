@@ -193,7 +193,7 @@ Next.js also compiles `src/instrumentation.ts` for the Edge runtime, so Node.js-
 
 `installer/` is a standalone Bun 1.4.2 package with its own `package.json`, `bun.lock` and tests.
 Platform's lint, Vitest run and Docker image ignore it.
-Release 1.0.1 installs in Docker mode on one x86_64 Linux host: the configuration schema already accepts `mode: kubernetes`, but `preflight`, `plan`, `apply`, `verify` and `db-script` refuse it until Kubernetes mode arrives in the next release.
+Release 1.1.0 installs in Docker mode on one x86_64 Linux host with the installer, and on Kubernetes with the Helm chart `charts/libredb-platform`, whose jobs run the installer's Kubernetes-mode code; the installer's own `preflight`, `plan`, `apply`, `verify` and `db-script` refuse `mode: kubernetes`.
 `docs/deploy/install-docker.md` is the customer's install guide and `installer/README.md` the reference of every command and field, so a change to a command, a default or a prerequisite updates both.
 
 ```bash
