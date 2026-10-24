@@ -39,9 +39,7 @@ annotations:
     - kind: added
       description: "Studio 1.1.0 accepts an identity provider access token as a bearer session for native clients, under the same governance rule as a session cookie"
     - kind: added
-      description: "The LibreDB Mobile client works end to end in Docker mode with mobile.enabled set to true, against Studio and the Platform API under /api/v1"
-    - kind: changed
-      description: "The chart does not create the mobile client yet, so mobile access stays in Docker mode only"
+      description: "With mobile.enabled set to true, a Docker-mode install lets the LibreDB Mobile client use Studio and the Platform API under /api/v1; this chart does not create the mobile client yet"
     - kind: fixed
       description: "Studio 1.1.0 asks before a write inside a CTE or under EXPLAIN ANALYZE runs, and reads primary and foreign keys for a SELECT-only PostgreSQL role"
   artifacthub.io/images: |
