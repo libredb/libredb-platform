@@ -7,7 +7,7 @@
 // LIBREDB_E2E_PORTS_HOST names the one host (default lab.libredb.test), and LIBREDB_E2E_PORTS_PLATFORM,
 // LIBREDB_E2E_PORTS_STUDIO and LIBREDB_E2E_PORTS_AUTH its ports (defaults 443, 8443 and 9443).
 import { randomUUID } from "node:crypto";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Response } from "@playwright/test";
 import {
   completeFirstLogin,
   FIRST_ADMIN,
@@ -106,7 +106,7 @@ test("after signing in to Platform and Studio on one host, no cookie name is set
   };
 
   const pending: Promise<void>[] = [];
-  context.on("response", (response) => {
+  const onResponse = (response: Response) => {
     pending.push(
       response.headersArray().then((headers) => {
         for (const header of headers) {
@@ -116,7 +116,8 @@ test("after signing in to Platform and Studio on one host, no cookie name is set
         }
       }),
     );
-  });
+  };
+  context.on("response", onResponse);
   // Cookies written by client code, such as the sidebar state, never pass through a response.
   await context.exposeBinding("__libredbCookieWritten", ({ frame }, name: string) => record(frame.url(), name));
   // A string, because the installer's TypeScript has no DOM types; it runs in every page before the page's own code.
@@ -143,6 +144,9 @@ test("after signing in to Platform and Studio on one host, no cookie name is set
   // Studio mounts no sidebar today; when it does, its toggle is recorded as well.
   await toggleSidebar(page);
 
+  // A page keeps sending requests after the steps, so recording stops before the wait: a response recorded later
+  // would read its headers while the context closes, and that rejection would fail the test after its last step.
+  context.off("response", onResponse);
   await Promise.all(pending);
   expect(written.platform.size).toBeGreaterThan(0);
   expect(written.studio.size).toBeGreaterThan(0);
