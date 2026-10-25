@@ -5,6 +5,67 @@ entries:
       artifacthub.io/category: database
       artifacthub.io/changes: |
         - kind: changed
+          description: "LibreDB Platform 1.3.0; LibreDB Studio stays at 1.1.0 from the Studio chart 0.1.103"
+        - kind: added
+          description: "Platform API: PATCH /api/v1/connections/{id} enables or disables a connection, with the permission check, the seat gate and the audit record of the web console"
+      artifacthub.io/containsSecurityUpdates: "false"
+      artifacthub.io/images: |
+        - name: libredb-platform
+          image: ghcr.io/libredb/libredb-platform:1.3.0@sha256:e53ca9b82e337bb995a575ac4082de3da092d33c098a020a13292584fbc49ea9
+        - name: libredb-studio
+          image: ghcr.io/libredb/libredb-studio:1.1.0@sha256:e91183def05f4c13703c77363ec51ad68bfa45b1b1d3b92dc53c331b67e53d2c
+        - name: postgres
+          image: docker.io/library/postgres:18.6@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:26.8.1@sha256:79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244
+        - name: caddy
+          image: docker.io/library/caddy:2.11.7@sha256:685ae3d7c34d9b5f8caeddc5d14051db7bbd88ff1f5a2fa0c16bd8ca328fb7af
+      artifacthub.io/license: Elastic-2.0
+      artifacthub.io/links: |
+        - name: Install guide
+          url: https://github.com/libredb/libredb-platform/blob/main/docs/deploy/install-kubernetes.md
+        - name: Source
+          url: https://github.com/libredb/libredb-platform
+    apiVersion: v2
+    appVersion: 1.3.0
+    created: "2026-10-25T04:15:44.393658384Z"
+    dependencies:
+    - alias: studio
+      condition: studio.enabled
+      name: libredb-studio
+      repository: https://libredb.org/libredb-studio/
+      version: 0.1.103
+    description: 'LibreDB Platform, database access governance, with LibreDB Studio,
+      on Kubernetes, Rancher and OpenShift: Platform, its migrate job, Studio under
+      governance, and optionally a managed PostgreSQL and Keycloak. Source-available
+      under the Elastic License 2.0; every install needs a license from LibreDB.'
+    digest: 52928410ca7d013e25daac18f5aa0de048ce53d1fcb5f54bf9f335237793e764
+    home: https://libredb.org/platform/
+    icon: https://raw.githubusercontent.com/libredb/libredb-studio/main/public/logo.svg
+    keywords:
+    - database
+    - governance
+    - audit
+    - keycloak
+    - kubernetes
+    - openshift
+    - rancher
+    - libredb
+    kubeVersion: '>=1.28.0-0'
+    maintainers:
+    - name: LibreDB
+      url: https://libredb.org
+    name: libredb-platform
+    sources:
+    - https://github.com/libredb/libredb-platform
+    type: application
+    urls:
+    - https://github.com/libredb/libredb-platform/releases/download/installer-v1.3.0/libredb-platform-1.3.0.tgz
+    version: 1.3.0
+  - annotations:
+      artifacthub.io/category: database
+      artifacthub.io/changes: |
+        - kind: changed
           description: "LibreDB Studio 1.1.0 under governance, from the Studio chart 0.1.103; LibreDB Platform stays at 1.1.0"
         - kind: added
           description: "Studio 1.1.0 accepts an identity provider access token as a bearer session for native clients, under the same governance rule as a session cookie"
@@ -129,4 +190,4 @@ entries:
     urls:
     - https://github.com/libredb/libredb-platform/releases/download/installer-v1.1.1/libredb-platform-1.1.1.tgz
     version: 1.1.1
-generated: "2026-10-24T18:57:17.030859632Z"
+generated: "2026-10-25T04:15:44.384588981Z"
