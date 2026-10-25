@@ -77,8 +77,8 @@ describe("release manifest", () => {
     const raw: unknown = JSON.parse(readFileSync(join(import.meta.dir, "../../../release/release.config.json"), "utf8"));
     const manifest = parseReleaseManifest(raw);
     expect(manifest.images.platform.repository).toBe("ghcr.io/libredb/libredb-platform");
-    expect(manifest.version).toBe("1.2.0");
-    expect(manifest.images.platform.version).toBe("1.1.0");
+    expect(manifest.version).toBe("1.3.0");
+    expect(manifest.images.platform.version).toBe("1.3.0");
     expect(manifest.images.studio.version).toBe("1.1.0");
     expect(manifest.studioChart.version).toBe("0.1.103");
     expect(manifest.studio.reportedVersion).toBe("1.1.0");
