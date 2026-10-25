@@ -87,6 +87,14 @@ export const updateDatabaseConnectionSchema = z
     }
   })
 
+/**
+ * The body of PATCH /api/v1/connections/{id}: the switch alone, so the bearer API never reaches a definition or a
+ * credential, and any other field is refused.
+ */
+export const setConnectionActiveSchema = z.strictObject({
+  active: z.boolean(),
+})
+
 export const deleteDatabaseConnectionSchema = z.strictObject({
   id: z.string().min(1),
 })

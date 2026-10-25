@@ -174,7 +174,7 @@ export const DatabaseConnectionRepository = {
    * Applies the changes to a connection of the tenant and records them in one transaction; NotFound otherwise.
    * `license` is the license status of the install, or null in cloud mode. Only a change that turns the connection active
    * again can take user seats, so only that one goes through the seat gate, which locks the row of the tenant before
-   * anything else; every other change is allowed in every state.
+   * anything else; every other change is allowed in every state. Returns the connection as the update left it.
    */
   async update(
     tenantId: string,
@@ -184,8 +184,8 @@ export const DatabaseConnectionRepository = {
     changes: DatabaseConnectionChanges,
     resealed: readonly ResealedLevel[],
     license: LicenseStatus | null,
-  ): Promise<void> {
-    await db.$transaction(async (tx) => {
+  ): Promise<DatabaseConnectionView> {
+    return db.$transaction(async (tx) => {
       if (changes.active === true) await requireSeatsForReactivation(tx, license, tenantId, id)
       const before = await findInTenant(tx, tenantId, id)
       if (!before) throw new NotFoundError('Connection')
@@ -206,6 +206,7 @@ export const DatabaseConnectionRepository = {
         before: auditSnapshot(before),
         after: { ...auditSnapshot(after), ...(resealed.length > 0 ? { resealed: [...resealed] } : {}) },
       })
+      return toView(after)
     })
   },
 
