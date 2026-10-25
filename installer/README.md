@@ -454,7 +454,7 @@ The bearer channel needs a Studio release that contains [libredb-studio#1914](ht
 This release pins Studio 1.1.0, which contains it.
 `platform.env` gets `PLATFORM_API_AUDIENCE=libredb-platform-api` and `PLATFORM_API_CLIENT_IDS=libredb-mobile`, so Platform's API accepts an access token only when its `aud` holds that audience and its `azp` is `libredb-mobile`, and only for an account with the role `admin`, as [docs/api/v1.md](../docs/api/v1.md) describes.
 The bearer API needs a Platform release that contains [#24](https://github.com/libredb/libredb-platform/issues/24); a Platform without it ignores both variables, so every call under `/api/v1` gets `404`.
-This release pins Platform 1.1.0, which contains it.
+This release pins Platform 1.3.0, which contains it.
 Turning the mobile app off again removes the variables from `studio.env` and `platform.env`, and leaves `libredb-mobile` in the realm, where an administrator deletes it in the console.
 
 | Exit code | Meaning |
