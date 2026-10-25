@@ -7,7 +7,7 @@ import { getKeycloakDirectory } from '@/shared/lib/keycloak/directory'
 import { getLicenseStatus } from '@/shared/lib/license/install-license'
 import { getRuntimeConfig } from '@/shared/lib/runtime-config'
 import type { CurrentUser } from '@/shared/types'
-import { DatabaseConnectionRepository } from './database-connection.repository'
+import { DatabaseConnectionRepository, type DatabaseConnectionView } from './database-connection.repository'
 import { ConnectionGrantRepository } from './grant.repository'
 import {
   DIRECTORY_PAGE_SIZE,
@@ -37,17 +37,22 @@ export interface GrantableConnection {
   hasWriteCredential: boolean
 }
 
-/** The connections of the user's tenant that a grant can name, newest first. */
-export async function listGrantableConnections(user: CurrentUser): Promise<GrantableConnection[]> {
-  await requirePermission(user, PERMISSIONS.CONNECTION_EDIT)
-  const connections = await DatabaseConnectionRepository.findAllByTenant(tenantOf(user))
-  return connections.map((connection) => ({
+/** A connection in the shape the bearer API answers it, by GET /api/v1/connections and PATCH /api/v1/connections/{id}. */
+export function grantableConnection(connection: DatabaseConnectionView): GrantableConnection {
+  return {
     id: connection.id,
     name: connection.name,
     engine: connection.engine,
     status: connection.active ? 'active' : 'inactive',
     hasWriteCredential: connection.hasWriteCredential,
-  }))
+  }
+}
+
+/** The connections of the user's tenant that a grant can name, newest first. */
+export async function listGrantableConnections(user: CurrentUser): Promise<GrantableConnection[]> {
+  await requirePermission(user, PERMISSIONS.CONNECTION_EDIT)
+  const connections = await DatabaseConnectionRepository.findAllByTenant(tenantOf(user))
+  return connections.map(grantableConnection)
 }
 
 /** A grant as the bearer API lists it, with the Platform user who last set it at grantedAt. */
