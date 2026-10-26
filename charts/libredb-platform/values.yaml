@@ -191,6 +191,17 @@ network:
   # -- An http(s) proxy for the apps' outbound HTTPS, written as HTTPS_PROXY with the installer's NO_PROXY.
   httpsProxy: ""
 
+# -- The LibreDB mobile app, as the installer's mobile section (installer/README.md, "Mobile app"): true creates the
+# public client libredb-mobile (standard flow with PKCE S256, the access token audiences libredb-studio-api and
+# libredb-platform-api) when the chart configures the realm, and turns on Studio's bearer channel and Platform's bearer
+# API for it. With keycloak.external.provisioning manual, your identity team creates the client as
+# installer/docs/keycloak-manual.md section 5 describes. Each URI is a private-use scheme in reverse domain name form
+# or an https:// URL, without a wildcard or a fragment, which the bootstrap job checks with the installer's schema.
+mobile:
+  enabled: false
+  redirectUri: org.libredb.mobile:/oauth2redirect
+  postLogoutRedirectUri: org.libredb.mobile:/oauth2redirect
+
 jobs:
   # -- The bootstrap hook, the PostgreSQL provisioning, the Keycloak and the migrate jobs.
   backoffLimit: 6
@@ -264,8 +275,9 @@ studio:
           key: storage-encryption-key
     - name: NODE_EXTRA_CA_CERTS
       value: /etc/libredb/ca/ca.crt
-  # -- The installer's network environment of Studio (NO_PROXY, and HTTPS_PROXY with network.httpsProxy), which the
-  # bootstrap job writes.
+  # -- The installer's environment of Studio that this chart has no value for (NO_PROXY, HTTPS_PROXY with
+  # network.httpsProxy, and OIDC_BEARER_AUDIENCE and OIDC_BEARER_CLIENT_IDS with mobile.enabled), which the bootstrap
+  # job writes.
   extraEnvFrom:
     - secretRef:
         name: libredb-studio-network-env

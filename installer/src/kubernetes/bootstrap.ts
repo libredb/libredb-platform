@@ -372,8 +372,11 @@ export interface RenderedObjects {
   configMaps: { name: string; data: ObjectData; readers?: Workload[] }[];
 }
 
-/** The keys of Studio's environment that the Studio chart has no value for, as the installer renders them. */
-export const STUDIO_NETWORK_KEYS = ["NO_PROXY", "no_proxy", "HTTPS_PROXY", "NODE_USE_ENV_PROXY"] as const;
+/**
+ * The keys of Studio's environment that the Studio chart has no value for, as the installer renders them: the network
+ * environment, and the bearer channel of the mobile app with mobile.enabled.
+ */
+export const STUDIO_EXTRA_ENV_KEYS = ["NO_PROXY", "no_proxy", "HTTPS_PROXY", "NODE_USE_ENV_PROXY", "OIDC_BEARER_AUDIENCE", "OIDC_BEARER_CLIENT_IDS"] as const;
 
 /** Every derived object of the run, from the store, the TLS material and the configuration. */
 export function renderObjects(
@@ -441,7 +444,7 @@ export function renderObjects(
   });
   secrets.push({
     name: K8S_NAMES.studioNetworkEnv,
-    data: defined(Object.fromEntries(STUDIO_NETWORK_KEYS.map((key) => [key, studioEnv[key]]))),
+    data: defined(Object.fromEntries(STUDIO_EXTRA_ENV_KEYS.map((key) => [key, studioEnv[key]]))),
     readers: [WORKLOADS.studio],
   });
 

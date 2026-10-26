@@ -1,6 +1,6 @@
 # Install LibreDB on Kubernetes
 
-This guide installs LibreDB 1.3.0 on a Kubernetes cluster with the Helm chart [`charts/libredb-platform`](../../charts/libredb-platform).
+This guide installs LibreDB 1.3.1 on a Kubernetes cluster with the Helm chart [`charts/libredb-platform`](../../charts/libredb-platform).
 The chart is tested on vanilla Kubernetes, on clusters that Rancher manages and on OpenShift 4.
 The chart deploys LibreDB Platform, its migrate job and LibreDB Studio under governance, and by default a PostgreSQL server and a Keycloak that it runs itself.
 It is the installer's Kubernetes mode driven by Helm: the chart renders its values as an installation configuration of `mode: kubernetes`, and its jobs run the installer's own code on it, so a Helm install gets the same secrets, certificates, environments, PostgreSQL provisioning and Keycloak realm as a [Docker install](install-docker.md) of the same configuration.
@@ -220,6 +220,26 @@ With `provisioning: installer`, the keycloak-configure job converges the realm's
 With `provisioning: manual`, your identity team configures the realm from `libredb-installer keycloak export` or [keycloak-manual.md](../../installer/docs/keycloak-manual.md), and `clientSecretsSecret` names a Secret with the keys `studio-client-secret` and `platform-client-secret`.
 `hosts.auth` must be the host of `baseUrl`, and `caBundle` takes the CA of the Keycloak's certificate when a private CA issued it.
 
+## The mobile app
+
+The LibreDB mobile app signs in to Keycloak as a public client with the authorization code flow and PKCE S256, and calls Studio's API and Platform's API under `/api/v1` with its access token.
+It is off unless the values enable it, as the installer's [`mobile` section](../../installer/README.md#mobile-app) does:
+
+```yaml
+mobile:
+  enabled: true
+  redirectUri: org.libredb.mobile:/oauth2redirect
+  postLogoutRedirectUri: org.libredb.mobile:/oauth2redirect
+```
+
+Both URIs default to `org.libredb.mobile:/oauth2redirect`.
+Each must be a private-use scheme in reverse domain name form, such as `org.libredb.mobile:`, or an `https://` URL, without a wildcard or a fragment; the bootstrap job checks them with the installer's schema and fails the install with exit 2 naming the value.
+With a managed Keycloak, or an existing one with `provisioning: installer`, the keycloak-configure job creates the client `libredb-mobile` as the installer does: public, the standard flow only with PKCE S256, no direct access grants and no implicit flow, the two URIs, the default client scopes `basic`, `profile`, `email` and `libredb-roles`, and two audience mappers that add `libredb-studio-api` and `libredb-platform-api` to the access token only, so one token serves both apps.
+With `provisioning: manual`, your identity team creates that client as [section 5 of keycloak-manual.md](../../installer/docs/keycloak-manual.md#5-client-libredb-mobile-only-with-the-mobile-app) describes; it has no secret, so `clientSecretsSecret` stays as it is.
+Platform gets `PLATFORM_API_AUDIENCE=libredb-platform-api` and `PLATFORM_API_CLIENT_IDS=libredb-mobile` in Secret `libredb-platform-env`, and Studio gets `OIDC_BEARER_AUDIENCE=libredb-studio-api` and `OIDC_BEARER_CLIENT_IDS=libredb-mobile` in Secret `libredb-studio-network-env`, so each app accepts an access token only when its `aud` holds the app's audience and its `azp` is `libredb-mobile`; [docs/api/v1.md](../api/v1.md) describes Platform's checks.
+The upgrade that turns it on or off restarts both apps.
+Turning it off removes the four variables and leaves `libredb-mobile` in the realm, where an administrator deletes it in the console.
+
 ## Upgrade
 
 ```sh
@@ -355,7 +375,7 @@ helm install libredb libredb-platform-<version>.tgz -n libredb -f values.yaml --
 
 ## End-to-end test
 
-[`charts/libredb-platform/tests/e2e/run-e2e.sh`](../../charts/libredb-platform/tests/e2e/run-e2e.sh) installs the chart on a local kind cluster into a namespace that enforces the restricted Pod Security Standard, checks the endpoints, the network policies, the license and Studio's seal canary, runs the browser suite of [`installer/e2e/kubernetes`](../../installer/e2e/kubernetes), upgrades, uninstalls and installs again; it needs a license for `platform.libredb.test`.
+[`charts/libredb-platform/tests/e2e/run-e2e.sh`](../../charts/libredb-platform/tests/e2e/run-e2e.sh) installs the chart on a local kind cluster into a namespace that enforces the restricted Pod Security Standard, checks the endpoints, the network policies, the license and Studio's seal canary, runs the browser suite of [`installer/e2e/kubernetes`](../../installer/e2e/kubernetes), upgrades, uninstalls and installs again, then upgrades with `mobile.enabled`, checks both apps' bearer settings and that a PKCE sign-in through `libredb-mobile` yields an access token with both audiences and `azp` `libredb-mobile`, and turns it off again; it needs a license for `platform.libredb.test`.
 [`run-external.sh`](../../charts/libredb-platform/tests/e2e/run-external.sh) then installs against a PostgreSQL and a Keycloak of a simulated customer, with the customer's TLS Secrets and a license Secret; it needs a license for `platform-ext.libredb.test`.
 On the installation run-e2e.sh leaves running (`LIBREDB_E2E_KEEP=1`), [`run-lifecycle.sh`](../../charts/libredb-platform/tests/e2e/run-lifecycle.sh) renews leaves that expire in 10 days and walks a license through expiring, expired and active, [`run-upgrade.sh`](../../charts/libredb-platform/tests/e2e/run-upgrade.sh) upgrades to the chart of a later release, with a failed `--atomic` attempt first, and checks that going back is refused, and [`run-argocd.sh`](../../charts/libredb-platform/tests/e2e/run-argocd.sh) installs Argo CD with label tracking and syncs the packaged chart with automated prune.
 `LIBREDB_E2E_EXISTING_CLUSTER=1` runs run-e2e.sh against the cluster of `KUBECONFIG`, such as from a container on kind's network.

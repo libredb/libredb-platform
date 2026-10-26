@@ -149,7 +149,7 @@ let forward: ChildProcess | undefined;
 const FORWARD_PORT = Number(process.env.LIBREDB_E2E_KEYCLOAK_PORT ?? "28080");
 
 /** A port-forward to Service keycloak on 127.0.0.1, which reaches the Admin API of a managed Keycloak. */
-async function keycloakAdminUrl(): Promise<string> {
+export async function keycloakAdminUrl(): Promise<string> {
   if (forward === undefined) {
     forward = spawn(KUBECTL, ["-n", NAMESPACE, "port-forward", "svc/keycloak", `${FORWARD_PORT}:8080`], { stdio: "ignore" });
     for (let attempt = 0; attempt < 50; attempt += 1) {

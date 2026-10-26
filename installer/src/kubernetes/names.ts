@@ -36,7 +36,10 @@ export const K8S_NAMES = {
   keycloakEnv: "libredb-keycloak-env",
   /** The Caddyfile of a managed Keycloak's edge, the installer's auth site behind the ingress. */
   keycloakEdge: "libredb-keycloak-edge",
-  /** Studio's network environment of the installer (NO_PROXY, and HTTPS_PROXY with a proxy), read through studio.extraEnvFrom. */
+  /**
+   * Studio's environment of the installer that the Studio chart has no value for (NO_PROXY, HTTPS_PROXY with a proxy,
+   * and the mobile app's OIDC_BEARER_* with mobile.enabled), read through studio.extraEnvFrom.
+   */
   studioNetworkEnv: "libredb-studio-network-env",
   /** The jobs' gzipped bundle, which the bootstrap job copies from its hook ConfigMap for the keycloak-configure job. */
   jobsBundle: "libredb-jobs",

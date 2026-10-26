@@ -127,6 +127,39 @@ describe("the keycloak-configure job", () => {
   });
 });
 
+describe("the keycloak-configure job with mobile.enabled", () => {
+  test("converges the public client libredb-mobile with PKCE S256 and both audience mappers, as the installer does", async () => {
+    const step = converge();
+    await runKeycloakJob(installation({ mobile: { enabled: true } }), manifestFixture(), jobIO(new MemoryObjects(), keycloak("managed").fetcher).io, step.functions);
+    const mobile = step.seen.target?.desired.appClients.find((client) => client.representation.clientId === "libredb-mobile");
+    expect(mobile?.representation).toMatchObject({
+      publicClient: true,
+      standardFlowEnabled: true,
+      implicitFlowEnabled: false,
+      directAccessGrantsEnabled: false,
+      serviceAccountsEnabled: false,
+      redirectUris: ["org.libredb.mobile:/oauth2redirect"],
+      attributes: { "pkce.code.challenge.method": "S256", "post.logout.redirect.uris": "org.libredb.mobile:/oauth2redirect" },
+    });
+    expect(mobile?.representation.secret).toBeUndefined();
+    const audiences = mobile?.protocolMappers.map((mapper) => ({
+      audience: mapper.config["included.custom.audience"],
+      access: mapper.config["access.token.claim"],
+      id: mapper.config["id.token.claim"],
+    }));
+    expect(audiences).toEqual([
+      { audience: "libredb-studio-api", access: "true", id: "false" },
+      { audience: "libredb-platform-api", access: "true", id: "false" },
+    ]);
+  });
+
+  test("leaves libredb-mobile out without it", async () => {
+    const step = converge();
+    await runKeycloakJob(installation(), manifestFixture(), jobIO(new MemoryObjects(), keycloak("managed").fetcher).io, step.functions);
+    expect(step.seen.target?.desired.appClients.map((client) => client.representation.clientId)).not.toContain("libredb-mobile");
+  });
+});
+
 describe("adminTarget", () => {
   test("refuses provisioning manual and a missing admin credential", () => {
     const sources = { readFile: () => undefined, env: {}, redactor: new Redactor() };

@@ -8,8 +8,8 @@ type: application
 # The chart ships in the installer's release, so version and appVersion are both that release, whose images and
 # Studio chart it pins (installer/release/release.config.json, which installer/test/unit/kubernetes/chart.test.ts
 # compares, together with installer/package.json).
-version: 1.3.0
-appVersion: "1.3.0"
+version: 1.3.1
+appVersion: "1.3.1"
 kubeVersion: ">=1.28.0-0"
 home: https://libredb.org/platform/
 icon: https://raw.githubusercontent.com/libredb/libredb-studio/main/public/logo.svg
@@ -34,10 +34,10 @@ annotations:
   artifacthub.io/license: Elastic-2.0
   artifacthub.io/containsSecurityUpdates: "false"
   artifacthub.io/changes: |
-    - kind: changed
-      description: "LibreDB Platform 1.3.0; LibreDB Studio stays at 1.1.0 from the Studio chart 0.1.103"
     - kind: added
-      description: "Platform API: PATCH /api/v1/connections/{id} enables or disables a connection, with the permission check, the seat gate and the audit record of the web console"
+      description: "Mobile app: mobile.enabled creates the public Keycloak client libredb-mobile with PKCE S256 and the access token audiences libredb-studio-api and libredb-platform-api, and turns on Studio's bearer channel and Platform's bearer API for it, as the installer's mobile section does"
+    - kind: changed
+      description: "LibreDB Platform stays at 1.3.0 and LibreDB Studio at 1.1.0 from the Studio chart 0.1.103"
   artifacthub.io/images: |
     - name: libredb-platform
       image: ghcr.io/libredb/libredb-platform:1.3.0@sha256:e53ca9b82e337bb995a575ac4082de3da092d33c098a020a13292584fbc49ea9
