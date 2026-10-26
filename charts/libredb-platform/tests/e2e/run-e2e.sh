@@ -6,8 +6,9 @@
 # The license must name the host platform.libredb.test. The test installs the chart with a managed PostgreSQL and
 # Keycloak, checks the endpoints and the edge's path rules against the internal CA, the license, Studio's heartbeat
 # and its seal canary, runs the browser suite (installer/e2e/kubernetes), upgrades with a changed value and checks that
-# the seal keys and the CA stay, and finally uninstalls and installs again and checks the same. It uses only the kind
-# cluster it names; it never touches other containers or volumes of the host's Docker.
+# the seal keys and the CA stay, uninstalls and installs again and checks the same, and finally upgrades with
+# mobile.enabled, checks the apps' bearer settings and signs in through libredb-mobile, and turns it off again. It uses
+# only the kind cluster it names; it never touches other containers or volumes of the host's Docker.
 # Needs kind, kubectl, helm, curl and bun on PATH. LIBREDB_E2E_KEEP=1 keeps the installation running at the end.
 set -euo pipefail
 
@@ -149,6 +150,44 @@ kubectl -n "$namespace" logs -l app.kubernetes.io/component=keycloak-configure -
 expect_status 200 https://platform.libredb.test/api/health/ready
 expect_status 200 https://studio.libredb.test/api/ready
 echo "reinstall reused the seal keys, the CA, the database and the realm"
+
+step "mobile.enabled creates libredb-mobile and turns on Studio's bearer channel and Platform's bearer API"
+bearer_env=(
+  libredb-platform:PLATFORM_API_AUDIENCE=libredb-platform-api
+  libredb-platform:PLATFORM_API_CLIENT_IDS=libredb-mobile
+  libredb-studio:OIDC_BEARER_AUDIENCE=libredb-studio-api
+  libredb-studio:OIDC_BEARER_CLIENT_IDS=libredb-mobile
+)
+running_env() { kubectl -n "$namespace" exec "deploy/$1" -- printenv "$2" 2>/dev/null || true; }
+install_chart --set mobile.enabled=true >/dev/null
+kubectl -n "$namespace" rollout status deploy/libredb-platform --timeout=180s >/dev/null
+kubectl -n "$namespace" rollout status deploy/libredb-studio --timeout=180s >/dev/null
+for entry in "${bearer_env[@]}"; do
+  deployment=${entry%%:*}; expected=${entry#*:}; name=${expected%%=*}
+  [ "$name=$(running_env "$deployment" "$name")" = "$expected" ] || fail "the running $deployment lacks $expected with mobile.enabled"
+done
+(cd "$installer" && LIBREDB_E2E_NAMESPACE="$namespace" LIBREDB_E2E_MOBILE=1 \
+  bunx playwright test --config e2e/kubernetes/playwright.config.ts mobile.k8s.ts)
+install_chart >/dev/null
+kubectl -n "$namespace" rollout status deploy/libredb-platform --timeout=180s >/dev/null
+kubectl -n "$namespace" rollout status deploy/libredb-studio --timeout=180s >/dev/null
+for entry in "${bearer_env[@]}"; do
+  deployment=${entry%%:*}; expected=${entry#*:}; name=${expected%%=*}
+  [ -z "$(running_env "$deployment" "$name")" ] || fail "the running $deployment keeps $name after mobile.enabled was turned off"
+done
+# For a moment after a restart the ingress may still route to the replaced pod, which answers 502 or 504 or not at all.
+eventually_status() {
+  local status
+  for _ in $(seq 1 30); do
+    status=$(curl -s --max-time 10 "${resolve[@]}" --cacert "$work/ca.crt" -o /dev/null -w '%{http_code}' "$2" || true)
+    if [ "$status" = "$1" ]; then printf '%s %s\n' "$status" "$2"; return 0; fi
+    sleep 2
+  done
+  fail "$2 answered $status, not $1"
+}
+eventually_status 200 https://platform.libredb.test/api/health/ready
+eventually_status 200 https://studio.libredb.test/api/ready
+echo "libredb-mobile's access token holds both audiences and azp libredb-mobile; turning it off removed the bearer settings"
 
 if [ "${LIBREDB_E2E_KEEP:-0}" != "1" ]; then
   step "cleanup"

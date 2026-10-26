@@ -95,6 +95,7 @@ the installer's schema (installer/src/config/schema.ts). It holds no secret, onl
 {{- if not (kindIs "invalid" .Values.platform.queryLogRetentionDays) }}{{ $_ := set $platform "queryLogRetentionDays" (int .Values.platform.queryLogRetentionDays) }}{{ end -}}
 {{- $doc := dict "apiVersion" "install.libredb.org/v1" "kind" "LibreDBInstallation" "metadata" (dict "name" .Values.installation.name) "mode" "kubernetes" "endpoints" (dict "style" "hostnames" "hosts" .Values.hosts) "tls" $tls "postgres" $postgres "keycloak" $keycloak "platform" $platform "kubernetes" (dict "namespace" .Release.Namespace) -}}
 {{- if .Values.network.httpsProxy }}{{ $_ := set $doc "network" (dict "httpsProxy" .Values.network.httpsProxy) }}{{ end -}}
+{{- if .Values.mobile.enabled }}{{ $_ := set $doc "mobile" (dict "enabled" true "redirectUri" .Values.mobile.redirectUri "postLogoutRedirectUri" .Values.mobile.postLogoutRedirectUri) }}{{ end -}}
 {{- $seal := .Values.platform.sealKeys -}}
 {{- $sealKeys := dict "issueNew" $seal.issueNew "retire" (include "libredb-platform.retiredKids" . | fromJsonArray) -}}
 {{- if $seal.activeKid }}{{ $_ := set $sealKeys "activeKid" (include "libredb-platform.kid" (dict "value" $seal.activeKid "name" "platform.sealKeys.activeKid")) }}{{ end -}}

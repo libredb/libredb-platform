@@ -8,8 +8,8 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync,
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse, parseAllDocuments } from "yaml";
-import { parseInstallation } from "../../../src/config/schema";
-import { runBootstrap } from "../../../src/kubernetes/bootstrap";
+import { DEFAULT_MOBILE_REDIRECT_URI, parseInstallation } from "../../../src/config/schema";
+import { runBootstrap, STUDIO_EXTRA_ENV_KEYS } from "../../../src/kubernetes/bootstrap";
 import { computeDesired } from "../../../src/model/desired";
 import { renderStudioEnv } from "../../../src/model/studio-env";
 import { parseReleaseManifest } from "../../../src/release/manifest";
@@ -191,6 +191,44 @@ describe("the installation document", () => {
     const document = installationOf(render(["keycloak.firstAdmin.enabled=false", "keycloak.userManager.enabled=true"]));
     expect(parseInstallation(document).keycloak.firstAdmin.enabled).toBe(false);
   });
+
+  test("mobile.* defaults to the installer's, and the document holds no mobile section until mobile.enabled is true", () => {
+    const values = parse(readFileSync(join(CHART, "values.yaml"), "utf8"));
+    expect(values.mobile).toEqual({ enabled: false, redirectUri: DEFAULT_MOBILE_REDIRECT_URI, postLogoutRedirectUri: DEFAULT_MOBILE_REDIRECT_URI });
+    expect("mobile" in installationOf(render())).toBe(false);
+    expect("mobile" in installationOf(render(["mobile.enabled=false", "mobile.redirectUri=https://app.acme.example/cb"]))).toBe(false);
+    const enabled = installationOf(render(["mobile.enabled=true"]));
+    expect(enabled.mobile).toEqual({ enabled: true, redirectUri: DEFAULT_MOBILE_REDIRECT_URI, postLogoutRedirectUri: DEFAULT_MOBILE_REDIRECT_URI });
+    expect(computeDesired(parseInstallation(enabled), manifest).clients.mobile).toEqual({
+      redirectUri: DEFAULT_MOBILE_REDIRECT_URI,
+      postLogoutRedirectUri: DEFAULT_MOBILE_REDIRECT_URI,
+    });
+  });
+
+  test.each([
+    ["managed Keycloak", []],
+    ["the site's Keycloak, provisioning installer", ["keycloak.mode=external", "keycloak.external.baseUrl=https://auth.libredb.test", "keycloak.external.adminSecret=kc", "keycloak.external.adminClientId=c"]],
+    ["the site's Keycloak, provisioning manual", ["keycloak.mode=external", "keycloak.external.baseUrl=https://auth.libredb.test", "keycloak.external.provisioning=manual", "keycloak.external.clientSecretsSecret=kc"]],
+  ])("mobile.enabled with the %s passes the given URIs to the installer's schema", (_name, sets) => {
+    const document = installationOf(
+      render([...(sets as string[]), "mobile.enabled=true", "mobile.redirectUri=com.acme.libredb:/oauth2redirect", "mobile.postLogoutRedirectUri=https://app.acme.example/signed-out"]),
+    );
+    expect(parseInstallation(document).mobile).toEqual({
+      enabled: true,
+      redirectUri: "com.acme.libredb:/oauth2redirect",
+      postLogoutRedirectUri: "https://app.acme.example/signed-out",
+    });
+  });
+
+  test.each(["libredb:/oauth2redirect", "http://app.acme.example/cb", "org.libredb.mobile:/*", "https://app.acme.example/cb#x", "not a uri"])(
+    "the installer's schema refuses %s as either mobile URI, naming the value",
+    (uri) => {
+      for (const key of ["redirectUri", "postLogoutRedirectUri"]) {
+        const document = installationOf(render(["mobile.enabled=true", `mobile.${key}=${uri}`]));
+        expect(() => parseInstallation(document)).toThrow(`mobile.${key}: expected a private-use URI scheme in reverse domain name form`);
+      }
+    },
+  );
 });
 
 describe("the seal key and AUTH_SECRET rotations", () => {
@@ -380,6 +418,30 @@ describe("the workloads", () => {
     }
     const fromSecret = (container.env as { name: string; valueFrom?: { secretKeyRef?: { name: string } } }[]).filter((entry) => entry.valueFrom?.secretKeyRef?.name === "libredb-studio-env").map((entry) => entry.name);
     expect(fromSecret).toEqual(expect.arrayContaining(["JWT_SECRET", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET", "STORAGE_POSTGRES_URL", "GOVERNANCE_POSTGRES_URL", "STORAGE_ENCRYPTION_KEY"]));
+  });
+
+  test("with mobile.enabled, every key of the installer's renderStudioEnv reaches Studio from the Studio chart or the bootstrap job", () => {
+    const all = render(["mobile.enabled=true"]);
+    const configMap = find(all, "ConfigMap", "libredb-studio-config").data ?? {};
+    const container = find(all, "Deployment", "libredb-studio").spec.template.spec.containers[0];
+    const fromChart = new Set([...Object.keys(configMap), ...(container.env as { name: string }[]).map((entry) => entry.name)]);
+    const expected = renderStudioEnv(computeDesired(parseInstallation(installationOf(all)), manifest), {
+      postgres: { host: "libredb-postgres", port: 5432 },
+      secrets: { oidcClientSecret: "s", jwtSecret: "j", storageEncryptionKey: "k", databasePassword: "p" },
+    });
+    expect(expected).toMatchObject({ OIDC_BEARER_AUDIENCE: "libredb-studio-api", OIDC_BEARER_CLIENT_IDS: "libredb-mobile" });
+    const missing = Object.keys(expected).filter((key) => !fromChart.has(key) && !(STUDIO_EXTRA_ENV_KEYS as readonly string[]).includes(key));
+    expect(missing).toEqual([]);
+    // The bootstrap job's Secret, which Studio reads whole.
+    expect(container.envFrom).toContainEqual({ secretRef: { name: "libredb-studio-network-env", optional: true } });
+  });
+
+  test("mobile.enabled leaves every workload as it was, and changes only the installation document and the jobs it names", () => {
+    const strip = (docs: Doc[]) =>
+      docs
+        .filter((doc) => !(doc.kind === "Job" && /-[0-9a-f]{8}$/.test(doc.metadata.name)))
+        .filter((doc) => !(doc.kind === "ConfigMap" && ["libredb-chart", "libredb-bootstrap-chart"].includes(doc.metadata.name)));
+    expect(strip(render(["mobile.enabled=true"]))).toEqual(strip(render()));
   });
 
   test("the managed Keycloak's environment equals the installer's compose service", () => {

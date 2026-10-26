@@ -83,6 +83,7 @@ When one of them changes, the restart job restarts the workloads that read it, o
 | `keycloak.external.clientSecretsSecret` | | With `manual`: the Secret with `studio-client-secret` and `platform-client-secret` |
 | `keycloak.external.caBundle` | | The PEM of your Keycloak's CA, when a private CA issued its certificate |
 | `network.httpsProxy` | | An http(s) proxy for the apps' outbound HTTPS, without credentials |
+| `mobile.enabled`, `redirectUri`, `postLogoutRedirectUri` | `false`, `org.libredb.mobile:/oauth2redirect`, `org.libredb.mobile:/oauth2redirect` | The LibreDB mobile app: the public client `libredb-mobile` and both apps' bearer settings; see the guide's "The mobile app" |
 | `jobs.backoffLimit`, `activeDeadlineSeconds`, `resources` | `6`, `900` | The chart's jobs |
 | `networkPolicy.enabled` | `true` | PostgreSQL and Keycloak's Admin API reachable only from this release's pods |
 | `platform.sealKeys.issueNew`, `activeKid`, `retire` | `false`, `""`, `[]` | The seal key rotation, one upgrade per step; see the guide's "Rotate secrets and the seal key" |
@@ -96,7 +97,7 @@ The chart refuses to render, naming the value, when a required value is missing 
 ## Tests
 
 - `installer/test/unit/kubernetes/chart.test.ts` renders the chart with `helm template` and holds it to the installer: render guards, the installation document against the schema, the release manifest's pins, Studio's and Keycloak's environments against the installer's renderers, the bootstrap Role against every object the job writes, and the pods' security.
-- `tests/e2e/run-e2e.sh` installs on a local kind cluster and runs the browser suite of `installer/e2e/kubernetes`.
+- `tests/e2e/run-e2e.sh` installs on a local kind cluster, runs the browser suite of `installer/e2e/kubernetes`, and signs in through `libredb-mobile` after an upgrade with `mobile.enabled`.
 - `tests/e2e/run-openshift.sh` does the same on OpenShift, in the namespace of the current `oc login`, under the `restricted-v2` SCC.
 - `tests/e2e/run-rotation.sh` rotates the seal key and the generated secrets; `tests/e2e/run-resilience.sh` kills pods and restarts the node; `tests/e2e/run-soak.sh` runs one installation for hours.
 - `tests/e2e/run-restore.sh` backs up, deletes the namespace and restores; `tests/e2e/run-offline.sh` installs the packaged archive from an image mirror with no network for Helm.

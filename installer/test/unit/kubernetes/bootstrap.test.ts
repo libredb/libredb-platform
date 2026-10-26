@@ -384,6 +384,19 @@ describe("the bootstrap job across upgrades", () => {
     expect(env.NO_PROXY).toBe(objects.secret(K8S_NAMES.platformEnv).NO_PROXY as string);
   });
 
+  test("the mobile app's bearer variables reach Platform's environment and Studio's installer Secret only with mobile.enabled", async () => {
+    const bearerKeys = ["PLATFORM_API_AUDIENCE", "PLATFORM_API_CLIENT_IDS", "OIDC_BEARER_AUDIENCE", "OIDC_BEARER_CLIENT_IDS"];
+    const off = new MemoryObjects();
+    await bootstrap(off);
+    const offEnv = { ...off.secret(K8S_NAMES.platformEnv), ...off.secret(K8S_NAMES.studioNetworkEnv) };
+    expect(bearerKeys.filter((key) => key in offEnv)).toEqual([]);
+    const on = new MemoryObjects();
+    await bootstrap(on, installation({ mobile: { enabled: true } }));
+    expect(on.secret(K8S_NAMES.platformEnv)).toMatchObject({ PLATFORM_API_AUDIENCE: "libredb-platform-api", PLATFORM_API_CLIENT_IDS: "libredb-mobile" });
+    expect(on.secret(K8S_NAMES.studioNetworkEnv)).toMatchObject({ OIDC_BEARER_AUDIENCE: "libredb-studio-api", OIDC_BEARER_CLIENT_IDS: "libredb-mobile" });
+    expect(on.secret(K8S_NAMES.studioNetworkEnv).NO_PROXY).toBe(off.secret(K8S_NAMES.studioNetworkEnv).NO_PROXY as string);
+  });
+
   test("the release is recorded once the restart job ran, kept by later state saves, and an older one is refused", async () => {
     const objects = new MemoryObjects();
     await bootstrap(objects);
